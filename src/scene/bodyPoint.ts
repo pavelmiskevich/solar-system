@@ -147,9 +147,29 @@ export class BodyPoint {
 
     // Размер точки не меньше физического — вблизи она обязана совпасть с диском.
     const pixelRadius = Math.max(magnitudeToPointRadius(magnitude), truePixels);
-    this.mesh.position.copy(bodyRenderPosition);
+
+    /*
+     * Билборд выносится вперёд собственной сферы.
+     *
+     * Если оставить его в центре тела, ближняя половина плоскости окажется
+     * внутри сферы, и та закроет середину точки: вместо светящегося тела
+     * получается тёмный диск с ободком. Ровно это и происходило с Ио.
+     *
+     * Выносить надо именно к камере, а не отключать проверку глубины: точка
+     * обязана прятаться за телами, которые действительно перед ней. Запас
+     * в пять процентов радиуса покрывает и сжатие тела у полюсов.
+     */
+    const standoff = bodyRadiusKm * 1.05;
+    const billboardDistance = Math.max(distance - standoff, distance * 0.01);
+
+    this.mesh.position
+      .copy(bodyRenderPosition)
+      .multiplyScalar(billboardDistance / distance);
     this.mesh.quaternion.copy(camera.quaternion);
-    this.mesh.scale.setScalar(pixelRadius * radiansPerPixel * distance);
+
+    // Угловой размер считается от расстояния до самого билборда, иначе вынос
+    // вперёд незаметно увеличил бы точку у близких тел.
+    this.mesh.scale.setScalar(pixelRadius * radiansPerPixel * billboardDistance);
 
     this.mesh.material.uniforms.uBrightness!.value =
       (SKY_POINT_INTENSITY * magnitudeToBrightness(magnitude) * opacity) / Math.max(exposure, 1e-4);

@@ -85,6 +85,61 @@ export async function distanceInRadii(page: Page, id: string): Promise<number> {
   }, id);
 }
 
+/**
+ * Дождаться, пока экспозиция перестанет меняться.
+ *
+ * Ждать её фиксированной паузой нельзя. Адаптация идёт по `dt` кадрового цикла,
+ * а тот ограничен сверху (иначе после переключения вкладки сцена скакнула бы
+ * на полчаса вперёд). Пока кадры идут часто, шаг по времени совпадает с
+ * настенным; но когда воркеры Playwright делят одну видеокарту и частота
+ * падает, ограничение срабатывает, и адаптация отстаёт от секундомера в разы.
+ * Отсюда и брались падения «на ровном месте» в полном прогоне при зелёном
+ * одиночном запуске.
+ *
+ * Поэтому ждём не время, а результат: значение считается установившимся, когда
+ * несколько замеров подряд отличаются меньше чем на процент.
+ */
+export async function waitForStableExposure(page: Page, timeout = 40_000): Promise<number> {
+  return page.evaluate(
+    async (limit) => {
+      /**
+       * Замеры разносим во времени. Сравнивать соседние кадры бессмысленно:
+       * при постоянной времени 1.5 с и шестидесяти кадрах в секунду шаг за
+       * кадр составляет около процента, то есть попадает в любой разумный
+       * порог «не меняется» — и разгар адаптации не отличить от покоя.
+       * За четверть секунды шаг составляет уже полтора десятка процентов,
+       * и разница видна безошибочно.
+       */
+      const SAMPLE_MS = 250;
+      const STABLE_SAMPLES = 6;
+      const TOLERANCE = 0.005;
+
+      const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+      const read = () => window.sim.exposure.value as number;
+
+      const window_: number[] = [];
+      const deadline = Date.now() + limit;
+
+      while (Date.now() < deadline) {
+        await sleep(SAMPLE_MS);
+        window_.push(read());
+        if (window_.length > STABLE_SAMPLES) window_.shift();
+
+        if (window_.length === STABLE_SAMPLES) {
+          const lo = Math.min(...window_);
+          const hi = Math.max(...window_);
+          if (hi - lo <= lo * TOLERANCE) return hi;
+        }
+      }
+
+      // Не устоялось за отведённое время — отдаём последнее значение, чтобы
+      // тест упал на осмысленной проверке, а не на таймауте помощника.
+      return read();
+    },
+    timeout,
+  );
+}
+
 /** Дождаться конца перелёта. */
 export async function waitForArrival(page: Page, id: string): Promise<void> {
   await page.waitForFunction(

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
 
-import { keepWithoutOverlap, type LabelBox } from '../src/ui/labels';
+import {
+  isHiddenBehindDisc,
+  keepWithoutOverlap,
+  type LabelBox,
+  type LabelDisc,
+} from '../src/ui/labels';
 import {
   angularRadiusPixels,
   projectToScreen,
@@ -131,5 +136,63 @@ describe('keepWithoutOverlap', () => {
 
   it('пустой список не ломает разбор', () => {
     expect(keepWithoutOverlap([])).toEqual([]);
+  });
+});
+
+describe('подпись закрытого тела', () => {
+  const disc = (x: number, y: number, radiusPx: number, depth: number): LabelDisc => ({
+    x,
+    y,
+    radiusPx,
+    depth,
+  });
+
+  it('спутник за диском планеты закрыт ею', () => {
+    // Ганимед в 1.37 млн км за Юпитером в 0.33 млн, и проецируется на его диск.
+    const jupiter = disc(800, 450, 185, 328_863);
+    const ganymede = disc(845, 300, 1.2, 1_371_366);
+
+    expect(isHiddenBehindDisc([jupiter, ganymede], 1)).toBe(true);
+  });
+
+  it('спутник перед диском планеты не закрыт', () => {
+    const jupiter = disc(800, 450, 185, 328_863);
+    const io = disc(845, 300, 1.4, 200_000);
+
+    expect(isHiddenBehindDisc([jupiter, io], 1)).toBe(false);
+  });
+
+  it('спутник рядом с диском, но вне его, не закрыт', () => {
+    const jupiter = disc(800, 450, 185, 328_863);
+    const outside = disc(800, 450 - 200, 1.2, 1_371_366);
+
+    expect(isHiddenBehindDisc([jupiter, outside], 1)).toBe(false);
+  });
+
+  it('далёкая точка не закрывает собой ничего', () => {
+    // Совпадение на экране двух точек — не перекрытие: у точки нет диска.
+    const near = disc(500, 500, 0.8, 1_000);
+    const far = disc(500, 500, 0.5, 9_000_000);
+
+    expect(isHiddenBehindDisc([near, far], 1)).toBe(false);
+  });
+
+  it('тело не закрывает само себя', () => {
+    expect(isHiddenBehindDisc([disc(0, 0, 300, 1_000)], 0)).toBe(false);
+  });
+
+  it('тело вне кадра в расчёте не участвует', () => {
+    const jupiter = disc(800, 450, 185, 328_863);
+
+    expect(isHiddenBehindDisc([jupiter, null], 1)).toBe(false);
+    expect(isHiddenBehindDisc([null, jupiter], 1)).toBe(false);
+  });
+
+  it('край диска подпись не гасит', () => {
+    // Ровно на границе тело видно краем: мигать подписью там нельзя.
+    const jupiter = disc(800, 450, 185, 328_863);
+    const atLimb = disc(800 + 185, 450, 1.2, 1_371_366);
+
+    expect(isHiddenBehindDisc([jupiter, atLimb], 1)).toBe(false);
   });
 });

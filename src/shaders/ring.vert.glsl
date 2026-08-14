@@ -1,3 +1,6 @@
+#include <common>
+#include <logdepthbuf_pars_vertex>
+
 varying vec3 vBodyPosition;
 varying vec3 vWorldPosition;
 
@@ -10,4 +13,6 @@ void main() {
   vWorldPosition = world.xyz;
 
   gl_Position = projectionMatrix * viewMatrix * world;
+
+  #include <logdepthbuf_vertex>
 }

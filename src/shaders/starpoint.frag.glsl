@@ -1,9 +1,13 @@
+#include <logdepthbuf_pars_fragment>
+
 uniform float uIntensity;
 
 varying vec3 vColor;
 varying float vBrightness;
 
 void main() {
+  #include <logdepthbuf_fragment>
+
   // Мягкий круглый профиль вместо квадратной точки.
   vec2 d = gl_PointCoord * 2.0 - 1.0;
   float r2 = dot(d, d);

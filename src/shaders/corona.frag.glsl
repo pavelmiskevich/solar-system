@@ -1,3 +1,5 @@
+#include <logdepthbuf_pars_fragment>
+
 uniform float uTime;
 uniform float uIntensity;
 uniform vec3 uColor;
@@ -7,6 +9,8 @@ uniform float uCoreRadius;
 varying vec2 vUv;
 
 void main() {
+  #include <logdepthbuf_fragment>
+
   vec2 d = vUv * 2.0 - 1.0;
   float r = length(d);
   if (r > 1.0) discard;

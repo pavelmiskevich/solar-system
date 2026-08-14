@@ -11,6 +11,8 @@
  * Требует noise.glsl (gnoise, fbm) и, для твёрдых тел, cellular.glsl.
  */
 
+#include <logdepthbuf_pars_fragment>
+
 uniform vec3 uSunPosition;
 /** Квадрат астрономической единицы: облучённость на 1 а.е. равна единице. */
 uniform float uIrradianceScale;
@@ -103,6 +105,8 @@ float spotMask(vec3 p) {
 }
 
 void main() {
+  #include <logdepthbuf_fragment>
+
   vec3 p = vObjectPosition;
   float height = 0.0;
   float gloss = 0.0;

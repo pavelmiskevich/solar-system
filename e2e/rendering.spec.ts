@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 
-import { openScene, pauseAt, waitForArrival, waitForFrames } from './helpers';
+import {
+  openScene,
+  pauseAt,
+  waitForArrival,
+  waitForFrames,
+  waitForStableExposure,
+} from './helpers';
 
 /**
  * Рендеринг: экспозиция, кольца, поверхности.
@@ -19,23 +25,20 @@ test.describe('рендеринг', () => {
     // Дневная сторона Луны: экспозиция около единицы, как и положено в одной
     // астрономической единице от Солнца.
     await page.evaluate(() => window.sim.goTo('moon', 3.2, 50));
-    await page.waitForTimeout(4000);
-    const day = await page.evaluate(() => window.sim.exposure.value);
+    const day = await waitForStableExposure(page);
 
     expect(day).toBeGreaterThan(0.5);
     expect(day).toBeLessThan(3);
 
     // Ночная сторона: света в десять тысяч раз меньше, и «зрачок» раскрывается.
     await page.evaluate(() => window.sim.goTo('moon', 3.2, 170));
-    await page.waitForTimeout(8000);
-    const night = await page.evaluate(() => window.sim.exposure.value);
+    const night = await waitForStableExposure(page);
 
     expect(night).toBeGreaterThan(day * 50);
 
     // И возвращается обратно, когда снова смотрим на освещённое.
     await page.evaluate(() => window.sim.goTo('moon', 3.2, 50));
-    await page.waitForTimeout(8000);
-    const back = await page.evaluate(() => window.sim.exposure.value);
+    const back = await waitForStableExposure(page);
 
     expect(back).toBeLessThan(night / 10);
   });

@@ -85,6 +85,57 @@ export function keepWithoutOverlap(boxes: readonly LabelBox[]): boolean[] {
   return kept;
 }
 
+/** Диск тела на экране — то, чем одно тело может закрыть другое. */
+export interface LabelDisc {
+  x: number;
+  y: number;
+  radiusPx: number;
+  /** Расстояние до камеры; меньше — ближе. */
+  depth: number;
+}
+
+/**
+ * Закрыто ли тело диском другого тела.
+ *
+ * Нужно потому, что «тело нарисовано» и «тело видно» — разные вещи. Ганимед
+ * уходит за Юпитер каждые несколько часов, и на это время его подпись начинает
+ * указывать на облачные полосы Юпитера, обещая спутник там, где его нет.
+ *
+ * Закрывающим считается только тело, у которого есть различимый диск: далёкая
+ * планета нарисована точкой в пару пикселей и закрыть собой ничего не может,
+ * сколько бы точек ни совпало на экране.
+ *
+ * @param index номер проверяемого тела — само себя оно не закрывает
+ */
+export function isHiddenBehindDisc(
+  discs: readonly (LabelDisc | null)[],
+  index: number,
+): boolean {
+  const target = discs[index];
+  if (!target) return false;
+
+  for (let i = 0; i < discs.length; i += 1) {
+    if (i === index) continue;
+
+    const occluder = discs[i];
+    if (!occluder) continue;
+    // Точка закрыть не может, и дальнее не закрывает ближнее.
+    if (occluder.radiusPx < MIN_OCCLUDER_RADIUS || occluder.depth >= target.depth) continue;
+
+    const dx = target.x - occluder.x;
+    const dy = target.y - occluder.y;
+    // Небольшой недобор радиуса: у самого края диска тело видно краем, и
+    // гасить подпись там значило бы мигать ею на каждом касании лимба.
+    const limit = occluder.radiusPx * 0.98;
+    if (dx * dx + dy * dy < limit * limit) return true;
+  }
+
+  return false;
+}
+
+/** Меньше этого радиуса тело — точка на небе, а не заслонка. */
+const MIN_OCCLUDER_RADIUS = 1.5;
+
 interface LabelEntry {
   readonly source: LabelSource;
   readonly element: HTMLElement;
@@ -99,6 +150,8 @@ interface LabelEntry {
 export class LabelLayer {
   private readonly entries: LabelEntry[] = [];
   private readonly point: ScreenPoint = { x: 0, y: 0, depth: 0 };
+  private readonly probe: ScreenPoint = { x: 0, y: 0, depth: 0 };
+  private readonly discs: (LabelDisc | null)[] = [];
   private readonly boxes: LabelBox[] = [];
   private enabled = true;
 
@@ -160,11 +213,29 @@ export class LabelLayer {
   update(camera: PerspectiveCamera, widthPx: number, heightPx: number, dt: number): void {
     this.boxes.length = 0;
 
-    // Первый проход: где подпись оказалась бы и претендует ли она на место.
+    // Первый проход: диски тел на экране — по ним видно, кто кого закрывает.
+    this.discs.length = 0;
+    for (const entry of this.entries) {
+      if (!projectToScreen(entry.source.renderPosition, camera, widthPx, heightPx, this.probe)) {
+        this.discs.push(null);
+        continue;
+      }
+      this.discs.push({
+        x: this.probe.x,
+        y: this.probe.y,
+        depth: this.probe.depth,
+        radiusPx: angularRadiusPixels(entry.source.radius, this.probe.depth, camera.fov, heightPx),
+      });
+    }
+
+    // Второй проход: где подпись оказалась бы и претендует ли она на место.
     const candidates: (LabelBox | null)[] = [];
 
-    for (const entry of this.entries) {
-      const box = this.place(entry, camera, widthPx, heightPx);
+    for (let i = 0; i < this.entries.length; i += 1) {
+      const entry = this.entries[i]!;
+      const box = isHiddenBehindDisc(this.discs, i)
+        ? null
+        : this.place(entry, camera, widthPx, heightPx);
       candidates.push(box);
       if (box) this.boxes.push(box);
     }
@@ -186,7 +257,7 @@ export class LabelLayer {
 
   /**
    * Экранное место подписи, либо null, если её не должно быть: тело за спиной,
-   * за краем кадра или не нарисовано вовсе.
+   * за краем кадра, не нарисовано вовсе или закрыто другим телом.
    */
   private place(
     entry: LabelEntry,

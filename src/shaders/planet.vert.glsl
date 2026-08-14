@@ -4,6 +4,9 @@
  * у эллипсоида она равна (x/a², y/b², z/a²), и без деления на квадрат масштаба
  * освещение Сатурна врёт ровно на его сжатие.
  */
+#include <common>
+#include <logdepthbuf_pars_vertex>
+
 uniform vec3 uInvScaleSq;
 
 varying vec3 vObjectPosition;
@@ -20,4 +23,6 @@ void main() {
   vWorldPosition = world.xyz;
 
   gl_Position = projectionMatrix * viewMatrix * world;
+
+  #include <logdepthbuf_vertex>
 }

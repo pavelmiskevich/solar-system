@@ -1,3 +1,6 @@
+#include <common>
+#include <logdepthbuf_pars_vertex>
+
 attribute float aSize;
 attribute float aBrightness;
 attribute vec3 aColor;
@@ -23,4 +26,6 @@ void main() {
   vBrightness = aBrightness * min(1.0, px / floorPx);
 
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+  #include <logdepthbuf_vertex>
 }

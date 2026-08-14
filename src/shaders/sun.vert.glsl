@@ -1,3 +1,6 @@
+#include <common>
+#include <logdepthbuf_pars_vertex>
+
 varying vec3 vObjectPosition;
 varying vec3 vViewNormal;
 varying vec3 vViewPosition;
@@ -10,4 +13,6 @@ void main() {
   vViewPosition = viewPosition.xyz;
 
   gl_Position = projectionMatrix * viewPosition;
+
+  #include <logdepthbuf_vertex>
 }

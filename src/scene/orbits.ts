@@ -62,14 +62,24 @@ export class OrbitLines {
           uOpacity: { value: 0.22 },
         },
         vertexShader: /* glsl */ `
+          #include <common>
+          #include <logdepthbuf_pars_vertex>
+
           void main() {
             gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+            #include <logdepthbuf_vertex>
           }
         `,
         fragmentShader: /* glsl */ `
+          #include <logdepthbuf_pars_fragment>
+
           uniform vec3 uColor;
           uniform float uOpacity;
+
           void main() {
+            #include <logdepthbuf_fragment>
+
             gl_FragColor = vec4(uColor * uOpacity, 1.0);
           }
         `,

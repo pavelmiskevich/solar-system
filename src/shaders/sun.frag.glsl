@@ -1,3 +1,5 @@
+#include <logdepthbuf_pars_fragment>
+
 uniform float uTime;
 uniform float uIntensity;
 uniform vec3 uCoolColor;
@@ -8,6 +10,8 @@ varying vec3 vViewNormal;
 varying vec3 vViewPosition;
 
 void main() {
+  #include <logdepthbuf_fragment>
+
   // Косинус угла между нормалью и лучом зрения. У края диска стремится к нулю.
   vec3 viewDir = normalize(-vViewPosition);
   float mu = clamp(dot(normalize(vViewNormal), viewDir), 0.0, 1.0);

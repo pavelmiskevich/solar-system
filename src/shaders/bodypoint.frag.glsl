@@ -1,9 +1,13 @@
+#include <logdepthbuf_pars_fragment>
+
 uniform vec3 uColor;
 uniform float uBrightness;
 
 varying vec2 vUv;
 
 void main() {
+  #include <logdepthbuf_fragment>
+
   vec2 d = vUv * 2.0 - 1.0;
   float r2 = dot(d, d);
   if (r2 > 1.0) discard;

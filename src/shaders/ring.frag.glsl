@@ -10,6 +10,8 @@
  * Требует noise.glsl и rings.glsl.
  */
 
+#include <logdepthbuf_pars_fragment>
+
 uniform vec3 uSunPosition;
 uniform float uIrradianceScale;
 /** Направление на Солнце в системе координат тела. */
@@ -24,6 +26,8 @@ varying vec3 vBodyPosition;
 varying vec3 vWorldPosition;
 
 void main() {
+  #include <logdepthbuf_fragment>
+
   float radius = length(vBodyPosition.xz);
   float density = ringDensity(radius);
   if (density < 0.004) discard;
