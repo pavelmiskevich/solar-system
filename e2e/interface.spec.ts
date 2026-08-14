@@ -39,9 +39,62 @@ test.describe('интерфейс', () => {
     await expect(help).not.toHaveClass(/closed/);
     await expect(toggle).toHaveText('Справка ✕');
 
-    // Порядок в колонке: справка сверху, список тел под ней.
+    // Порядок в колонке: поддержка сверху, под ней справка, под ней список тел.
     const order = await page.locator('#bodies > button').allTextContents();
-    expect(order).toEqual(['Справка ✕', 'Тела ☰']);
+    expect(order).toEqual(['Поддержать ♥', 'Справка ✕', 'Тела ☰']);
+  });
+
+  test('карточка поддержки открывается, закрывается и ведёт на CloudTips', async ({ page }) => {
+    await openScene(page);
+
+    const support = page.locator('#support');
+    const toggle = page.locator('.support-toggle');
+
+    // На старте карточки нет: она открывается только по требованию.
+    await expect(support).toHaveClass(/closed/);
+    await expect(toggle).toHaveText('Поддержать ♥');
+
+    await toggle.click();
+    await expect(support).not.toHaveClass(/closed/);
+    await expect(toggle).toHaveText('Поддержать ✕');
+    await expect(page.getByRole('heading', { name: 'Поддержать автора' })).toBeVisible();
+
+    // Ссылка ведёт куда заявлено и открывается без доступа к нашей вкладке:
+    // без rel="noopener" открытая страница может подменить её содержимое.
+    const pay = support.locator('.support-pay');
+    await expect(pay).toHaveAttribute('href', 'https://pay.cloudtips.ru/p/86c3292c');
+    await expect(pay).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(pay).toHaveAttribute('target', '_blank');
+
+    // QR-код именно загрузился, а не просто присутствует в разметке: битая
+    // картинка отрисовалась бы пустым местом и заметна была бы не сразу.
+    const qrLoaded = await support
+      .locator('.support-qr img')
+      .evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0);
+    expect(qrLoaded).toBe(true);
+
+    await page.keyboard.press('Escape');
+    await expect(support).toHaveClass(/closed/);
+  });
+
+  test('справка и поддержка не открываются одновременно', async ({ page }) => {
+    // Обе карточки занимают середину экрана: открытые разом легли бы одна
+    // поверх другой.
+    await openScene(page);
+
+    const help = page.locator('#help');
+    const support = page.locator('#support');
+
+    await page.locator('.support-toggle').click();
+    await expect(support).not.toHaveClass(/closed/);
+
+    await page.locator('.help-toggle').click();
+    await expect(help).not.toHaveClass(/closed/);
+    await expect(support).toHaveClass(/closed/);
+
+    await page.locator('.support-toggle').click();
+    await expect(support).not.toHaveClass(/closed/);
+    await expect(help).toHaveClass(/closed/);
   });
 
   test('список тел сворачивается и разворачивается', async ({ page }) => {

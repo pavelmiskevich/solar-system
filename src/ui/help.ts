@@ -72,8 +72,13 @@ export class HelpPanel {
   /**
    * @param container слой, в котором лежит затемнение с карточкой
    * @param buttonHost куда встаёт кнопка-переключатель; по умолчанию туда же
+   * @param onOpen вызывается при открытии — им закрывается соседняя панель
    */
-  constructor(container: HTMLElement, buttonHost: HTMLElement = container) {
+  constructor(
+    container: HTMLElement,
+    buttonHost: HTMLElement = container,
+    private readonly onOpen?: () => void,
+  ) {
     // Кнопка нужна тому, кто не знает про клавиши: узнать про H из справки,
     // которую открывают клавишей H, невозможно. Поэтому она стоит рядом со
     // списком тел, подписана словом и выглядит так же — два видимых входа в
@@ -88,20 +93,21 @@ export class HelpPanel {
 
     this.root = document.createElement('div');
     this.root.id = 'help';
-    this.root.className = 'closed';
+    // Вид карточки — общий с панелью поддержки, см. `.overlay` в index.html.
+    this.root.className = 'overlay closed';
 
     const card = document.createElement('div');
-    card.className = 'help-card';
+    card.className = 'overlay-card';
 
     const header = document.createElement('div');
-    header.className = 'help-header';
+    header.className = 'overlay-header';
 
     const title = document.createElement('h1');
     title.textContent = 'Управление';
 
     const close = document.createElement('button');
     close.type = 'button';
-    close.className = 'help-close';
+    close.className = 'overlay-close';
     close.textContent = '✕';
     close.title = 'Закрыть (H или Esc)';
     close.addEventListener('click', () => this.setOpen(false));
@@ -178,6 +184,7 @@ export class HelpPanel {
     this.updateLabel();
     // Справку читают мышью и глазами: захват мыши на это время отпускается.
     if (open && document.pointerLockElement) document.exitPointerLock();
+    if (open) this.onOpen?.();
   }
 
   toggle(): void {

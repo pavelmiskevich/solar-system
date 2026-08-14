@@ -90,6 +90,39 @@ describe('AdaptiveExposure', () => {
     expect(exposure.value).toBeCloseTo(1, 2);
   });
 
+  it('установившаяся экспозиция не зависит от частоты кадров', () => {
+    // Ради этого поправка и решается напрямую, а не накапливается шагами.
+    // При накоплении замеры шли десять раз в секунду, а значение догоняло их
+    // с постоянной полторы секунды, и итог зависел от того, сколько замеров
+    // уместилось в переход: на 144 кадрах и на загруженной машине одна и та
+    // же сцена приходила к разной экспозиции.
+    const settleAt = (step: number, luminance: number): number => {
+      const exposure = new AdaptiveExposure();
+      let value = exposure.value;
+      for (let t = 0; t < 30; t += step) value = exposure.update(step, AU, luminance);
+      return value;
+    };
+
+    for (const luminance of [4, 0.5, 2.5e-5]) {
+      const fast = settleAt(1 / 144, luminance);
+      const normal = settleAt(1 / 60, luminance);
+      const slow = settleAt(1 / 15, luminance);
+
+      expect(normal / fast).toBeCloseTo(1, 3);
+      expect(slow / fast).toBeCloseTo(1, 3);
+    }
+  });
+
+  it('пересвеченный дневной кадр не проваливает экспозицию втрое', () => {
+    // Тот самый случай, на котором ловился плавающий сквозной тест: дневная
+    // сторона Луны в одной астрономической единице от Солнца. Экспозиция
+    // обязана остаться около единицы, а не осесть на трети.
+    const day = settle(new AdaptiveExposure(), 1, 1.2);
+
+    expect(day).toBeGreaterThan(0.5);
+    expect(day).toBeLessThan(3);
+  });
+
   it('адаптация не мгновенная: за один кадр экспозиция меняется чуть-чуть', () => {
     const exposure = new AdaptiveExposure();
     exposure.reset(AU);

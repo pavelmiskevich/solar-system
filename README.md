@@ -3,6 +3,11 @@
 Трёхмерная модель Солнечной системы в браузере: настоящие расстояния, настоящие
 размеры, орбиты по эфемеридам JPL и свободный полёт между планетами.
 
+[![Лицензия MIT](https://img.shields.io/badge/%D0%9B%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-3DA639)](LICENSE)
+[![three.js](https://img.shields.io/badge/three.js-r185-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
+[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-175%20%2B%2024-729B1B?logo=vitest&logoColor=white)](#проверка)
+[![Поддержать](https://img.shields.io/badge/%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-9B6BFF?logo=buymeacoffee&logoColor=white)](https://pay.cloudtips.ru/p/86c3292c)
+
 ![Сатурн с кольцами](docs/shots/saturn.png)
 
 <sub>Сатурн, 1 января 2032 года. Кольца раскрыты к Солнцу почти на максимум,
@@ -214,6 +219,23 @@ scripts/      сборка каталога звёзд, снимки для оп
 - [HYG Database](https://github.com/astronexus/HYG-Database) — каталог звёзд
 
 ---
+
+## ☕ Поддержать автора
+
+Понравился симулятор? Буду благодарен за любую поддержку — она идёт на развитие
+проекта.
+
+<a href="https://pay.cloudtips.ru/p/86c3292c">
+  <img src="https://img.shields.io/badge/%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C_%D1%87%D0%B5%D1%80%D0%B5%D0%B7-CloudTips-9B6BFF?style=for-the-badge&logo=buymeacoffee&logoColor=white" alt="Поддержать через CloudTips" height="42">
+</a>
+
+Оплата в один клик через **СБП**, **T-Pay**, **SberPay** или банковские карты.
+То же самое есть в самой сцене — кнопка «Поддержать» в правом верхнем углу,
+там же QR-код.
+
+---
+
+## Лицензия
 
 Код распространяется по лицензии [MIT](LICENSE).
 

@@ -19,6 +19,7 @@ import { TravelController } from './camera/travel';
 import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
 import { HINT, HelpPanel } from './ui/help';
+import { SupportPanel } from './ui/support';
 import { Hud } from './ui/hud';
 import { LabelLayer } from './ui/labels';
 import { pickBody } from './ui/picking';
@@ -213,8 +214,17 @@ function cardSourceFor(id: string | null): CardSource | null {
   };
 }
 
-// Кнопка справки встаёт над списком тел, в той же колонке и в том же виде.
-const help = new HelpPanel(panelElement, bodyList.column);
+/*
+ * Кнопки справки и поддержки встают над списком тел, в той же колонке и в том
+ * же виде. Обе панели занимают середину экрана, поэтому открытие одной
+ * закрывает другую — иначе карточки легли бы одна поверх другой.
+ *
+ * Порядок создания задаёт порядок кнопок: обе кладут свою через `prepend`, и
+ * каждая следующая встаёт выше предыдущей. Сверху вниз получается
+ * «Поддержать», «Справка», «Тела».
+ */
+const help = new HelpPanel(panelElement, bodyList.column, () => support.setOpen(false));
+const support = new SupportPanel(panelElement, bodyList.column, () => help.setOpen(false));
 
 /*
  * Справка открыта на старте. Сцена не объясняет себя сама: мышь здесь надо
@@ -405,6 +415,7 @@ window.addEventListener('keydown', (event) => {
       break;
     case 'Escape':
       help.setOpen(false);
+      support.setOpen(false);
       break;
     case 'KeyP':
       clock.paused = !clock.paused;
