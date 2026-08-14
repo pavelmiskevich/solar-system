@@ -8,6 +8,7 @@ import { RenderLoop } from './core/loop';
 import { AdaptiveQuality } from './core/quality';
 import { Viewport } from './core/renderer';
 import { AU } from './core/units';
+import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
 import { SceneLuminance } from './lighting/sceneLuminance';
 import { OrbitLines } from './scene/orbits';
@@ -93,23 +94,11 @@ interface Target {
   isDrawn(): boolean;
 }
 
-/** Плутон с 2006 года карликовая планета, и списку положено это знать. */
-const KINDS: Record<string, string> = {
-  sun: 'звезда',
-  moon: 'спутник Земли',
-  pluto: 'карликовая планета',
-  io: 'спутник Юпитера',
-  europa: 'спутник Юпитера',
-  ganymede: 'спутник Юпитера',
-  callisto: 'спутник Юпитера',
-  titan: 'спутник Сатурна',
-};
-
 const targets: Target[] = [
   {
     id: 'sun',
     name: 'Солнце',
-    kind: KINDS.sun!,
+    kind: kindOf('sun'),
     color: 0xffd9a0,
     worldPosition: sun.worldPosition,
     renderPosition: sun.group.position,
@@ -121,7 +110,7 @@ const targets: Target[] = [
   ...system.bodies.map((body) => ({
     id: body.definition.id,
     name: body.definition.name,
-    kind: KINDS[body.definition.id] ?? 'планета',
+    kind: kindOf(body.definition.id),
     color: body.definition.color,
     worldPosition: body.worldPosition,
     renderPosition: body.group.position,
@@ -132,25 +121,8 @@ const targets: Target[] = [
   })),
 ];
 
-/** Порядок в списке — от Солнца наружу, Луна сразу за Землёй. */
-const LIST_ORDER = [
-  'sun',
-  'mercury',
-  'venus',
-  'earth',
-  'moon',
-  'mars',
-  'jupiter',
-  'io',
-  'europa',
-  'ganymede',
-  'callisto',
-  'saturn',
-  'titan',
-  'uranus',
-  'neptune',
-  'pluto',
-];
+/** Порядок в списке выводится из определений тел, см. data/targets.ts. */
+const LIST_ORDER = listOrder();
 
 function findTarget(id: string): Target | undefined {
   return targets.find((target) => target.id === id);

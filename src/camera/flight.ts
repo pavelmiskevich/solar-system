@@ -187,6 +187,15 @@ export class FlightControls {
     this.domElement.addEventListener('wheel', this.onWheel, { passive: true });
   }
 
+  /**
+   * Отписаться от событий.
+   *
+   * В обычном ходе не вызывается и вызываться не должен: сцена живёт ровно
+   * столько же, сколько страница, и подчищать за собой ей не перед кем. Метод
+   * существует для встраивания сцены в чужое приложение и для тестов, которые
+   * поднимают управление отдельно от неё. То же и у `Viewport`, и у
+   * `SceneLuminance` — это соглашение по всему коду, а не забытый вызов.
+   */
   dispose(): void {
     document.removeEventListener('pointerlockchange', this.onPointerLockChange);
     document.removeEventListener('mousemove', this.onMouseMove);

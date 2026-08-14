@@ -89,9 +89,14 @@ export class SolarSystem {
 
   private sizeExaggeration = 1;
 
+  /** Указатель на тела по идентификатору, см. `find`. */
+  private readonly byId = new Map<string, Body>();
+
   constructor() {
     for (const definition of [...PLANETS, MOON, ...MOONS]) {
-      this.bodies.push(this.createBody(definition));
+      const body = this.createBody(definition);
+      this.bodies.push(body);
+      this.byId.set(definition.id, body);
     }
   }
 
@@ -246,8 +251,16 @@ export class SolarSystem {
     return this.sizeExaggeration;
   }
 
+  /**
+   * Поиск тела по идентификатору.
+   *
+   * Через указатель, а не перебором: за кадр он вызывается по разу на Землю,
+   * Луну и хозяина каждого спутника. При шестнадцати телах перебор ничего не
+   * стоит, но и указатель обходится в одну строку в конструкторе, а
+   * рассуждать о стоимости обращения потом не приходится.
+   */
   find(id: string): Body | undefined {
-    return this.bodies.find((b) => b.definition.id === id);
+    return this.byId.get(id);
   }
 
   /** Пересчитать положения и ориентации всех тел на заданный момент. */
