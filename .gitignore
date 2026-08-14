@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.vite/
+*.local
+
+# Рабочие заметки: в репозиторий не идут, всё нужное сказано в README.
+.remember/
+.claude/
+idea.txt
+
+# Отчёты сквозных тестов
+test-results/
+playwright-report/

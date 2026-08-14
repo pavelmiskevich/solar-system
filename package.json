@@ -1,0 +1,27 @@
+{
+  "name": "solar-system",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Симуляция Солнечной системы: реальные расстояния, кеплеровские орбиты, свободный полёт",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "stars": "node scripts/fetch-stars.mjs",
+    "shots": "node scripts/shots.mjs"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/three": "^0.185.4",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  }
+}
