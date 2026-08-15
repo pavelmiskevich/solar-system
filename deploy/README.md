@@ -69,6 +69,20 @@ ssh-keyscan -p 2222 -t ed25519,rsa СЕРВЕР
 Адрес сервера намеренно живёт секретом, а не в репозитории: в логах GitHub
 маскирует значения секретов автоматически.
 
+> **Осторожно с `gh secret set` из Git Bash под Windows.** Он преобразует
+> аргументы, похожие на пути, в windows-вид: `/var/www/solar-system` уезжает
+> как `C:/Program Files/Git/var/www/solar-system`. Выкладка при этом проходит
+> «успешно» — просто создаёт этот путь относительно домашнего каталога и
+> складывает файлы туда. Проверено на себе. Лечится подстановкой значения через
+> stdin и отключением преобразования:
+>
+> ```bash
+> MSYS_NO_PATHCONV=1 printf '%s' '/var/www/solar-system' | gh secret set DEPLOY_PATH --env production
+> ```
+>
+> В задании выкладки на этот случай стоит проверка: путь обязан быть
+> абсолютным, а `current` после выкладки — указывать на новый выпуск.
+
 ## 4. Веб-сервер
 
 Взять `Caddyfile.example`, заменить имя хоста и почту, дописать **отдельным
@@ -95,10 +109,23 @@ sudo systemctl reload caddy                          # не restart
 
 ## 5. Как это работает дальше
 
+`main` защищена, и прямой push в неё отклоняется — а `npm version` делает
+коммит именно туда. Поэтому версия поднимается через ветку:
+
 ```bash
-npm version minor        # 0.1.0 -> 0.2.0, коммит и тег
-git push --follow-tags
+git checkout -b release/v0.3.0
+npm version minor --no-git-tag-version   # только правит package.json
+git commit -am "Версия 0.3.0"
+git push -u origin release/v0.3.0
+gh pr create --fill && gh pr merge --squash --delete-branch
+
+git checkout main && git pull
+git tag v0.3.0 && git push origin v0.3.0   # тег уже на слитом коммите
 ```
+
+Тег ставится последним и на тот коммит, что действительно лежит в `main`.
+Обратный порядок оставляет тег на коммите, которого в ветке нет, и версия в
+`package.json` расходится с выпуском.
 
 Дальше сборка идёт сама: проверка, сборка, GitHub Release с архивом, затем
 выкладка. На сервере появляется `releases/v0.2.0/`, и симлинк `current`
