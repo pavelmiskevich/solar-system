@@ -15,21 +15,14 @@ test.describe('запуск сцены', () => {
   test('страница поднимается без ошибок и рисует кадры', async ({ page }) => {
     const errors = await openScene(page);
 
-    // Кадры действительно идут: считаем вызовы requestAnimationFrame за секунду.
-    const frames = await page.evaluate(
-      () =>
-        new Promise<number>((resolve) => {
-          let count = 0;
-          const start = performance.now();
-          const tick = () => {
-            count += 1;
-            if (performance.now() - start < 1000) requestAnimationFrame(tick);
-            else resolve(count);
-          };
-          requestAnimationFrame(tick);
-        }),
-    );
-    expect(frames).toBeGreaterThan(5);
+    // Кадры действительно идут: ждём десяток подряд. Если сцена встала,
+    // ожидание не завершится и тест упадёт по таймауту — это и есть проверка.
+    //
+    // Считать кадры за фиксированную секунду нельзя, и это выяснилось на
+    // первом же прогоне в CI: на runner без видеокарты за секунду набирается
+    // ровно столько кадров, сколько успевает программный растеризатор, и порог
+    // начинает проверять быстродействие машины, а не работоспособность сцены.
+    await waitForFrames(page, 10);
 
     await expect(page.locator('#viewport canvas')).toBeVisible();
     // Счётчик кадров в HUD не должен стоять на нуле.
