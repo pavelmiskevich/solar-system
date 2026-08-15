@@ -141,3 +141,41 @@ jobs:
           # первого выпуска, когда удалять ещё нечего и шаблон `*/` остаётся
           # нераскрытым.
           $SSH "$USER@$HOST" "cd '$ROOT/releases' && ls -1dt */ 2>/dev/null | tail -n +6 | xargs -r rm -rf" || true
+
+      # Проверка, что выложилось именно то и именно туда.
+      #
+      # Без неё выкладка молчалива: rsync, ln и mv при успехе не печатают
+      # ничего, и задание отчитывается зелёным, что бы ни произошло. Один раз
+      # это уже стоило дорого — путь в секрете оказался искажён преобразованием
+      # путей в Git Bash, файлы уехали в домашний каталог пользователя, и все
+      # шаги честно завершились успехом. Ошибка нашлась только осмотром сервера.
+      - name: Проверка выкладки
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          ROOT: ${{ secrets.DEPLOY_PATH }}
+          PORT: ${{ secrets.DEPLOY_PORT }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          SSH="ssh -i $HOME/.ssh/deploy -p ${PORT:-22} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+
+          # Путь обязан быть абсолютным: относительный молча уложит выкладку
+          # в домашний каталог, и снаружи это выглядит как успех.
+          case "$ROOT" in
+            /*) ;;
+            *) echo "DEPLOY_PATH не абсолютный путь"; exit 1 ;;
+          esac
+
+          TARGET=$($SSH "$USER@$HOST" "readlink '$ROOT/current'")
+          echo "current -> $TARGET"
+
+          if [ "$TARGET" != "$ROOT/releases/$VERSION" ]; then
+            echo "симлинк указывает не на выложенный выпуск"
+            exit 1
+          fi
+
+          $SSH "$USER@$HOST" "test -s '$ROOT/current/index.html'" \
+            || { echo "index.html отсутствует или пуст"; exit 1; }
+
+          echo "выложено: $VERSION"
