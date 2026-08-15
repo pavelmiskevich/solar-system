@@ -1,0 +1,53 @@
+name: Задача
+description: Что стоит сделать в сцене
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Схема та же, что у всех пунктов плана работ: **что сделать**, **зачем**
+        и **чем проверяется**. Третье поле обязательное, и это не педантизм:
+        без него пункт закрывается по ощущению, а ощущение в этой сцене
+        обманывает.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: Что сделать
+      description: Одним абзацем, без разбора реализации.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Зачем
+      description: >
+        Какую нехватку это закрывает. «Было бы красиво» — тоже ответ, если
+        сказано, что именно сейчас выглядит хуже, чем могло бы.
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Чем проверяется
+      description: >
+        Наблюдаемый признак того, что сделано. Числом из справочника, снимком,
+        тестом — чем угодно, что нельзя подтвердить взглядом со стороны.
+      placeholder: >
+        Юнит-тест на период и наклонение по таблицам JPL; на снимке с орбиты
+        видно, что Тритон обращается в обратную сторону.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Оценка
+      options:
+        - 'S — до пары часов'
+        - 'M — полдня-день'
+        - 'L — больше дня'
+        - 'не знаю'
+    validations:
+      required: false

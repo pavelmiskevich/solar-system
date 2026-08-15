@@ -1,0 +1,122 @@
+# Выпуск по тегу: сборка, GitHub Release и выкладка на сервер.
+#
+# Почему по тегу, а не с каждого push в main: тег — единственное, на что можно
+# сослаться и к чему откатиться. Сборка с main даёт версию «какой-то SHA», и на
+# вопрос «что сейчас на сервере» ответа нет.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  # Тег ставится вручную и может уехать на коммит, который никто не проверял.
+  # Поэтому выпуск начинается с той же проверки, что и обычный push.
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  release:
+    name: release
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      # Единственное задание, которому нужна запись: оно создаёт Release.
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Версия из тега
+        id: version
+        run: echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Архив сборки
+        run: tar -czf "solar-system-${GITHUB_REF_NAME}.tar.gz" -C dist .
+
+      # Через gh, а не через стороннее действие: он предустановлен на runner, и
+      # это на одну внешнюю зависимость в цепочке сборки меньше.
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            "solar-system-${GITHUB_REF_NAME}.tar.gz"
+
+      - name: Сборка для выкладки
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  deploy:
+    name: deploy
+    needs: release
+    runs-on: ubuntu-latest
+    # Секреты лежат в окружении, а не в репозитории: обычным прогонам CI они
+    # недоступны, их видит только это задание.
+    environment:
+      name: production
+      url: ${{ vars.SITE_URL }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist
+
+      # Ключ пишется в файл, а не передаётся аргументом: аргументы видны в
+      # списке процессов на runner.
+      - name: Ключ доступа
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      # Отпечаток сервера берётся из секрета, а не принимается на веру.
+      # StrictHostKeyChecking=no, который стоит в большинстве примеров деплоя,
+      # означает согласие подключиться к кому угодно, кто ответит по этому
+      # адресу, — то есть отказ от той защиты, ради которой SSH и существует.
+      - name: Выкладка
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          ROOT: ${{ secrets.DEPLOY_PATH }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          SSH="ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts"
+
+          # Каждый выпуск кладётся в свой каталог. Перестановка симлинка
+          # атомарна: пользователь не застанет сайт в полусобранном виде.
+          $SSH "$USER@$HOST" "mkdir -p '$ROOT/releases/$VERSION'"
+          rsync -az --delete -e "$SSH" dist/ "$USER@$HOST:$ROOT/releases/$VERSION/"
+          $SSH "$USER@$HOST" "ln -sfn '$ROOT/releases/$VERSION' '$ROOT/current.new' && mv -T '$ROOT/current.new' '$ROOT/current'"
+
+          # Хранится пять последних: откат — это перестановка симлинка назад,
+          # без пересборки и без участия CI.
+          $SSH "$USER@$HOST" "cd '$ROOT/releases' && ls -1dt */ | tail -n +6 | xargs -r rm -rf"

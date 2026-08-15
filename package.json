@@ -12,7 +12,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "stars": "node scripts/fetch-stars.mjs",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "roadmap:issues": "node scripts/roadmap-to-issues.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"

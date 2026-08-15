@@ -1,0 +1,95 @@
+# Проверка кода на каждый push в main и на каждый pull request.
+#
+# Два задания, а не одно: проверка типов с юнит-тестами укладывается в полминуты,
+# сквозные тесты идут около трёх минут. Слитые в одно задание, они дали бы
+# четыре минуты ожидания вместо трёх, и падение быстрой проверки пришлось бы
+# ждать всё это время.
+#
+# Версии действий закреплены по SHA, а не по тегу. Тег подвижен: владелец
+# репозитория может перенести его на другой коммит, и это известный способ
+# атаки на цепочку сборки. Обновляет их Dependabot — см. .github/dependabot.yml.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Меньше прав по умолчанию не бывает: заданиям нужно только читать код.
+permissions:
+  contents: read
+
+# Новый push в ту же ветку отменяет предыдущий прогон: проверять код, который
+# уже заменён, незачем.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Именно ci, а не install: он ставит ровно то, что записано в lock-файле,
+      # и падает, если lock разошёлся с package.json.
+      - run: npm ci
+
+      - name: Типы
+        run: npm run typecheck
+
+      - name: Юнит-тесты
+        run: npm test
+
+      - name: Сборка
+        run: npm run build
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Браузер весит около полутора сотен мегабайт, и качать его каждый раз
+      # дольше, чем прогонять сами тесты.
+      - name: Кэш браузера
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Установка браузера
+        run: npx playwright install --with-deps chromium
+
+      # Видеокарты на runner нет, и сцена идёт на программном растеризаторе.
+      # Флаги для этого уже прописаны в playwright.config.ts — там же retries и
+      # reuseExistingServer смотрят на переменную CI, которую GitHub задаёт сам.
+      - name: Сквозные тесты
+        run: npm run e2e
+
+      # Отчёт нужен только когда что-то упало: в нём трассировки и снимки
+      # экрана на момент падения, без них разбирать нечего.
+      - name: Отчёт о падении
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14

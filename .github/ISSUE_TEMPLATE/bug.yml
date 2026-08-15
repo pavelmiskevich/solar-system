@@ -1,0 +1,67 @@
+name: Дефект
+description: Что-то в сцене выглядит или работает не так
+labels: [дефект]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Сцена детерминирована: одна и та же дата плюс одно и то же положение
+        камеры дают одну и ту же картинку. Поэтому дата и тело — не formality,
+        а то, без чего дефект чаще всего не воспроизводится.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: Что происходит
+      description: Что видно на экране. Снимок стоит десяти абзацев.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что ожидалось
+      description: >
+        Если ожидание опирается на справочные данные — укажите их. Половина
+        найденных здесь дефектов выглядела правдоподобно, и отличить их от
+        правильного поведения удавалось только по числам.
+    validations:
+      required: true
+
+  - type: input
+    id: date
+    attributes:
+      label: Дата в сцене
+      description: Из HUD, левый нижний угол.
+      placeholder: 14 авг. 2026 г., 02:00
+    validations:
+      required: true
+
+  - type: input
+    id: where
+    attributes:
+      label: Где находится камера
+      description: Ближайшее тело и расстояние до него — тоже из HUD.
+      placeholder: Юпитер, 257 371 км
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Браузер и видеокарта
+      description: >
+        Сцена целиком на WebGL2 и шейдерах. Строку о видеокарте можно взять на
+        chrome://gpu или about:support.
+      placeholder: Chrome 141, Intel Arc 140V
+    validations:
+      required: false
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Ошибки в консоли
+      description: Ошибка компиляции шейдера равносильна пустому кадру.
+      render: text
+    validations:
+      required: false

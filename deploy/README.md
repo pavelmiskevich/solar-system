@@ -1,0 +1,112 @@
+# Выкладка на сервер
+
+Выкладывается статика: `npm run build` даёт около 700 КБ в `dist/`, серверного
+кода нет. Всё, что нужно на сервере, — веб-сервер и каталог.
+
+Выкладку делает GitHub Actions по тегу (`.github/workflows/release.yml`).
+Ниже — разовая подготовка, которая делается руками один раз.
+
+## 1. Пользователь для выкладки
+
+Отдельный, без прав администратора, владеющий только каталогом выкладки. Если
+ключ утечёт, потери ограничатся подменой статики: ни sudo, ни доступа к
+остальному серверу у него нет.
+
+```bash
+sudo adduser --disabled-password --gecos '' deploy
+sudo mkdir -p /var/www/solar-system/releases
+sudo chown -R deploy:deploy /var/www/solar-system
+```
+
+## 2. Ключ
+
+Пара заводится **только для выкладки** — не тот ключ, которым вы сами заходите
+на сервер. Тогда отзыв ключа при подозрении не отрезает вас от машины.
+
+На своей машине:
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/solar-deploy -C 'github actions solar-system' -N ''
+```
+
+Открытую часть — на сервер:
+
+```bash
+sudo -u deploy mkdir -p /home/deploy/.ssh
+sudo -u deploy tee -a /home/deploy/.ssh/authorized_keys < ~/.ssh/solar-deploy.pub
+sudo -u deploy chmod 700 /home/deploy/.ssh
+sudo -u deploy chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+Отпечаток сервера — он тоже пойдёт в секреты:
+
+```bash
+ssh-keyscan -t ed25519 ВАШ_СЕРВЕР
+```
+
+## 3. Секреты в GitHub
+
+Окружение `production` (Settings → Environments), и секреты кладутся **в него**,
+а не в репозиторий целиком: тогда обычным прогонам CI они недоступны и видны
+только заданию выкладки.
+
+| Секрет | Что класть |
+|---|---|
+| `DEPLOY_HOST` | адрес или имя сервера |
+| `DEPLOY_USER` | `deploy` |
+| `DEPLOY_PATH` | `/var/www/solar-system` |
+| `SSH_PRIVATE_KEY` | содержимое `~/.ssh/solar-deploy` целиком, включая строки BEGIN и END |
+| `SSH_KNOWN_HOSTS` | вывод `ssh-keyscan` из шага 2 |
+
+Переменная `SITE_URL` (Variables, не Secrets) — адрес сайта; GitHub покажет его
+ссылкой на странице выкладки.
+
+Адрес сервера намеренно живёт секретом, а не в репозитории: в логах GitHub
+маскирует значения секретов автоматически.
+
+## 4. nginx
+
+Взять `nginx.conf.example`, заменить имя сервера и пути к сертификатам.
+Сертификат — `certbot --nginx -d ваш.домен`, если домен ещё не обслуживается.
+
+Главное в этом файле — заголовки кэша. Имена файлов сборки содержат хеш
+содержимого, поэтому `assets/*` отдаётся с `immutable` на год, а `index.html` —
+с `no-cache`. Перепутать их местами означает либо навсегда закрепить у
+посетителей старую сборку, либо не кэшировать ничего.
+
+## 5. Как это работает дальше
+
+```bash
+npm version minor        # 0.1.0 -> 0.2.0, коммит и тег
+git push --follow-tags
+```
+
+Дальше сборка идёт сама: проверка, сборка, GitHub Release с архивом, затем
+выкладка. На сервере появляется `releases/v0.2.0/`, и симлинк `current`
+переставляется на него одной командой — перестановка симлинка атомарна, и
+посетитель не застанет сайт в полусобранном виде.
+
+Хранятся пять последних выпусков.
+
+## Откат
+
+Без пересборки и без участия CI:
+
+```bash
+ssh deploy@ВАШ_СЕРВЕР
+cd /var/www/solar-system
+ln -sfn releases/v0.1.0 current.new && mv -T current.new current
+```
+
+## Проверка, что выложилось верно
+
+```bash
+curl -sI https://ваш.домен/ | grep -i cache-control
+# ожидается: no-cache
+
+curl -s https://ваш.домен/ | grep -o 'assets/[^"]*\.js'
+curl -sI https://ваш.домен/assets/ИМЯ.js | grep -i cache-control
+# ожидается: public, max-age=31536000, immutable
+```
+
+И глазами: страница открывается, сцена рисуется, в консоли пусто.

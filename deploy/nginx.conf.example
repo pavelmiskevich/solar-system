@@ -1,0 +1,59 @@
+# Образец блока сервера для раздачи сцены.
+#
+# Отдаётся статика: HTML, один файл сборки и SVG с QR-кодом. Ни бэкенда, ни
+# проксирования, ни базы — весь блок сводится к правильным заголовкам кэша.
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+
+    server_name solar.example.com;
+
+    # Симлинк, который переставляет выкладка. Именно root на симлинк, а не на
+    # каталог выпуска: перестановка симлинка атомарна, и подмена версии
+    # происходит между запросами, а не посреди отдачи страницы.
+    root /var/www/solar-system/current;
+    index index.html;
+
+    ssl_certificate     /etc/letsencrypt/live/solar.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/solar.example.com/privkey.pem;
+
+    # Сцена не обращается никуда наружу, поэтому политика может быть жёсткой.
+    # WebGL шейдеры не считаются скриптами, а вот стили лежат прямо в разметке —
+    # отсюда unsafe-inline для style-src.
+    add_header Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Имена файлов сборки содержат хеш содержимого: другое содержимое — другое
+    # имя. Значит, ответ можно кэшировать навсегда, и браузер не станет ходить
+    # за ним повторно вовсе.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # А вот сама страница обязана проверяться каждый раз: её имя постоянно, и
+    # закэшированная она навсегда закрепит ссылки на старую сборку. Это самая
+    # частая ошибка в раздаче статики с хешированными именами — новая версия
+    # выложена, но никто её не видит.
+    location = /index.html {
+        add_header Cache-Control "no-cache" always;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    gzip on;
+    gzip_types text/css application/javascript image/svg+xml;
+    gzip_min_length 1024;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name solar.example.com;
+    return 301 https://$host$request_uri;
+}

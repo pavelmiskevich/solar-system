@@ -1,0 +1,31 @@
+# Обновления зависимостей.
+#
+# Экосистем две, и вторая важна не меньше первой. Версии действий в workflow
+# закреплены по SHA — это защищает от подмены тега, но само по себе превращает
+# закрепление в консервацию: без обновлений SHA останется тем же и через год,
+# вместе со всеми найденными за год дырами. Dependabot и двигает эти SHA.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Инструменты разработки ходят вместе: они обновляются часто и почти
+      # всегда безболезненно, а пять отдельных PR в неделю читать никто не будет.
+      dev:
+        dependency-type: development
+        update-types: [minor, patch]
+    commit-message:
+      prefix: 'Зависимости:'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: 'Действия:'
