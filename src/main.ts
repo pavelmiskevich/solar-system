@@ -24,6 +24,7 @@ import { SupportPanel } from './ui/support';
 import { Hud } from './ui/hud';
 import { LabelLayer } from './ui/labels';
 import { pickBody } from './ui/picking';
+import { createSourceLink } from './ui/sourceLink';
 
 const container = document.getElementById('viewport');
 const hudElement = document.getElementById('hud');
@@ -197,6 +198,10 @@ function cardSourceFor(id: string | null): CardSource | null {
  */
 const help = new HelpPanel(panelElement, bodyList.column, () => support.setOpen(false));
 const support = new SupportPanel(panelElement, bodyList.column, () => help.setOpen(false));
+
+// Ссылка на исходники — последней кнопкой, но до списка тел: тот раскрывается
+// вниз, и кнопка под ним оказалась бы то у края экрана, то посреди списка.
+bodyList.column.insertBefore(createSourceLink(), bodyList.column.querySelector('.bodies-list'));
 
 /*
  * Справка открыта на старте. Сцена не объясняет себя сама: мышь здесь надо

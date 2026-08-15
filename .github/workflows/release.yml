@@ -116,6 +116,8 @@ jobs:
           HOST: ${{ secrets.DEPLOY_HOST }}
           USER: ${{ secrets.DEPLOY_USER }}
           ROOT: ${{ secrets.DEPLOY_PATH }}
+          # Необязателен: без него берётся стандартный 22.
+          PORT: ${{ secrets.DEPLOY_PORT }}
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
@@ -123,7 +125,7 @@ jobs:
           # $HOME, а не тильда: строка уходит в rsync через -e, тот разбивает
           # её по пробелам и передаёт ssh как есть — раскрывать тильду там
           # некому. Оболочка же раскрывает $HOME до вызова rsync.
-          SSH="ssh -i $HOME/.ssh/deploy -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          SSH="ssh -i $HOME/.ssh/deploy -p ${PORT:-22} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
 
           # Каждый выпуск кладётся в свой каталог. Перестановка симлинка
           # атомарна: пользователь не застанет сайт в полусобранном виде.
