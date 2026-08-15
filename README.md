@@ -3,8 +3,6 @@
 Трёхмерная модель Солнечной системы в браузере: настоящие расстояния, настоящие
 размеры, орбиты по эфемеридам JPL и свободный полёт между планетами.
 
-### [**▶ Открыть сцену — solar-system.ic-albatross.com**](https://solar-system.ic-albatross.com/)
-
 [![Сцена](https://img.shields.io/badge/%D1%81%D1%86%D0%B5%D0%BD%D0%B0-solar--system.ic--albatross.com-0B7285?style=for-the-badge&logo=googlechrome&logoColor=white)](https://solar-system.ic-albatross.com/)
 
 [![CI](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml/badge.svg)](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml)
