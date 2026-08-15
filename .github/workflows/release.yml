@@ -87,15 +87,25 @@ jobs:
           name: dist
           path: dist
 
+      # Секреты приходят через env, а не подставляются в текст команды.
+      # Подстановка ${{ }} прямо в run вклеивает значение в скрипт до запуска
+      # оболочки: перевод строки или кавычка в ключе ломают разбор, а сам ключ
+      # оказывается в теле скрипта. Через переменную окружения он остаётся
+      # значением и никуда не вклеивается.
+      #
       # Ключ пишется в файл, а не передаётся аргументом: аргументы видны в
       # списке процессов на runner.
       - name: Ключ доступа
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy
-          chmod 600 ~/.ssh/deploy
-          printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy"
+          chmod 600 "$HOME/.ssh/deploy"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
 
       # Отпечаток сервера берётся из секрета, а не принимается на веру.
       # StrictHostKeyChecking=no, который стоит в большинстве примеров деплоя,
@@ -109,7 +119,11 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
-          SSH="ssh -i ~/.ssh/deploy -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts"
+
+          # $HOME, а не тильда: строка уходит в rsync через -e, тот разбивает
+          # её по пробелам и передаёт ssh как есть — раскрывать тильду там
+          # некому. Оболочка же раскрывает $HOME до вызова rsync.
+          SSH="ssh -i $HOME/.ssh/deploy -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
 
           # Каждый выпуск кладётся в свой каталог. Перестановка симлинка
           # атомарна: пользователь не застанет сайт в полусобранном виде.
@@ -119,4 +133,9 @@ jobs:
 
           # Хранится пять последних: откат — это перестановка симлинка назад,
           # без пересборки и без участия CI.
-          $SSH "$USER@$HOST" "cd '$ROOT/releases' && ls -1dt */ | tail -n +6 | xargs -r rm -rf"
+          #
+          # Уборка не имеет права уронить выкладку: сайт к этому моменту уже
+          # переключён и работает. Отсюда `|| true` — и он же прикрывает случай
+          # первого выпуска, когда удалять ещё нечего и шаблон `*/` остаётся
+          # нераскрытым.
+          $SSH "$USER@$HOST" "cd '$ROOT/releases' && ls -1dt */ 2>/dev/null | tail -n +6 | xargs -r rm -rf" || true
