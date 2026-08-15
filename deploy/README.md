@@ -6,11 +6,17 @@
 Выкладку делает GitHub Actions по тегу (`.github/workflows/release.yml`).
 Ниже — разовая подготовка, которая делается руками один раз.
 
+Боевая сцена: **https://solar-system.ic-albatross.com/**
+
 ## 1. Пользователь для выкладки
 
 Отдельный, без прав администратора, владеющий только каталогом выкладки. Если
 ключ утечёт, потери ограничатся подменой статики: ни sudo, ни доступа к
 остальному серверу у него нет.
+
+Это не формальность. На том же сервере может стоять чужой сайт, а у обычного
+пользователя — sudo без пароля; его ключ в секретах CI означал бы, что утечка
+секрета отдаёт весь сервер.
 
 ```bash
 sudo adduser --disabled-password --gecos '' deploy
@@ -23,25 +29,23 @@ sudo chown -R deploy:deploy /var/www/solar-system
 Пара заводится **только для выкладки** — не тот ключ, которым вы сами заходите
 на сервер. Тогда отзыв ключа при подозрении не отрезает вас от машины.
 
-На своей машине:
-
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/solar-deploy -C 'github actions solar-system' -N ''
 ```
 
-Открытую часть — на сервер:
+Открытую часть — в `authorized_keys` пользователя `deploy`:
 
 ```bash
-sudo -u deploy mkdir -p /home/deploy/.ssh
-sudo -u deploy tee -a /home/deploy/.ssh/authorized_keys < ~/.ssh/solar-deploy.pub
+cat ~/.ssh/solar-deploy.pub | ssh СЕРВЕР 'sudo -u deploy tee -a /home/deploy/.ssh/authorized_keys'
 sudo -u deploy chmod 700 /home/deploy/.ssh
 sudo -u deploy chmod 600 /home/deploy/.ssh/authorized_keys
 ```
 
-Отпечаток сервера — он тоже пойдёт в секреты:
+Отпечаток сервера — он тоже пойдёт в секреты. Если порт нестандартный, его
+обязательно указать: запись в `known_hosts` для другого порта выглядит иначе.
 
 ```bash
-ssh-keyscan -t ed25519 ВАШ_СЕРВЕР
+ssh-keyscan -p 2222 -t ed25519,rsa СЕРВЕР
 ```
 
 ## 3. Секреты в GitHub
@@ -55,6 +59,7 @@ ssh-keyscan -t ed25519 ВАШ_СЕРВЕР
 | `DEPLOY_HOST` | адрес или имя сервера |
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_PATH` | `/var/www/solar-system` |
+| `DEPLOY_PORT` | порт SSH; можно не задавать, тогда берётся 22 |
 | `SSH_PRIVATE_KEY` | содержимое `~/.ssh/solar-deploy` целиком, включая строки BEGIN и END |
 | `SSH_KNOWN_HOSTS` | вывод `ssh-keyscan` из шага 2 |
 
@@ -64,12 +69,26 @@ ssh-keyscan -t ed25519 ВАШ_СЕРВЕР
 Адрес сервера намеренно живёт секретом, а не в репозитории: в логах GitHub
 маскирует значения секретов автоматически.
 
-## 4. nginx
+## 4. Веб-сервер
 
-Взять `nginx.conf.example`, заменить имя сервера и пути к сертификатам.
-Сертификат — `certbot --nginx -d ваш.домен`, если домен ещё не обслуживается.
+Взять `Caddyfile.example`, заменить имя хоста и почту, дописать **отдельным
+блоком** в конец `/etc/caddy/Caddyfile`. Сертификат Caddy получит сам, если
+домен резолвится на этот сервер и открыт порт 80.
 
-Главное в этом файле — заголовки кэша. Имена файлов сборки содержат хеш
+Порядок работы с конфигурацией, если на сервере уже есть чужие сайты:
+
+```bash
+sudo cp -a /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%F)
+# дописать блок
+sudo caddy validate --config /etc/caddy/Caddyfile   # до применения
+sudo systemctl reload caddy                          # не restart
+```
+
+`reload` вместо `restart` не из осторожности, а по существу: при негодной
+конфигурации reload не удаётся, и продолжает работать прежняя. Restart положил
+бы все сайты на сервере.
+
+Главное в самом блоке — заголовки кэша. Имена файлов сборки содержат хеш
 содержимого, поэтому `assets/*` отдаётся с `immutable` на год, а `index.html` —
 с `no-cache`. Перепутать их местами означает либо навсегда закрепить у
 посетителей старую сборку, либо не кэшировать ничего.
@@ -103,7 +122,7 @@ git push --follow-tags
 Без пересборки и без участия CI:
 
 ```bash
-ssh deploy@ВАШ_СЕРВЕР
+ssh -p 2222 deploy@СЕРВЕР
 cd /var/www/solar-system
 ln -sfn releases/v0.1.0 current.new && mv -T current.new current
 ```
@@ -119,4 +138,6 @@ curl -sI https://ваш.домен/assets/ИМЯ.js | grep -i cache-control
 # ожидается: public, max-age=31536000, immutable
 ```
 
-И глазами: страница открывается, сцена рисуется, в консоли пусто.
+И обязательно глазами: страница открывается, сцена рисуется, консоль пуста.
+Кода ответа тут мало — ошибка компиляции шейдера даёт честные 200 и чёрный
+экран.
