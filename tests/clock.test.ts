@@ -110,3 +110,49 @@ describe('SimClock', () => {
     expect(clock.jd - start).toBeCloseTo(1, 9);
   });
 });
+
+describe('шаг по лестнице скоростей', () => {
+  it('идёт вверх и вниз по соседним ступеням', () => {
+    const clock = new SimClock(new Date(), TIME_SCALES[3]!);
+
+    expect(clock.stepScale(1)).toBe(TIME_SCALES[4]);
+    expect(clock.stepScale(-1)).toBe(TIME_SCALES[3]);
+    expect(clock.stepScale(-1)).toBe(TIME_SCALES[2]);
+  });
+
+  it('упирается в края, а не заходит за них', () => {
+    const slowest = new SimClock(new Date(), TIME_SCALES[0]!);
+    expect(slowest.stepScale(-1)).toBe(TIME_SCALES[0]);
+
+    const fastest = new SimClock(new Date(), TIME_SCALES.at(-1)!);
+    expect(fastest.stepScale(1)).toBe(TIME_SCALES.at(-1));
+  });
+
+  it('проходит лестницу целиком в обе стороны', () => {
+    const clock = new SimClock(new Date(), TIME_SCALES[0]!);
+
+    for (let i = 1; i < TIME_SCALES.length; i += 1) {
+      expect(clock.stepScale(1)).toBe(TIME_SCALES[i]);
+    }
+    for (let i = TIME_SCALES.length - 2; i >= 0; i -= 1) {
+      expect(clock.stepScale(-1)).toBe(TIME_SCALES[i]);
+    }
+  });
+
+  it('от значения вне лестницы шагает с ближайшей ступени', () => {
+    // Такое значение может выставить отладочный доступ или будущий ползунок.
+    // Отдельный счётчик ступени здесь бы уже разошёлся с действительностью.
+    const clock = new SimClock(new Date(), TIME_SCALES[3]! * 1.2);
+
+    expect(clock.stepScale(1)).toBe(TIME_SCALES[4]);
+  });
+
+  it('ближайшая ступень ищется в логарифме, а не по разности', () => {
+    // Лестница охватывает семь порядков. По линейной разности значение чуть
+    // выше реального времени притянулось бы к самой быстрой ступени, потому
+    // что все медленные ступени различаются на доли единицы.
+    const clock = new SimClock(new Date(), TIME_SCALES[0]! * 1.1);
+
+    expect(clock.stepScale(1)).toBe(TIME_SCALES[1]);
+  });
+});

@@ -39,6 +39,45 @@ export class SimClock {
   describeScale(): string {
     return this.paused ? 'пауза' : describeTimeScale(this.timeScale);
   }
+
+  /**
+   * Шаг по лестнице скоростей.
+   *
+   * Ступень ищется по текущему значению, а не хранится отдельным счётчиком.
+   * Счётчик пришлось бы держать снаружи и синхронизировать с `timeScale` при
+   * каждом изменении со стороны — а расходятся такие пары молча.
+   *
+   * Значение вне лестницы (его может выставить отладочный доступ или будущий
+   * ползунок) не ломает шаг: берётся ближайшая ступень.
+   */
+  stepScale(direction: -1 | 1): number {
+    const current = this.nearestScaleIndex();
+    const next = Math.min(TIME_SCALES.length - 1, Math.max(0, current + direction));
+    this.timeScale = TIME_SCALES[next]!;
+    return this.timeScale;
+  }
+
+  /** Номер ближайшей ступени лестницы — сравнение в логарифме. */
+  private nearestScaleIndex(): number {
+    // Лестница охватывает семь порядков, и «ближайшая» по разности означала бы
+    // на её верхнем конце совсем не то, что на нижнем: между «сутки в секунду»
+    // и «неделя в секунду» разница шесть суток, между реальным временем и
+    // десятью секундами — ничтожные доли. В логарифме ступени равноудалены.
+    const target = Math.log(Math.max(this.timeScale, Number.MIN_VALUE));
+
+    let best = 0;
+    let bestDistance = Infinity;
+
+    for (let i = 0; i < TIME_SCALES.length; i += 1) {
+      const distance = Math.abs(Math.log(TIME_SCALES[i]!) - target);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = i;
+      }
+    }
+
+    return best;
+  }
 }
 
 /**

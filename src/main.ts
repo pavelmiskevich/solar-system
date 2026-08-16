@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 
 import { FlightControls } from './camera/flight';
 import { framingPosition } from './camera/framing';
-import { DEFAULT_TIME_SCALE, SimClock, TIME_SCALES } from './core/clock';
+import { DEFAULT_TIME_SCALE, SimClock } from './core/clock';
 import { FloatingOrigin } from './core/floatingOrigin';
 import { RenderLoop } from './core/loop';
 import { AdaptiveQuality } from './core/quality';
@@ -23,7 +23,7 @@ import { HINT, HelpPanel } from './ui/help';
 import { SupportPanel } from './ui/support';
 import { Hud } from './ui/hud';
 import { LabelLayer } from './ui/labels';
-import { pickBody } from './ui/picking';
+import { bindSceneInput } from './ui/input';
 import { createSourceLink } from './ui/sourceLink';
 
 const container = document.getElementById('viewport');
@@ -217,7 +217,6 @@ if (hintElement) hintElement.textContent = HINT;
 const ORBIT_REBUILD_INTERVAL_DAYS = 365;
 let lastOrbitRebuildJd = clock.jd;
 
-let timeScaleIndex = TIME_SCALES.indexOf(DEFAULT_TIME_SCALE);
 let sizeIndex = 0;
 
 const sizeOffset = new Vector3();
@@ -247,6 +246,14 @@ function applySizeExaggeration(next: number): void {
     .subVectors(flight.worldPosition, anchor.worldPosition)
     .multiplyScalar(next / previous);
   flight.worldPosition.copy(anchor.worldPosition).add(sizeOffset);
+}
+
+/** Следующий множитель размеров по кругу. */
+function cycleSizePreset(): void {
+  // Раздутые тела — честная модель, а не обман: вместе с планетой растёт вся
+  // её внутренняя геометрия, а расстояния остаются настоящими.
+  sizeIndex = (sizeIndex + 1) % SIZE_PRESETS.length;
+  applySizeExaggeration(SIZE_PRESETS[sizeIndex]!);
 }
 
 /**
@@ -359,66 +366,6 @@ const loop = new RenderLoop((dt, elapsed) => {
 
 loop.start();
 
-/**
- * Клавиши, которыми пользователь берёт управление на себя. Любая из них
- * прерывает перелёт: если человек тронул рули, он больше не пассажир.
- */
-const TAKEOVER_KEYS = new Set([
-  'KeyW',
-  'KeyA',
-  'KeyS',
-  'KeyD',
-  'KeyC',
-  'Space',
-  'ControlLeft',
-  'Escape',
-]);
-
-window.addEventListener('keydown', (event) => {
-  if (event.target instanceof HTMLInputElement) return;
-
-  if (travel.isActive && TAKEOVER_KEYS.has(event.code)) {
-    travel.cancel();
-    bodyList.setActive(null);
-  }
-
-  switch (event.code) {
-    case 'KeyB':
-      bodyList.toggle();
-      break;
-    case 'KeyH':
-    case 'Slash':
-      help.toggle();
-      break;
-    case 'Escape':
-      help.setOpen(false);
-      support.setOpen(false);
-      break;
-    case 'KeyP':
-      clock.paused = !clock.paused;
-      break;
-    case 'Comma':
-      timeScaleIndex = Math.max(0, timeScaleIndex - 1);
-      clock.timeScale = TIME_SCALES[timeScaleIndex]!;
-      break;
-    case 'Period':
-      timeScaleIndex = Math.min(TIME_SCALES.length - 1, timeScaleIndex + 1);
-      clock.timeScale = TIME_SCALES[timeScaleIndex]!;
-      break;
-    case 'KeyL':
-      labels.setEnabled(!labels.isEnabled());
-      break;
-    case 'KeyM':
-      // Раздутые тела — честная модель, а не обман: вместе с планетой
-      // растёт вся её внутренняя геометрия, а расстояния остаются настоящими.
-      sizeIndex = (sizeIndex + 1) % SIZE_PRESETS.length;
-      applySizeExaggeration(SIZE_PRESETS[sizeIndex]!);
-      break;
-    default:
-      break;
-  }
-});
-
 // Прячем загрузчик только после первого отрисованного кадра, иначе на слабой
 // машине видно чёрное окно между исчезновением заставки и появлением картинки.
 requestAnimationFrame(() => {
@@ -428,51 +375,20 @@ requestAnimationFrame(() => {
   });
 });
 
-// Подсказка по управлению уходит, как только пользователь взял мышь.
-viewport.renderer.domElement.addEventListener(
-  'click',
-  () => hintElement?.classList.add('hidden'),
-  { once: true },
-);
-
-/**
- * Клик по кадру.
- *
- * Смысл клика зависит от того, захвачена ли мышь. Захвачена — курсора нет, и
- * выбор идёт по прицелу в центре кадра. Не захвачена — по самому курсору.
- * Попали в тело — летим к нему; попали в пустоту — берём мышь и смотрим сами.
- */
-viewport.renderer.domElement.addEventListener('click', (event) => {
-  const element = viewport.renderer.domElement;
-  const width = element.clientWidth;
-  const height = element.clientHeight;
-
-  let x = width / 2;
-  let y = height / 2;
-  if (!flight.isLocked) {
-    const rect = element.getBoundingClientRect();
-    x = event.clientX - rect.left;
-    y = event.clientY - rect.top;
-  }
-
-  const hit = pickBody(x, y, targets, viewport.camera, width, height);
-  if (hit) {
-    travelTo(hit.candidate.id);
-    return;
-  }
-
-  if (travel.isActive) {
-    travel.cancel();
-    bodyList.setActive(null);
-    return;
-  }
-
-  flight.requestLook();
-});
-
-// Прицел показывается только когда мышь захвачена: без захвата целятся курсором.
-document.addEventListener('pointerlockchange', () => {
-  document.body.classList.toggle('locked', document.pointerLockElement !== null);
+bindSceneInput({
+  canvas: viewport.renderer.domElement,
+  camera: viewport.camera,
+  clock,
+  flight,
+  travel,
+  labels,
+  bodyList,
+  help,
+  support,
+  targets,
+  travelTo,
+  cycleSizePreset,
+  hint: hintElement,
 });
 
 // Отладочный доступ из консоли: позволяет ставить камеру и время программно,
