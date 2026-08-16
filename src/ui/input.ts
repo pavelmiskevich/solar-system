@@ -1,6 +1,7 @@
 import type { PerspectiveCamera } from 'three';
 
 import type { FlightControls } from '../camera/flight';
+import type { OrbitControls } from '../camera/orbit';
 import type { TravelController } from '../camera/travel';
 import type { SimClock } from '../core/clock';
 import type { BodyList } from './bodyList';
@@ -44,6 +45,8 @@ export interface SceneInputOptions {
   clock: SimClock;
   flight: FlightControls;
   travel: TravelController;
+  /** Орбитальный режим: протаскивание вращает, колесо приближает. */
+  orbit: OrbitControls;
   labels: LabelLayer;
   bodyList: BodyList;
   help: HelpPanel;
@@ -74,14 +77,19 @@ export function bindSceneInput(options: SceneInputOptions): void {
 }
 
 function bindKeyboard(options: SceneInputOptions): void {
-  const { clock, travel, labels, bodyList, help, support } = options;
+  const { clock, travel, labels, bodyList, help, support, orbit } = options;
 
   window.addEventListener('keydown', (event) => {
     if (event.target instanceof HTMLInputElement) return;
 
-    if (travel.isActive && TAKEOVER_KEYS.has(event.code)) {
-      travel.cancel();
-      bodyList.setActive(null);
+    if (TAKEOVER_KEYS.has(event.code)) {
+      if (travel.isActive) {
+        travel.cancel();
+        bodyList.setActive(null);
+      }
+      // Тронул рули — вышел из орбитального режима. Иначе камера сопротивлялась
+      // бы движению: каждый кадр она возвращалась бы на свою окружность.
+      orbit.release();
     }
 
     switch (event.code) {
@@ -117,11 +125,72 @@ function bindKeyboard(options: SceneInputOptions): void {
   });
 }
 
+/** Сдвиг курсора, начиная с которого нажатие считается протаскиванием, пиксели. */
+const DRAG_THRESHOLD_PX = 4;
+
 function bindPointer(options: SceneInputOptions): void {
-  const { canvas, camera, flight, travel, bodyList, targets, travelTo, hint } = options;
+  const { canvas, camera, flight, travel, bodyList, targets, travelTo, hint, orbit } = options;
 
   // Подсказка по управлению уходит, как только пользователь взял мышь.
   canvas.addEventListener('click', () => hint?.classList.add('hidden'), { once: true });
+
+  /*
+   * Протаскивание вращает тело перед камерой.
+   *
+   * Порог в несколько пикселей отделяет протаскивание от клика: без него
+   * дрожание руки при нажатии превращало бы каждый клик по телу в поворот на
+   * долю градуса и отменяло бы перелёт. Клик после протаскивания подавляется —
+   * иначе отпускание кнопки где-нибудь над Юпитером внезапно уводило бы к нему.
+   */
+  let dragging = false;
+  let moved = 0;
+  let lastX = 0;
+  let lastY = 0;
+
+  canvas.addEventListener('pointerdown', (event) => {
+    // Захваченная мышь — это свободный полёт: там осмотр идёт движением мыши,
+    // а не протаскиванием, и перехватывать его нечего.
+    if (event.button !== 0 || flight.isLocked || !orbit.isActive) return;
+
+    dragging = true;
+    moved = 0;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+  });
+
+  canvas.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+
+    const dx = event.clientX - lastX;
+    const dy = event.clientY - lastY;
+    lastX = event.clientX;
+    lastY = event.clientY;
+
+    moved += Math.abs(dx) + Math.abs(dy);
+    if (moved < DRAG_THRESHOLD_PX) return;
+
+    orbit.drag(dx, dy, canvas.clientHeight);
+  });
+
+  const endDrag = (event: PointerEvent): void => {
+    if (!dragging) return;
+    dragging = false;
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  };
+
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+
+  // Колесо в орбитальном режиме приближает и отдаляет; в свободном полёте оно
+  // по-прежнему подстраивает скорость — там приближать нечего.
+  canvas.addEventListener(
+    'wheel',
+    (event) => {
+      if (orbit.isActive && !flight.isLocked) orbit.zoom(event.deltaY);
+    },
+    { passive: true },
+  );
 
   /*
    * Клик по кадру.
@@ -131,6 +200,12 @@ function bindPointer(options: SceneInputOptions): void {
    * Попали в тело — летим к нему; попали в пустоту — берём мышь и смотрим сами.
    */
   canvas.addEventListener('click', (event) => {
+    // Клик, оказавшийся концом протаскивания, не считается кликом.
+    if (moved >= DRAG_THRESHOLD_PX) {
+      moved = 0;
+      return;
+    }
+
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;
 

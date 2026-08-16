@@ -16,6 +16,7 @@ import { Starfield } from './scene/starfield';
 import { Sun } from './scene/sun';
 import { SIZE_PRESETS, SolarSystem } from './scene/system';
 import { ReferenceFrame } from './camera/frame';
+import { OrbitControls } from './camera/orbit';
 import { TravelController } from './camera/travel';
 import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
@@ -131,6 +132,7 @@ function findTarget(id: string): Target | undefined {
 
 const travel = new TravelController();
 const frame = new ReferenceFrame();
+const orbit = new OrbitControls();
 
 function travelTo(id: string): void {
   const target = findTarget(id);
@@ -139,6 +141,7 @@ function travelTo(id: string): void {
   // Старую привязку надо отпустить сразу: пока летим к Урану, тащиться вместе
   // с Землёй незачем — это увело бы камеру с рассчитанной траектории.
   frame.release();
+  orbit.release();
   travel.start(target, flight.worldPosition, sun.worldPosition);
   bodyList.setActive(id);
   hintElement?.classList.add('hidden');
@@ -246,6 +249,12 @@ function applySizeExaggeration(next: number): void {
     .subVectors(flight.worldPosition, anchor.worldPosition)
     .multiplyScalar(next / previous);
   flight.worldPosition.copy(anchor.worldPosition).add(sizeOffset);
+
+  // Орбитальный режим держит расстояние в километрах и вернул бы камеру на
+  // прежнюю окружность — а тело только что выросло, и осмотр оказался бы
+  // внутри него. Пересобираем режим от нового положения: углы и расстояние
+  // берутся из того, где камера уже стоит, поэтому кадр не дёргается.
+  if (orbit.isActive) orbit.engage(flight.worldPosition, anchor.worldPosition);
 }
 
 /** Следующий множитель размеров по кругу. */
@@ -283,14 +292,35 @@ const loop = new RenderLoop((dt, elapsed) => {
     1,
   );
 
-  // Перелёт и свободный полёт не могут двигать камеру одновременно.
+  // Перелёт, орбитальный режим и свободный полёт не могут двигать камеру
+  // одновременно, и порядок здесь — порядок старшинства.
   if (travel.isActive) {
     const arrivalId = travel.targetId;
     if (!travel.update(dt, flight, sun.worldPosition)) {
       // Долетели: дальше камера живёт в системе отсчёта тела, иначе оно уйдёт
       // из кадра быстрее, чем успеешь его рассмотреть.
       const arrived = arrivalId ? findTarget(arrivalId) : undefined;
-      if (arrived) frame.lockTo(arrived);
+      if (arrived) {
+        frame.lockTo(arrived);
+        // И сразу встаёт на орбиту вокруг него: осмотр со всех сторон — то,
+        // ради чего к телу и летели.
+        flight.halt();
+        orbit.engage(flight.worldPosition, arrived.worldPosition);
+      }
+    }
+  } else if (orbit.isActive) {
+    const held = frame.targetId ? findTarget(frame.targetId) : undefined;
+
+    if (!held || !orbit.update(dt, held.worldPosition, held.radius, flight.worldPosition)) {
+      orbit.release();
+    } else {
+      // Смотрим в центр тела, но через целевые углы, а не телепортом: доводит
+      // до них обычное сглаживание взгляда, и вращение остаётся плавным.
+      flight.aimAt(held.worldPosition);
+      // Полёт всё равно обновляется — ради сглаживания взгляда и затухания
+      // остаточной скорости. Клавиш при этом не нажато: любая из них режим
+      // выключает, и до сюда управление уже не доходит.
+      flight.update(dt, distanceToSurface);
     }
   } else {
     flight.update(dt, distanceToSurface);
@@ -387,6 +417,7 @@ bindSceneInput({
   support,
   targets,
   travelTo,
+  orbit,
   cycleSizePreset,
   hint: hintElement,
 });
@@ -406,6 +437,7 @@ if (import.meta.env.DEV) {
     bodyList,
     travel,
     frame,
+    orbit,
     quality,
     travelTo,
     lookAt(from: [number, number, number], at: [number, number, number] = [0, 0, 0]) {
