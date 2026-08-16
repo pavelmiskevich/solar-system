@@ -39,6 +39,14 @@ export const CONTROLS: HelpSection[] = [
     ],
   },
   {
+    title: 'Осмотр',
+    bindings: [
+      { keys: ['Тянуть мышью'], what: 'повернуть тело перед камерой' },
+      { keys: ['Колесо'], what: 'ближе и дальше' },
+      { keys: ['W', 'A', 'S', 'D'], what: 'выйти в свободный полёт' },
+    ],
+  },
+  {
     title: 'Время',
     bindings: [
       { keys: ['P'], what: 'пауза' },

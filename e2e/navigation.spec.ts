@@ -119,4 +119,78 @@ test.describe('перелёты', () => {
     expect(radii).toBeGreaterThan(2);
     expect(radii).toBeLessThan(6);
   });
+
+  test('после прилёта тело поворачивается протаскиванием мыши', async ({ page }) => {
+    // Критерий из задачи: ракурс меняется, направление на тело и расстояние —
+    // нет. Проверяется настоящим протаскиванием, а не вызовом метода: так
+    // заодно проверена и привязка ввода.
+    await openScene(page);
+    await pauseAt(page, '2032-01-01T00:00:00Z');
+
+    await page.evaluate(() => window.sim.travelTo('saturn'));
+    await waitForArrival(page, 'saturn');
+    await waitForFrames(page, 3);
+
+    expect(await page.evaluate(() => window.sim.orbit.isActive)).toBe(true);
+
+    const before = await page.evaluate(() => {
+      const body = window.sim.system.find('saturn');
+      const offset = window.sim.flight.worldPosition.clone().sub(body.worldPosition);
+      return { distance: offset.length(), direction: offset.normalize().toArray() };
+    });
+
+    const box = (await page.locator('#viewport canvas').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    // Треть экрана, несколькими шагами — одним прыжком браузер сочтёт это
+    // телепортом курсора, а не протаскиванием.
+    for (let i = 1; i <= 6; i += 1) {
+      await page.mouse.move(box.x + box.width / 2 + (box.width / 3) * (i / 6), box.y + box.height / 2);
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(1500);
+
+    const after = await page.evaluate(() => {
+      const body = window.sim.system.find('saturn');
+      const offset = window.sim.flight.worldPosition.clone().sub(body.worldPosition);
+      const forward = window.sim.flight.worldPosition
+        .clone()
+        .sub(window.sim.flight.worldPosition)
+        .set(0, 0, -1)
+        .applyQuaternion(window.sim.flight.quaternion);
+      const toBody = body.worldPosition.clone().sub(window.sim.flight.worldPosition).normalize();
+      return {
+        distance: offset.length(),
+        direction: offset.normalize().toArray(),
+        aim: forward.dot(toBody),
+      };
+    });
+
+    // Расстояние сохранилось.
+    expect(after.distance / before.distance).toBeCloseTo(1, 2);
+
+    // Ракурс изменился заметно: треть экрана — это десятки градусов.
+    const dot =
+      before.direction[0] * after.direction[0] +
+      before.direction[1] * after.direction[1] +
+      before.direction[2] * after.direction[2];
+    expect(Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI)).toBeGreaterThan(20);
+
+    // Тело осталось в центре кадра.
+    expect(after.aim).toBeGreaterThan(0.999);
+  });
+
+  test('движение клавишами выключает орбитальный режим', async ({ page }) => {
+    await openScene(page);
+    await pauseAt(page, '2032-01-01T00:00:00Z');
+
+    await page.evaluate(() => window.sim.travelTo('mars'));
+    await waitForArrival(page, 'mars');
+    expect(await page.evaluate(() => window.sim.orbit.isActive)).toBe(true);
+
+    // Тронул рули — режим отпускает камеру, иначе она сопротивлялась бы
+    // движению, возвращаясь каждый кадр на свою окружность.
+    await page.keyboard.press('KeyW');
+    expect(await page.evaluate(() => window.sim.orbit.isActive)).toBe(false);
+  });
 });

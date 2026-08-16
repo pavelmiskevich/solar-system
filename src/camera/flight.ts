@@ -101,6 +101,36 @@ export class FlightControls {
   }
 
   /**
+   * Погасить движение, не трогая положение и взгляд.
+   *
+   * Нужно при передаче управления другому режиму: остаточная скорость иначе
+   * ещё треть секунды тянула бы камеру поверх того, что этот режим считает.
+   */
+  halt(): void {
+    this.velocity.set(0, 0, 0);
+  }
+
+  /**
+   * Навести взгляд на точку, ничего больше не трогая.
+   *
+   * В отличие от `placeLookingAt` не переставляет камеру и не сбрасывает
+   * скорость: меняются только целевые углы, а доводит их до них обычное
+   * сглаживание. Нужно орбитальному режиму, который сам ведёт положение
+   * камеры и каждый кадр просит смотреть в центр тела — телепорт на каждом
+   * кадре обнулял бы там инерцию и крейсерскую скорость.
+   */
+  aimAt(target: Vector3): void {
+    const dir = new Vector3().subVectors(target, this.worldPosition);
+    if (dir.lengthSq() < 1e-12) return;
+    dir.normalize();
+
+    this.targetPitch = clamp(Math.asin(clamp(dir.dot(this.up), -1, 1)), -1.5533, 1.5533);
+
+    const flat = new Vector3().copy(dir).addScaledVector(this.up, -dir.dot(this.up));
+    if (flat.lengthSq() > 1e-12) this.targetYaw = Math.atan2(-flat.x, -flat.z);
+  }
+
+  /**
    * @param dt шаг кадра в секундах
    * @param distanceToNearestSurface расстояние до ближайшей поверхности, км —
    *        именно оно задаёт масштаб скорости

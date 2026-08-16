@@ -19,7 +19,7 @@ test.describe('интерфейс', () => {
     await expect(page.getByRole('heading', { name: 'Управление' })).toBeVisible();
 
     // В справке перечислены все разделы управления.
-    for (const section of ['ПОЛЁТ', 'ПЕРЕЛЁТ', 'ВРЕМЯ', 'ВИД']) {
+    for (const section of ['ПОЛЁТ', 'ПЕРЕЛЁТ', 'ОСМОТР', 'ВРЕМЯ', 'ВИД']) {
       await expect(page.locator('#help h2', { hasText: section })).toBeVisible();
     }
 
