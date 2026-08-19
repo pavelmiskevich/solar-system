@@ -120,13 +120,21 @@
       #hud b { font-weight: 600; color: var(--ui-fg); }
       #hud span { color: var(--ui-dim); }
 
+      /*
+       * Подсказка по управлению, а во время экскурсии — рассказ о теле. Второе
+       * длиннее первого в разы, и без ограничения ширины плашка вылезала бы
+       * за оба края экрана: она приклеена к середине и растёт в обе стороны.
+       */
       #hint {
         position: fixed;
         left: 50%;
         bottom: 24px;
         transform: translateX(-50%);
+        max-width: min(680px, calc(100vw - 32px));
+        box-sizing: border-box;
+        text-align: center;
         padding: 10px 18px;
-        border-radius: 999px;
+        border-radius: 18px;
         background: var(--ui-bg);
         border: 1px solid var(--ui-border);
         backdrop-filter: blur(12px);

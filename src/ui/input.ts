@@ -3,6 +3,7 @@ import type { PerspectiveCamera } from 'three';
 import type { FlightControls } from '../camera/flight';
 import type { OrbitControls } from '../camera/orbit';
 import type { TravelController } from '../camera/travel';
+import type { TourController } from '../camera/tour';
 import type { SimClock } from '../core/clock';
 import type { BodyList } from './bodyList';
 import type { HelpPanel } from './help';
@@ -45,6 +46,7 @@ export interface SceneInputOptions {
   clock: SimClock;
   flight: FlightControls;
   travel: TravelController;
+  tour: TourController;
   /** Орбитальный режим: протаскивание вращает, колесо приближает. */
   orbit: OrbitControls;
   labels: LabelLayer;
@@ -77,12 +79,13 @@ export function bindSceneInput(options: SceneInputOptions): void {
 }
 
 function bindKeyboard(options: SceneInputOptions): void {
-  const { clock, travel, labels, bodyList, help, support, orbit } = options;
+  const { clock, travel, tour, labels, bodyList, help, support, orbit } = options;
 
   window.addEventListener('keydown', (event) => {
     if (event.target instanceof HTMLInputElement) return;
 
     if (TAKEOVER_KEYS.has(event.code)) {
+      if (tour.isActive) tour.cancel();
       if (travel.isActive) {
         travel.cancel();
         bodyList.setActive(null);
@@ -93,6 +96,15 @@ function bindKeyboard(options: SceneInputOptions): void {
     }
 
     switch (event.code) {
+      case 'KeyT':
+        if (tour.isActive) {
+          tour.cancel();
+        } else {
+          help.setOpen(false);
+          support.setOpen(false);
+          tour.start();
+        }
+        break;
       case 'KeyB':
         bodyList.toggle();
         break;
@@ -103,6 +115,7 @@ function bindKeyboard(options: SceneInputOptions): void {
       case 'Escape':
         help.setOpen(false);
         support.setOpen(false);
+        if (tour.isActive) tour.cancel();
         break;
       case 'KeyP':
         clock.paused = !clock.paused;
@@ -129,7 +142,7 @@ function bindKeyboard(options: SceneInputOptions): void {
 const DRAG_THRESHOLD_PX = 4;
 
 function bindPointer(options: SceneInputOptions): void {
-  const { canvas, camera, flight, travel, bodyList, targets, travelTo, hint, orbit } = options;
+  const { canvas, camera, flight, travel, tour, bodyList, targets, travelTo, hint, orbit } = options;
 
   // Подсказка по управлению уходит, как только пользователь взял мышь.
   canvas.addEventListener('click', () => hint?.classList.add('hidden'), { once: true });
@@ -148,6 +161,8 @@ function bindPointer(options: SceneInputOptions): void {
   let lastY = 0;
 
   canvas.addEventListener('pointerdown', (event) => {
+    if (tour.isActive) tour.cancel();
+
     // Захваченная мышь — это свободный полёт: там осмотр идёт движением мыши,
     // а не протаскиванием, и перехватывать его нечего.
     if (event.button !== 0 || flight.isLocked || !orbit.isActive) return;
@@ -187,6 +202,7 @@ function bindPointer(options: SceneInputOptions): void {
   canvas.addEventListener(
     'wheel',
     (event) => {
+      if (tour.isActive) tour.cancel();
       if (orbit.isActive && !flight.isLocked) orbit.zoom(event.deltaY);
     },
     { passive: true },
@@ -200,6 +216,8 @@ function bindPointer(options: SceneInputOptions): void {
    * Попали в тело — летим к нему; попали в пустоту — берём мышь и смотрим сами.
    */
   canvas.addEventListener('click', (event) => {
+    if (tour.isActive) tour.cancel();
+
     // Клик, оказавшийся концом протаскивания, не считается кликом.
     if (moved >= DRAG_THRESHOLD_PX) {
       moved = 0;

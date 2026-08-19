@@ -128,7 +128,7 @@ export class SceneLuminance {
       return null;
     }
 
-    this.value = percentile(this.samples.subarray(0, occupied), PERCENTILE);
+    this.value = percentileInPlace(this.samples.subarray(0, occupied), PERCENTILE);
     return this.value;
   }
 
@@ -137,9 +137,17 @@ export class SceneLuminance {
   }
 }
 
-/** Процентиль набора значений. Сортировка тысячи чисел десять раз в секунду. */
-export function percentile(values: Float32Array, fraction: number): number {
-  const sorted = Array.from(values).sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.floor(fraction * sorted.length));
-  return sorted[index] ?? 0;
+/**
+ * Процентиль набора значений, сортирующий набор на месте.
+ *
+ * Сортировка тысячи чисел десять раз в секунду идёт без копии: копия
+ * здесь — это тысяча объектов в мусор каждую десятую долю секунды. Цена тому —
+ * переставленные значения у вызывающего, и имя говорит об этом прямо: тихая
+ * правка чужого массива — ровно та ловушка, которую тест на отсортированном
+ * наборе не ловит.
+ */
+export function percentileInPlace(values: Float32Array, fraction: number): number {
+  values.sort();
+  const index = Math.min(values.length - 1, Math.floor(fraction * values.length));
+  return values[index] ?? 0;
 }

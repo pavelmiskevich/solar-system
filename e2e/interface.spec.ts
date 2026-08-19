@@ -41,7 +41,7 @@ test.describe('интерфейс', () => {
 
     // Порядок в колонке: поддержка сверху, под ней справка, под ней список тел.
     const order = await page.locator('#bodies > button').allTextContents();
-    expect(order).toEqual(['Поддержать ♥', 'Справка ✕', 'Тела ☰']);
+    expect(order).toEqual(['Экскурсия ▶', 'Поддержать ♥', 'Справка ✕', 'Тела ☰']);
   });
 
   test('карточка поддержки открывается, закрывается и ведёт на CloudTips', async ({ page }) => {
