@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { AdaptiveExposure } from '../src/lighting/exposure';
-import { percentile } from '../src/lighting/sceneLuminance';
+import { percentileInPlace } from '../src/lighting/sceneLuminance';
 import { AU } from '../src/core/units';
 
 /** Прогнать адаптацию до установившегося значения. */
@@ -141,9 +141,9 @@ describe('percentile', () => {
   it('возвращает значение нужного порядка', () => {
     const values = new Float32Array([5, 1, 4, 2, 3]);
 
-    expect(percentile(values, 0)).toBe(1);
-    expect(percentile(values, 0.5)).toBe(3);
-    expect(percentile(values, 1)).toBe(5);
+    expect(percentileInPlace(values, 0)).toBe(1);
+    expect(percentileInPlace(values, 0.5)).toBe(3);
+    expect(percentileInPlace(values, 1)).toBe(5);
   });
 
   it('высокий процентиль игнорирует одиночный выброс не полностью', () => {
@@ -151,11 +151,11 @@ describe('percentile', () => {
     values.fill(0.1);
     values[99] = 100;
 
-    expect(percentile(values, 0.9)).toBeCloseTo(0.1, 6);
-    expect(percentile(values, 1)).toBe(100);
+    expect(percentileInPlace(values, 0.9)).toBeCloseTo(0.1, 6);
+    expect(percentileInPlace(values, 1)).toBe(100);
   });
 
   it('пустой набор не ломает расчёт', () => {
-    expect(percentile(new Float32Array(0), 0.5)).toBe(0);
+    expect(percentileInPlace(new Float32Array(0), 0.5)).toBe(0);
   });
 });
