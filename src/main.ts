@@ -18,10 +18,12 @@ import { SIZE_PRESETS, SolarSystem } from './scene/system';
 import { ReferenceFrame } from './camera/frame';
 import { OrbitControls } from './camera/orbit';
 import { TravelController } from './camera/travel';
+import { TourController } from './camera/tour';
 import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
 import { HINT, HelpPanel } from './ui/help';
 import { SupportPanel } from './ui/support';
+import { TourButton } from './ui/tourButton';
 import { Hud } from './ui/hud';
 import { LabelLayer } from './ui/labels';
 import { bindSceneInput } from './ui/input';
@@ -133,6 +135,16 @@ function findTarget(id: string): Target | undefined {
 const travel = new TravelController();
 const frame = new ReferenceFrame();
 const orbit = new OrbitControls();
+const tour = new TourController(travel, orbit, travelTo, (text) => {
+  if (hintElement) {
+    if (text) {
+      hintElement.textContent = text;
+      hintElement.classList.remove('hidden');
+    } else {
+      hintElement.classList.add('hidden');
+    }
+  }
+});
 
 function travelTo(id: string): void {
   const target = findTarget(id);
@@ -147,7 +159,6 @@ function travelTo(id: string): void {
   hintElement?.classList.add('hidden');
 }
 
-/** Тело, в системе отсчёта которого сейчас находится камера. */
 function frameTargetName(): string | null {
   const id = frame.targetId;
   return id ? (findTarget(id)?.name ?? null) : null;
@@ -201,6 +212,15 @@ function cardSourceFor(id: string | null): CardSource | null {
  */
 const help = new HelpPanel(panelElement, bodyList.column, () => support.setOpen(false));
 const support = new SupportPanel(panelElement, bodyList.column, () => help.setOpen(false));
+const tourButton = new TourButton(bodyList.column, () => {
+  if (tour.isActive) {
+    tour.cancel();
+  } else {
+    help.setOpen(false);
+    support.setOpen(false);
+    tour.start();
+  }
+});
 
 // Ссылка на исходники — последней кнопкой, но до списка тел: тот раскрывается
 // вниз, и кнопка под ним оказалась бы то у края экрана, то посреди списка.
@@ -367,6 +387,9 @@ const loop = new RenderLoop((dt, elapsed) => {
     viewport.setResolutionScale(quality.level.resolutionScale);
   }
 
+  tour.update(dt);
+  tourButton.setActive(tour.isActive);
+
   viewport.render();
 
   // Подписи обновляются после кадра: проекция опирается на матрицы камеры,
@@ -411,6 +434,7 @@ bindSceneInput({
   clock,
   flight,
   travel,
+  tour,
   labels,
   bodyList,
   help,
@@ -439,6 +463,7 @@ if (import.meta.env.DEV) {
     frame,
     orbit,
     quality,
+    tour,
     travelTo,
     lookAt(from: [number, number, number], at: [number, number, number] = [0, 0, 0]) {
       flight.placeLookingAt(new Vector3(...from), new Vector3(...at));
