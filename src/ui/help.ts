@@ -61,6 +61,7 @@ export const CONTROLS: HelpSection[] = [
     bindings: [
       { keys: ['L'], what: 'подписи тел' },
       { keys: ['M'], what: 'размеры тел: настоящие, ×10, ×100, ×1000' },
+      { keys: ['T'], what: 'автоматическая экскурсия' },
       { keys: ['H'], what: 'эта справка' },
     ],
   },
