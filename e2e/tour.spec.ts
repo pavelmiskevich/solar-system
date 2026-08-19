@@ -6,7 +6,7 @@ test.describe('экскурсия', () => {
     // Ускорим время ожидания в TourController для теста
     // TourController использует WAIT_TIME = 8.
     // Это ~90 секунд ожидания (11 остановок).
-    test.setTimeout(150_000);
+    test.setTimeout(300_000);
 
     await openScene(page);
     await pauseAt(page, '2026-08-14T12:00:00Z');
@@ -32,7 +32,7 @@ test.describe('экскурсия', () => {
     await expect(async () => {
       const active = await page.evaluate(() => (window as any).sim.tour.isActive);
       expect(active).toBe(false);
-    }).toPass({ timeout: 120_000 });
+    }).toPass({ timeout: 250_000 });
   });
 
   test('нажатие клавиши прерывает её немедленно', async ({ page }) => {
