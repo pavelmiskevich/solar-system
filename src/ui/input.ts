@@ -162,7 +162,7 @@ function bindPointer(options: SceneInputOptions): void {
 
   canvas.addEventListener('pointerdown', (event) => {
     if (tour.isActive) tour.cancel();
-    
+
     // Захваченная мышь — это свободный полёт: там осмотр идёт движением мыши,
     // а не протаскиванием, и перехватывать его нечего.
     if (event.button !== 0 || flight.isLocked || !orbit.isActive) return;
@@ -217,7 +217,7 @@ function bindPointer(options: SceneInputOptions): void {
    */
   canvas.addEventListener('click', (event) => {
     if (tour.isActive) tour.cancel();
-    
+
     // Клик, оказавшийся концом протаскивания, не считается кликом.
     if (moved >= DRAG_THRESHOLD_PX) {
       moved = 0;

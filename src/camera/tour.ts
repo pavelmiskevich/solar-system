@@ -20,7 +20,18 @@ const TOUR_STOPS: TourStop[] = [
   { id: 'pluto', caption: 'Плутон — карликовая планета на холодной окраине нашей системы, в поясе Койпера.' }
 ];
 
-const WAIT_TIME = 8; // seconds
+/** Сколько стоим у тела, разглядывая его, секунды. */
+const WAIT_TIME = 8;
+
+/**
+ * Сколько ждём прибытия, прежде чем считать перелёт сорвавшимся, секунды.
+ *
+ * Перелёт длится самое большее семь секунд, так что двадцать — это не «долго
+ * летим», а «не долетим уже никогда»: тело не нашлось по имени и перелёт не
+ * начался, орбитальный режим отпустило на подлёте. Без этого срока экскурсия
+ * молча зависала бы навсегда — без подписи, с кнопкой «Остановить» на экране.
+ */
+const TRAVEL_LIMIT = 20;
 
 export class TourController {
   private active = false;
@@ -47,6 +58,10 @@ export class TourController {
   cancel() {
     if (!this.active) return;
     this.active = false;
+    // Незаконченный перелёт надо оборвать вместе с экскурсией. Иначе
+    // прервавший её щелчок останавливает рассказ, а камера продолжает лететь
+    // к следующей планете сама по себе — и это выглядит поломкой.
+    if (this.state === 'traveling') this.travel.cancel();
     this.setCaption(null);
   }
 
@@ -58,13 +73,17 @@ export class TourController {
         this.state = 'arrived';
         this.timer = 0;
         this.setCaption(TOUR_STOPS[this.step]!.caption);
+        return;
       }
+
+      this.timer += dt;
+      if (this.timer >= TRAVEL_LIMIT) this.cancel();
     } else if (this.state === 'arrived') {
-      // 1000 - base viewport height for math
-      if (this.orbit.isActive) {
-        this.orbit.drag(dt * 150, 0, 1000);
-      }
-      
+      // Тело медленно поворачивается само, чтобы его осмотрели со всех
+      // сторон. Высота кадра здесь взята постоянной, а не настоящей: скорость
+      // рассказа не должна зависеть от того, какое у зрителя окно.
+      if (this.orbit.isActive) this.orbit.drag(dt * 150, 0, 1000);
+
       this.timer += dt;
       if (this.timer >= WAIT_TIME) {
         this.step++;
@@ -72,8 +91,9 @@ export class TourController {
           this.cancel();
           return;
         }
-        
+
         this.state = 'traveling';
+        this.timer = 0;
         this.setCaption(null);
         this.doTravelTo(TOUR_STOPS[this.step]!.id);
       }
