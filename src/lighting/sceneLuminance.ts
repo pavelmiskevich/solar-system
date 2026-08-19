@@ -139,7 +139,7 @@ export class SceneLuminance {
 
 /** Процентиль набора значений. Сортировка тысячи чисел десять раз в секунду. */
 export function percentile(values: Float32Array, fraction: number): number {
-  const sorted = Array.from(values).sort((a, b) => a - b);
-  const index = Math.min(sorted.length - 1, Math.floor(fraction * sorted.length));
-  return sorted[index] ?? 0;
+  values.sort();
+  const index = Math.min(values.length - 1, Math.floor(fraction * values.length));
+  return values[index] ?? 0;
 }
