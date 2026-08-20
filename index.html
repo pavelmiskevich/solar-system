@@ -119,6 +119,8 @@
 
       #hud b { font-weight: 600; color: var(--ui-fg); }
       #hud span { color: var(--ui-dim); }
+      /* Расстояние внутри значения — такое же значение, а не подпись к нему. */
+      #hud b .unit-toggle { color: var(--ui-fg); }
 
       /*
        * Подсказка по управлению, а во время экскурсии — рассказ о теле. Второе
@@ -555,6 +557,30 @@
       }
 
       .body-card-row .value { color: var(--ui-fg); text-align: right; }
+
+      /*
+       * Показание расстояния, по которому можно щёлкнуть, чтобы сменить
+       * единицы. Пунктир, а не сплошное подчёркивание: сплошное здесь читалось
+       * бы как ссылка наружу, а это переключатель на месте.
+       */
+      .unit-toggle {
+        /*
+         * HUD целиком прозрачен для мыши, чтобы не отнимать угол экрана у
+         * сцены. Показание расстояния — единственное, что там нажимается.
+         */
+        pointer-events: auto;
+        cursor: pointer;
+        text-decoration: underline dotted rgba(150, 180, 255, 0.45);
+        text-underline-offset: 3px;
+      }
+
+      .unit-toggle:hover,
+      .unit-toggle:focus-visible {
+        color: #cfe0ff;
+        text-decoration-color: rgba(150, 180, 255, 0.9);
+      }
+
+      .unit-toggle:focus-visible { outline: 1px solid rgba(150, 180, 255, 0.6); outline-offset: 2px; }
 
       /*
        * Подпись рода и состав атмосферы в одну строку не влезают, и строка,
