@@ -41,7 +41,7 @@ test.describe('интерфейс', () => {
 
     // Порядок в колонке: поддержка сверху, под ней справка, под ней список тел.
     const order = await page.locator('#bodies > button').allTextContents();
-    expect(order).toEqual(['Экскурсия ▶', 'Поддержать ♥', 'Справка ✕', 'Тела ☰']);
+    expect(order).toEqual(['Экскурсия ▶', 'Снимок ⤓', 'Поддержать ♥', 'Справка ✕', 'Тела ☰']);
   });
 
   test('карточка поддержки открывается, закрывается и ведёт на CloudTips', async ({ page }) => {
@@ -296,5 +296,36 @@ test.describe('интерфейс', () => {
     await waitForArrival(page, 'mars');
 
     await expect(hud).toContainText('Марс');
+  });
+
+  test('кнопка снимка отдаёт файл с картинкой по размеру экрана', async ({ page }) => {
+    await openScene(page);
+    
+    const viewportSize = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas')!;
+      return { width: canvas.width, height: canvas.height };
+    });
+
+    const downloadPromise = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Снимок ⤓' }).click();
+    const download = await downloadPromise;
+    
+    expect(download.suggestedFilename()).toMatch(/^solar-system-.*\.png$/);
+    
+    const path = await download.path();
+    expect(path).toBeTruthy();
+    
+    const fs = await import('node:fs');
+    const buffer = fs.readFileSync(path!);
+    const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+    
+    // Проверка сигнатуры PNG
+    expect(view.getUint32(0, false)).toBe(0x89504e47);
+    
+    const width = view.getUint32(16, false);
+    const height = view.getUint32(20, false);
+    
+    expect(width).toBe(viewportSize.width);
+    expect(height).toBe(viewportSize.height);
   });
 });
