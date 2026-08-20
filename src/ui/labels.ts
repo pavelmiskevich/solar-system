@@ -155,6 +155,9 @@ export class LabelLayer {
   private readonly boxes: LabelBox[] = [];
   private enabled = true;
 
+  /** Тело под курсором. Подсвечена всегда не больше одной подписи. */
+  private highlighted: string | null = null;
+
   /**
    * @param onSelect вызывается при клике по подписи. Подпись — самая крупная
    *        цель на экране для тела, которое само занимает доли пикселя, и не
@@ -175,6 +178,13 @@ export class LabelLayer {
           onSelect(source.id);
         });
       }
+
+      // Наведение на подпись подсвечивает её тем же способом, что и наведение
+      // на само тело: подпись и тело — одна цель, и вести себя должны одинаково.
+      element.addEventListener('pointerenter', () => this.setHighlighted(source.id));
+      element.addEventListener('pointerleave', () => {
+        if (this.highlighted === source.id) this.setHighlighted(null);
+      });
 
       const nameNode = document.createElement('b');
       nameNode.textContent = source.name;
@@ -203,6 +213,28 @@ export class LabelLayer {
     onDistanceUnitChange(() => {
       for (const entry of this.entries) entry.distanceAge = DISTANCE_REFRESH_SECONDS;
     });
+  }
+
+  /**
+   * Подсветить подпись тела под курсором; null — снять подсветку.
+   *
+   * Тело в этой сцене занимает доли пикселя, и то, что по нему можно щёлкнуть,
+   * из картинки никак не следовало: об этом можно было узнать только из
+   * справки. Подсветка отвечает на это раньше щелчка — курсор ещё только
+   * подошёл, а подпись уже говорит, во что попадёт.
+   */
+  setHighlighted(id: string | null): void {
+    if (id === this.highlighted) return;
+    this.highlighted = id;
+
+    for (const entry of this.entries) {
+      entry.element.classList.toggle('highlight', entry.source.id === id);
+    }
+  }
+
+  /** Тело, чья подпись сейчас подсвечена. */
+  get highlightedId(): string | null {
+    return this.highlighted;
   }
 
   setEnabled(enabled: boolean): void {
