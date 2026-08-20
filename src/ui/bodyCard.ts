@@ -1,7 +1,9 @@
 import { bodyFacts } from '../data/bodyFacts';
 import { bodyLore } from '../data/bodyLore';
 import { bodyById } from '../data/bodies';
-import { formatDistance } from './hud';
+import { formatDistance } from './distanceUnits';
+import { makeUnitToggle } from './hud';
+import { superscript } from './superscript';
 
 /**
  * Карточка тела.
@@ -94,6 +96,13 @@ const ROWS = [
 
 type RowLabel = (typeof ROWS)[number];
 
+/**
+ * Строки с расстоянием: щелчок по ним меняет единицы во всём интерфейсе.
+ * Радиус сюда не входит — это размер тела, а не расстояние до него, и мерить
+ * поперечник Юпитера в световых секундах незачем.
+ */
+const DISTANCE_ROWS: ReadonlySet<string> = new Set(['от Солнца', 'до камеры']);
+
 export class BodyCard {
   private readonly root: HTMLElement;
   private readonly title: HTMLElement;
@@ -128,6 +137,8 @@ export class BodyCard {
       const value = document.createElement('span');
       value.className = 'value';
       value.textContent = '—';
+
+      if (DISTANCE_ROWS.has(label)) makeUnitToggle(value);
 
       row.append(key, value);
       this.root.appendChild(row);
@@ -206,18 +217,4 @@ export class BodyCard {
 /** Разделение тысяч неразрывным пробелом — как в остальном интерфейсе. */
 function format(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
-}
-
-const SUPERSCRIPTS = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
-
-function superscript(value: number): string {
-  const sign = value < 0 ? '⁻' : '';
-  return (
-    sign +
-    Math.abs(value)
-      .toString()
-      .split('')
-      .map((digit) => SUPERSCRIPTS[Number(digit)] ?? '')
-      .join('')
-  );
 }

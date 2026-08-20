@@ -1,7 +1,7 @@
 import type { PerspectiveCamera } from 'three';
 import type { Vector3 } from 'three';
 
-import { formatDistance } from './hud';
+import { formatDistance, onDistanceUnitChange } from './distanceUnits';
 import { angularRadiusPixels, projectToScreen, type ScreenPoint } from './projection';
 
 /**
@@ -196,6 +196,13 @@ export class LabelLayer {
         lastTransform: '',
       });
     }
+
+    // Смена единиц не должна ждать очередного обновления расстояний: подписи
+    // держат последнее показанное значение и трогают вёрстку, только когда
+    // оно изменилось. У неподвижного тела оно не изменится вовсе.
+    onDistanceUnitChange(() => {
+      for (const entry of this.entries) entry.distanceAge = DISTANCE_REFRESH_SECONDS;
+    });
   }
 
   setEnabled(enabled: boolean): void {

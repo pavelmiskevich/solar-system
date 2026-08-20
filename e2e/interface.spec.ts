@@ -160,6 +160,42 @@ test.describe('интерфейс', () => {
     await expect(card.locator('.body-card-note')).toContainText('одной стороной');
   });
 
+  test('щелчок по расстоянию меняет единицы во всех местах сразу', async ({ page }) => {
+    await openScene(page);
+    await page.evaluate(() => window.sim.travelTo('saturn'));
+    await waitForArrival(page, 'saturn');
+    await page.keyboard.press('KeyB');
+
+    const hudDistance = page.locator('#hud b.unit-toggle').first();
+    const cardDistance = page.locator('.body-card-row', { hasText: 'от Солнца' }).locator('.value');
+    const listDistance = page.locator('#bodies .bodies-row .distance').first();
+
+    // Состояние по умолчанию — единица по величине: до Сатурна это а.е.
+    await expect(hudDistance).toContainText('а.е.');
+
+    // Километры. Проверяются все три места сразу: смысл переключателя в том,
+    // что интерфейс перестаёт мерить одно и то же разными мерами.
+    await hudDistance.click();
+    await expect(hudDistance).toContainText('км');
+    await expect(cardDistance).toContainText('км');
+    await expect(listDistance).toContainText('км');
+
+    await hudDistance.click();
+    await expect(hudDistance).toContainText('а.е.');
+    await expect(cardDistance).toContainText('а.е.');
+
+    // Световые минуты — ради них задача и заведена: «восемь световых минут до
+    // Солнца» говорит о масштабе больше, чем сто сорок девять миллионов км.
+    await hudDistance.click();
+    await expect(hudDistance).toContainText('св.');
+    await expect(cardDistance).toContainText('св.');
+    await expect(listDistance).toContainText('св.');
+
+    // Круг замыкается на исходном состоянии.
+    await hudDistance.click();
+    await expect(hudDistance).toContainText('а.е.');
+  });
+
   test('масштаб времени переключается клавишами и виден в HUD', async ({ page }) => {
     await openScene(page);
 

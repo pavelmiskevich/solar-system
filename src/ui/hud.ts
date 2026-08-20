@@ -1,4 +1,4 @@
-import { AU } from '../core/units';
+import { cycleDistanceUnit, distanceUnit, formatDistance, UNIT_NAMES } from './distanceUnits';
 
 /** Скорость света, км/с — ориентир для показаний скорости. */
 const C = 299_792.458;
@@ -36,6 +36,45 @@ const ROWS = [
   'кадры',
 ] as const;
 
+/** Строки, показывающие расстояние: щелчок по ним меняет единицы. */
+const DISTANCE_ROWS: ReadonlySet<string> = new Set(['до Солнца']);
+
+/**
+ * Сделать показание расстояния переключателем единиц.
+ *
+ * Живёт здесь, а не заводится в каждом месте заново: расстояния показывают и
+ * HUD, и карточка тела, и щелчок по любому из них должен делать одно и то же.
+ */
+export function makeUnitToggle(node: HTMLElement): void {
+  node.classList.add('unit-toggle');
+  node.tabIndex = 0;
+  node.setAttribute('role', 'button');
+  refreshTitle(node);
+
+  const toggle = () => {
+    cycleDistanceUnit();
+    refreshTitle(node);
+  };
+
+  node.addEventListener('click', (event) => {
+    // Показание расстояния бывает внутри кнопки перелёта: щелчок по нему
+    // меняет единицы и не должен вдобавок уносить камеру к телу.
+    event.stopPropagation();
+    toggle();
+  });
+
+  node.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    toggle();
+  });
+}
+
+function refreshTitle(node: HTMLElement): void {
+  node.title = `Единицы: ${UNIT_NAMES[distanceUnit()]}. Щелчок — следующие`;
+}
+
 /**
  * Строки HUD собираются один раз, дальше меняется только текст значений.
  * Пересборка разметки каждый кадр стоила бы разбора HTML и лишнего layout
@@ -43,6 +82,15 @@ const ROWS = [
  */
 export class Hud {
   private readonly values: HTMLElement[] = [];
+
+  /**
+   * Расстояние до ближайшего тела — отдельным узлом внутри своей строки.
+   *
+   * В строке стоит «Сатурн, 144 643 км», и переключатель единиц — только
+   * вторая половина. Будь строка одним узлом, пунктир под ней обещал бы, что
+   * по названию тела тоже можно щёлкнуть, а по нему нельзя.
+   */
+  private readonly nearestDistance = document.createElement('span');
 
   constructor(element: HTMLElement) {
     element.textContent = '';
@@ -52,6 +100,11 @@ export class Hud {
 
       const value = document.createElement('b');
       value.textContent = '—';
+      if (DISTANCE_ROWS.has(label)) makeUnitToggle(value);
+      if (label === 'ближайшее') {
+        makeUnitToggle(this.nearestDistance);
+        value.appendChild(this.nearestDistance);
+      }
 
       element.append(key, value, document.createTextNode('\n'));
       this.values.push(value);
@@ -62,7 +115,7 @@ export class Hud {
     this.set(0, DATE_FORMAT.format(data.date));
     this.set(1, data.timeScale);
     this.set(2, formatDistance(data.distanceToSunKm));
-    this.set(3, `${data.nearestBody}, ${formatDistance(data.nearestDistanceKm)}`);
+    this.setNearest(data.nearestBody, formatDistance(data.nearestDistanceKm));
     // Гелиоцентрическая система — состояние по умолчанию, и называть её честнее так,
     // чем прочерком: камера всё равно всегда в чьёй-то системе отсчёта.
     this.set(4, data.frame ?? 'Солнце');
@@ -71,16 +124,27 @@ export class Hud {
     this.set(7, `${data.fps.toFixed(0)} fps`);
   }
 
+  /** Название тела — обычным текстом, расстояние — переключателем единиц. */
+  private setNearest(name: string, distance: string): void {
+    const node = this.values[3];
+    if (!node) return;
+
+    const prefix = `${name}, `;
+    if (node.firstChild?.nodeType === Node.TEXT_NODE) {
+      if (node.firstChild.textContent !== prefix) node.firstChild.textContent = prefix;
+    } else {
+      node.insertBefore(document.createTextNode(prefix), this.nearestDistance);
+    }
+
+    if (this.nearestDistance.textContent !== distance) {
+      this.nearestDistance.textContent = distance;
+    }
+  }
+
   private set(index: number, text: string): void {
     const node = this.values[index];
     if (node && node.textContent !== text) node.textContent = text;
   }
-}
-
-export function formatDistance(km: number): string {
-  if (km < 1) return `${(km * 1000).toFixed(0)} м`;
-  if (km < 1e6) return `${km.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} км`;
-  return `${(km / AU).toFixed(km / AU < 10 ? 3 : 2)} а.е.`;
 }
 
 export function formatSpeed(kmS: number): string {

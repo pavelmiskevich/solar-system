@@ -1,4 +1,4 @@
-import { formatDistance } from './hud';
+import { formatDistance, onDistanceUnitChange } from './distanceUnits';
 
 /**
  * Список тел для быстрого перелёта.
@@ -86,6 +86,14 @@ export class BodyList {
 
     this.root.append(this.toggleButton, list);
     container.appendChild(this.root);
+
+    // Расстояния здесь обновляются раз в несколько долей секунды, и смену
+    // единиц пришлось бы ждать. Ждать нечего: щелчок должен отзываться сразу
+    // во всех местах, иначе выглядит, что переключилось не везде.
+    onDistanceUnitChange(() => {
+      this.age = Infinity;
+      this.update(0);
+    });
   }
 
   get isOpen(): boolean {
