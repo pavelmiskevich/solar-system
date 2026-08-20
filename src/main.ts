@@ -25,6 +25,7 @@ import { HINT, HelpPanel } from './ui/help';
 import { SupportPanel } from './ui/support';
 import { TimeSlider } from './ui/timeSlider';
 import { TourButton } from './ui/tourButton';
+import { SnapshotButton, saveCanvasPng, snapshotFileName } from './ui/snapshotButton';
 import { Hud } from './ui/hud';
 import { LabelLayer } from './ui/labels';
 import { bindSceneInput } from './ui/input';
@@ -213,6 +214,10 @@ function cardSourceFor(id: string | null): CardSource | null {
  */
 const help = new HelpPanel(panelElement, bodyList.column, () => support.setOpen(false));
 const support = new SupportPanel(panelElement, bodyList.column, () => help.setOpen(false));
+let needsSnapshot = false;
+const snapshotButton = new SnapshotButton(bodyList.column, () => {
+  needsSnapshot = true;
+});
 const tourButton = new TourButton(bodyList.column, () => {
   if (tour.isActive) {
     tour.cancel();
@@ -398,6 +403,12 @@ const loop = new RenderLoop((dt, elapsed) => {
   tourButton.setActive(tour.isActive);
 
   viewport.render();
+
+  if (needsSnapshot) {
+    saveCanvasPng(viewport.renderer.domElement, snapshotFileName(clock.date));
+    snapshotButton.confirm();
+    needsSnapshot = false;
+  }
 
   // Подписи обновляются после кадра: проекция опирается на матрицы камеры,
   // а те приводятся в порядок отрисовкой.
