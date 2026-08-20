@@ -26,9 +26,15 @@ async function cursorAt(page: Page, point: { x: number; y: number }): Promise<st
 test.describe('наведение', () => {
   test('наведение на подпись подсвечивает её, увод — снимает', async ({ page }) => {
     await openScene(page);
+    // Прилетаем к телу, а не полагаемся на то, где оно окажется при запуске:
+    // сцена стартует с текущей даты, и в другой день подпись Юпитера стоит в
+    // другом месте кадра — а то и за его краем.
+    await page.evaluate(() => window.sim.travelTo('jupiter'));
+    await waitForArrival(page, 'jupiter');
+    await waitForFrames(page, 3);
 
     const label = page.locator('.label', { hasText: 'Юпитер' }).first();
-    await label.waitFor({ state: 'attached' });
+    await label.waitFor({ state: 'visible' });
     await expect(label).not.toHaveClass(/highlight/);
 
     await label.hover();
@@ -75,11 +81,18 @@ test.describe('наведение', () => {
 
   test('подсветка снимается, когда мышь захвачена свободным полётом', async ({ page }) => {
     await openScene(page);
+    // Прилетаем к телу, а не полагаемся на то, где оно окажется при запуске:
+    // сцена стартует с текущей даты, и в другой день Юпитер стоит в другом
+    // месте кадра — а то и за Солнцем.
+    await page.evaluate(() => window.sim.travelTo('jupiter'));
+    await waitForArrival(page, 'jupiter');
     await waitForFrames(page, 3);
 
-    const jupiter = await screenPositionOf(page, 'jupiter');
-    expect(jupiter).not.toBeNull();
-    await page.mouse.move(jupiter!.x, jupiter!.y);
+    const centre = await screenPositionOf(page, 'jupiter');
+    expect(centre, 'Юпитер должен быть в кадре').not.toBeNull();
+    const onDisc = { x: centre!.x - 60, y: centre!.y + 60 };
+
+    await page.mouse.move(onDisc.x, onDisc.y);
     await waitForFrames(page, 2);
     expect(await page.locator('.label.highlight').count()).toBe(1);
 
@@ -87,7 +100,7 @@ test.describe('наведение', () => {
     // подсвечивать под несуществующим курсором нечего.
     await page.evaluate(() => window.sim.flight.requestLook());
     await waitForFrames(page, 3);
-    await page.mouse.move(jupiter!.x + 3, jupiter!.y + 3);
+    await page.mouse.move(onDisc.x + 3, onDisc.y + 3);
     await waitForFrames(page, 2);
 
     expect(await page.locator('.label.highlight').count()).toBe(0);
