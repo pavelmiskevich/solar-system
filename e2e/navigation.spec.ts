@@ -52,11 +52,11 @@ test.describe('перелёты', () => {
     await openScene(page);
     await pauseAt(page, '2026-08-14T12:00:00Z');
 
-    const label = page.locator('.label', { hasText: 'Меркурий' });
+    const label = page.locator('.label', { hasText: 'Юпитер' });
     await expect(label).toBeVisible();
     await label.click();
 
-    expect(await page.evaluate(() => window.sim.travel.targetId)).toBe('mercury');
+    expect(await page.evaluate(() => window.sim.travel.targetId)).toBe('jupiter');
   });
 
   test('клавиша движения прерывает перелёт', async ({ page }) => {
