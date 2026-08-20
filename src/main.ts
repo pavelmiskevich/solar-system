@@ -23,7 +23,6 @@ import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
 import { HINT, HelpPanel } from './ui/help';
 import { SupportPanel } from './ui/support';
-import { SnapshotButton, saveCanvasPng, snapshotFileName } from './ui/snapshotButton';
 import { TimeSlider } from './ui/timeSlider';
 import { TourButton } from './ui/tourButton';
 import { Hud } from './ui/hud';
