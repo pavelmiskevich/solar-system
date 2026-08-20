@@ -9,6 +9,17 @@ on:
   push:
     tags: ['v*']
 
+  # Ручной запуск для тега, выпуск по которому не довёлся до конца. Событие
+  # push для тега случается один раз, и без этого входа единственный способ
+  # переиграть сорвавшийся выпуск — удалить тег и поставить заново, то есть
+  # переписать то, на что уже можно было сослаться.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег выпуска, например v0.4.0'
+        required: true
+        type: string
+
 permissions:
   contents: read
 
@@ -20,6 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
@@ -39,6 +52,8 @@ jobs:
       version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
@@ -49,21 +64,36 @@ jobs:
 
       - name: Версия из тега
         id: version
-        run: echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: echo "value=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Архив сборки
-        run: tar -czf "solar-system-${GITHUB_REF_NAME}.tar.gz" -C dist .
+        env:
+          VERSION: ${{ steps.version.outputs.value }}
+        run: tar -czf "solar-system-$VERSION.tar.gz" -C dist .
 
       # Через gh, а не через стороннее действие: он предустановлен на runner, и
       # это на одну внешнюю зависимость в цепочке сборки меньше.
       - name: GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.value }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            "solar-system-${GITHUB_REF_NAME}.tar.gz"
+          set -euo pipefail
+
+          # Создаём релиз, только если его ещё нет. Голое `gh release create`
+          # падает на уже существующем, и однажды это стоило целого выпуска:
+          # релиз создали руками, чем поставили тег, тег запустил этот
+          # workflow, тот попытался создать релиз второй раз и упал, а вместе
+          # с ним не состоялась и выкладка. Кто первым дошёл до релиза, не
+          # важно; важно, чтобы в итоге на нём висел архив сборки.
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "релиз $VERSION уже создан, догружаю архив сборки"
+            gh release upload "$VERSION" "solar-system-$VERSION.tar.gz" --clobber
+          else
+            gh release create "$VERSION" --title "$VERSION" --generate-notes "solar-system-$VERSION.tar.gz"
+          fi
 
       - name: Сборка для выкладки
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
