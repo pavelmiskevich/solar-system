@@ -156,6 +156,13 @@ export class HelpPanel {
       }
 
       columns.appendChild(block);
+      
+      if (section.title === 'Время') {
+        const sliderRow = document.createElement('div');
+        sliderRow.className = 'help-row';
+        sliderRow.id = 'time-slider-container';
+        block.appendChild(sliderRow);
+      }
     }
 
     card.appendChild(columns);

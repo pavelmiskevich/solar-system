@@ -23,6 +23,7 @@ import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
 import { HINT, HelpPanel } from './ui/help';
 import { SupportPanel } from './ui/support';
+import { TimeSlider } from './ui/timeSlider';
 import { TourButton } from './ui/tourButton';
 import { Hud } from './ui/hud';
 import { LabelLayer } from './ui/labels';
@@ -234,6 +235,9 @@ bodyList.column.insertBefore(createSourceLink(), bodyList.column.querySelector('
  */
 help.setOpen(true);
 
+const timeSliderContainer = document.getElementById('time-slider-container');
+const timeSlider = timeSliderContainer ? new TimeSlider(timeSliderContainer, clock) : null;
+
 if (hintElement) hintElement.textContent = HINT;
 
 /** Линии орбит перестраиваются раз в модельный год: вековой дрейф медленный. */
@@ -407,6 +411,7 @@ const loop = new RenderLoop((dt, elapsed) => {
   bodyCard.show(cardSourceFor(travel.targetId ?? frame.targetId));
   bodyCard.update(dt);
 
+  timeSlider?.update();
   hud.update({
     fps: loop.fps,
     speedKmS: flight.speed,
