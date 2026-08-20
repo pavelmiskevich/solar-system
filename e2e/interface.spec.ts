@@ -136,6 +136,28 @@ test.describe('интерфейс', () => {
     expect(text).toMatch(/5\.68·10²⁶ кг/);
     expect(text).toMatch(/10 ч \d+ мин/);
     expect(text).toContain('29.5 года');
+
+    // Справочное: то, что не выводится из механики и берётся из таблицы.
+    expect(text).toContain('−139 °C');
+    expect(text).toContain('водород 96 %');
+    expect(text).toMatch(/спутников\s*\d+/);
+    await expect(card.locator('.body-card-note')).toContainText('плотность');
+  });
+
+  test('в карточке спутника нет строки о его собственных спутниках', async ({ page }) => {
+    await openScene(page);
+
+    // У Луны своих спутников не бывает, и прочерк на этом месте читался бы как
+    // «ноль» — утверждение, которого никто не делал. Строка убирается целиком.
+    await page.evaluate(() => window.sim.travelTo('moon'));
+    await waitForArrival(page, 'moon');
+
+    const card = page.locator('.body-card');
+    await expect(card.locator('.body-card-header b')).toHaveText('Луна');
+
+    const shown = await card.locator('.body-card-row:not(.hidden)').allTextContents();
+    expect(shown.join(' | ')).not.toContain('спутников');
+    await expect(card.locator('.body-card-note')).toContainText('одной стороной');
   });
 
   test('масштаб времени переключается клавишами и виден в HUD', async ({ page }) => {

@@ -1,4 +1,5 @@
 import { bodyFacts } from '../data/bodyFacts';
+import { bodyLore } from '../data/bodyLore';
 import { bodyById } from '../data/bodies';
 import { formatDistance } from './hud';
 
@@ -49,6 +50,18 @@ export function formatRotationPeriod(days: number): string {
   return `${absolute.toFixed(absolute < 100 ? 1 : 0)} сут${retrograde}`;
 }
 
+/**
+ * Температура: «+15 °C», «−63 °C».
+ *
+ * Знак ставится всегда, в том числе плюс. Без него «15 °C» рядом с «−63 °C»
+ * читается как недостающий минус, а не как тепло.
+ */
+export function formatTemperature(celsius: number): string {
+  const rounded = Math.round(celsius);
+  const sign = rounded < 0 ? '−' : '+';
+  return `${sign}${Math.abs(rounded)} °C`;
+}
+
 /** Отношение к земному: «11.2 радиуса Земли». */
 export function formatRelative(value: number, unit: string): string {
   if (value >= 100) return `${value.toFixed(0)} ${unit}`;
@@ -66,14 +79,12 @@ export interface CardSource {
   distanceToSun(): number;
 }
 
-interface CardRow {
-  label: string;
-  value: HTMLElement;
-}
-
 const ROWS = [
   'радиус',
   'масса',
+  'температура',
+  'атмосфера',
+  'спутников',
   'наклон оси',
   'сутки',
   'оборот',
@@ -81,11 +92,16 @@ const ROWS = [
   'до камеры',
 ] as const;
 
+type RowLabel = (typeof ROWS)[number];
+
 export class BodyCard {
   private readonly root: HTMLElement;
   private readonly title: HTMLElement;
   private readonly kind: HTMLElement;
-  private readonly rows: CardRow[] = [];
+  private readonly note: HTMLElement;
+  /** Строка целиком — её приходится прятать там, где величины не существует. */
+  private readonly lines = new Map<RowLabel, HTMLElement>();
+  private readonly rows = new Map<RowLabel, HTMLElement>();
 
   private source: CardSource | null = null;
   private age = 0;
@@ -115,8 +131,13 @@ export class BodyCard {
 
       row.append(key, value);
       this.root.appendChild(row);
-      this.rows.push({ label, value });
+      this.rows.set(label, value);
+      this.lines.set(label, row);
     }
+
+    this.note = document.createElement('div');
+    this.note.className = 'body-card-note';
+    this.root.appendChild(this.note);
 
     container.appendChild(this.root);
   }
@@ -136,11 +157,24 @@ export class BodyCard {
     this.title.textContent = source.name;
     this.kind.textContent = source.kind;
 
-    this.set(0, `${format(facts.radiusKm)} км · ${formatRelative(facts.radiusKm / EARTH.radiusKm, 'R⊕')}`);
-    this.set(1, `${formatMass(facts.massKg)} · ${formatRelative(facts.massKg / EARTH.massKg, 'M⊕')}`);
-    this.set(2, `${facts.axialTiltDeg.toFixed(1)}°`);
-    this.set(3, formatRotationPeriod(facts.rotationPeriodDays));
-    this.set(4, formatOrbitalPeriod(facts.orbitalPeriodDays));
+    this.set('радиус', `${format(facts.radiusKm)} км · ${formatRelative(facts.radiusKm / EARTH.radiusKm, 'R⊕')}`);
+    this.set('масса', `${formatMass(facts.massKg)} · ${formatRelative(facts.massKg / EARTH.massKg, 'M⊕')}`);
+    this.set('наклон оси', `${facts.axialTiltDeg.toFixed(1)}°`);
+    this.set('сутки', formatRotationPeriod(facts.rotationPeriodDays));
+    this.set('оборот', formatOrbitalPeriod(facts.orbitalPeriodDays));
+
+    const lore = bodyLore(source.id);
+    this.set('температура', lore ? formatTemperature(lore.temperatureC) : '—');
+    this.set('атмосфера', lore?.atmosphere ?? '—');
+
+    // У Солнца и у спутников своих спутников нет, и прочерк здесь читался бы
+    // как «ноль» — утверждение, которого никто не делал. Строка убирается.
+    const moons = lore?.moons ?? null;
+    this.showRow('спутников', moons !== null);
+    if (moons !== null) this.set('спутников', String(moons));
+
+    this.note.textContent = lore?.note ?? '';
+    this.note.classList.toggle('hidden', !lore);
 
     // Живые строки заполняются сразу, чтобы карточка не появлялась пустой.
     this.age = Infinity;
@@ -155,13 +189,17 @@ export class BodyCard {
     if (this.age < 0.33) return;
     this.age = 0;
 
-    this.set(5, formatDistance(Math.max(this.source.distanceToSun(), 0)));
-    this.set(6, formatDistance(Math.max(this.source.distanceToCamera(), 0)));
+    this.set('от Солнца', formatDistance(Math.max(this.source.distanceToSun(), 0)));
+    this.set('до камеры', formatDistance(Math.max(this.source.distanceToCamera(), 0)));
   }
 
-  private set(index: number, text: string): void {
-    const row = this.rows[index];
-    if (row && row.value.textContent !== text) row.value.textContent = text;
+  private set(label: RowLabel, text: string): void {
+    const value = this.rows.get(label);
+    if (value && value.textContent !== text) value.textContent = text;
+  }
+
+  private showRow(label: RowLabel, visible: boolean): void {
+    this.lines.get(label)?.classList.toggle('hidden', !visible);
   }
 }
 

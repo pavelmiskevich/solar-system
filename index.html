@@ -513,7 +513,7 @@
       /* Карточка тела: под списком, в той же колонке. */
       .body-card {
         pointer-events: auto;
-        width: 268px;
+        width: 300px;
         padding: 12px 14px;
         border-radius: 12px;
         border: 1px solid var(--ui-border);
@@ -555,6 +555,23 @@
       }
 
       .body-card-row .value { color: var(--ui-fg); text-align: right; }
+
+      /*
+       * Подпись рода и состав атмосферы в одну строку не влезают, и строка,
+       * которой в этом теле не существует, убирается целиком: прочерк на
+       * месте числа спутников у Луны читался бы как «ноль».
+       */
+      .body-card-row.hidden,
+      .body-card-note.hidden { display: none; }
+
+      .body-card-note {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(150, 180, 255, 0.12);
+        font-size: 11px;
+        line-height: 1.45;
+        color: var(--ui-dim);
+      }
 
       .bodies-row {
         display: grid;
