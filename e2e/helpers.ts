@@ -170,6 +170,51 @@ export async function screenPositionOf(
   }, id);
 }
 
+/**
+ * Точка кадра, где заведомо нет ни одного тела.
+ *
+ * Нужна проверкам наведения: «пустой угол» пустой не всегда — какая-нибудь
+ * далёкая планета стоит там точкой в два пикселя, и допуск наведения её
+ * захватывает. Точка выбирается по сетке как самая дальняя от всех тел сразу,
+ * поэтому не зависит ни от даты, ни от того, куда смотрит камера.
+ */
+export async function emptyScreenPoint(page: Page): Promise<{ x: number; y: number }> {
+  return page.evaluate(() => {
+    const sim = window.sim;
+    const element = sim.viewport.renderer.domElement;
+    const width = element.clientWidth;
+    const height = element.clientHeight;
+
+    const bodies: { x: number; y: number }[] = [];
+    for (const entry of sim.labels.entries) {
+      const projected = entry.source.renderPosition.clone().project(sim.viewport.camera);
+      if (projected.z > 1) continue;
+      bodies.push({
+        x: (projected.x * 0.5 + 0.5) * width,
+        y: (0.5 - projected.y * 0.5) * height,
+      });
+    }
+
+    let best = { x: width * 0.5, y: height * 0.5 };
+    let bestDistance = -1;
+    for (let gx = 1; gx < 12; gx += 1) {
+      for (let gy = 1; gy < 12; gy += 1) {
+        const x = (width * gx) / 12;
+        const y = (height * gy) / 12;
+        let nearest = Infinity;
+        for (const body of bodies) {
+          nearest = Math.min(nearest, Math.hypot(body.x - x, body.y - y));
+        }
+        if (nearest > bestDistance) {
+          bestDistance = nearest;
+          best = { x, y };
+        }
+      }
+    }
+    return best;
+  });
+}
+
 /** Проверка, что консоль чистая: в сцене ошибка шейдера равносильна пустому кадру. */
 export function expectNoErrors(errors: string[]): void {
   expect(errors, `в консоли ошибки:\n${errors.join('\n')}`).toEqual([]);

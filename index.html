@@ -65,8 +65,16 @@
         cursor: pointer;
       }
 
-      .label:hover b { color: #fff; }
-      .label:hover::before { background: rgba(255, 255, 255, 0.7); }
+      /*
+       * Подсветка тела под курсором. Наведение считается не браузером, а
+       * сценой: попасть курсором по планете в доли пикселя нельзя, и то, во
+       * что попадёт щелчок, знает только выбор по экрану. Поэтому подсвечивает
+       * класс, а не `:hover` — иначе подсветилось бы одно, а улетели бы к
+       * другому.
+       */
+      .label.highlight b { color: #fff; }
+      .label.highlight i { color: var(--ui-fg); }
+      .label.highlight::before { background: rgba(255, 255, 255, 0.75); }
 
       .label b {
         display: block;

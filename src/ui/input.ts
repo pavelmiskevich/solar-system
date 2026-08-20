@@ -142,7 +142,8 @@ function bindKeyboard(options: SceneInputOptions): void {
 const DRAG_THRESHOLD_PX = 4;
 
 function bindPointer(options: SceneInputOptions): void {
-  const { canvas, camera, flight, travel, tour, bodyList, targets, travelTo, hint, orbit } = options;
+  const { canvas, camera, flight, travel, tour, bodyList, labels, targets, travelTo, hint, orbit } =
+    options;
 
   // Подсказка по управлению уходит, как только пользователь взял мышь.
   canvas.addEventListener('click', () => hint?.classList.add('hidden'), { once: true });
@@ -159,6 +160,42 @@ function bindPointer(options: SceneInputOptions): void {
   let moved = 0;
   let lastX = 0;
   let lastY = 0;
+
+  /**
+   * Подсветка тела под курсором.
+   *
+   * Считается тем же выбором, что и щелчок, — иначе подсветилось бы одно, а
+   * улетели бы к другому. Пока мышь захвачена, курсора нет и целятся прицелом
+   * в центре кадра: подсвечивать там нечего, это делает сам прицел.
+   */
+  canvas.addEventListener('pointermove', (event) => {
+    if (flight.isLocked) {
+      labels.setHighlighted(null);
+      canvas.style.cursor = '';
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    const hit = pickBody(
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+      targets,
+      camera,
+      canvas.clientWidth,
+      canvas.clientHeight,
+    );
+
+    labels.setHighlighted(hit?.candidate.id ?? null);
+    // Указатель — обещание, что здесь есть куда нажать. Обещание держится
+    // ровно тем же выбором, каким отработает щелчок.
+    canvas.style.cursor = hit ? 'pointer' : '';
+  });
+
+  // Курсор ушёл с холста — подсветке неоткуда взяться.
+  canvas.addEventListener('pointerleave', () => {
+    labels.setHighlighted(null);
+    canvas.style.cursor = '';
+  });
 
   canvas.addEventListener('pointerdown', (event) => {
     if (tour.isActive) tour.cancel();
