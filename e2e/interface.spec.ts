@@ -218,6 +218,22 @@ test.describe('интерфейс', () => {
     await expect(hud).toContainText('пауза');
   });
 
+  test('ползунок скорости времени меняет масштаб и показывает его в HUD', async ({ page }) => {
+    await openScene(page);
+    
+    // Открываем справку, чтобы ползунок стал доступен для взаимодействия.
+    await page.keyboard.press('KeyH');
+    
+    const slider = page.locator('#time-slider-container input[type="range"]');
+    await expect(slider).toBeVisible();
+    
+    // Сдвигаем ползунок в крайнее правое положение. TIME_SCALES имеет 14 значений (0..13)
+    await slider.fill('13');
+    
+    const hud = page.locator('#hud');
+    await expect(hud).toContainText('20 лет/с');
+  });
+
   test('подписи тел выключаются клавишей', async ({ page }) => {
     await openScene(page);
     await pauseAt(page, '2026-08-14T12:00:00Z');
