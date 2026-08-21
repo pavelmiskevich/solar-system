@@ -39,6 +39,51 @@ export interface SatelliteElements {
 }
 
 /**
+ * Поворот из плоскости орбиты в экваториальную систему планеты.
+ *
+ * Вынесен отдельно, потому что у линии орбиты он один на все её точки:
+ * шесть косинусов и синусов не зависят от того, где по орбите сейчас тело.
+ * Общий поворот заодно означает, что линия проходит через спутник не по
+ * счастливому совпадению, а потому что это одни и те же формулы.
+ */
+interface OrbitRotation {
+  cosPeri: number;
+  sinPeri: number;
+  cosNode: number;
+  sinNode: number;
+  cosI: number;
+  sinI: number;
+}
+
+function orbitRotation(elements: SatelliteElements): OrbitRotation {
+  const peri = elements.peri * DEG;
+  const node = elements.node * DEG;
+  const inclination = elements.i * DEG;
+
+  return {
+    cosPeri: Math.cos(peri),
+    sinPeri: Math.sin(peri),
+    cosNode: Math.cos(node),
+    sinNode: Math.sin(node),
+    cosI: Math.cos(inclination),
+    sinI: Math.sin(inclination),
+  };
+}
+
+/** Точка плоскости орбиты (перицентр по оси x) в экваториальной системе планеты. */
+function place(rotation: OrbitRotation, x: number, y: number, out: Vector3): Vector3 {
+  const { cosPeri, sinPeri, cosNode, sinNode, cosI, sinI } = rotation;
+
+  return out.set(
+    x * (cosNode * cosPeri - sinNode * sinPeri * cosI) -
+      y * (cosNode * sinPeri + sinNode * cosPeri * cosI),
+    x * (sinNode * cosPeri + cosNode * sinPeri * cosI) -
+      y * (sinNode * sinPeri - cosNode * cosPeri * cosI),
+    x * (sinPeri * sinI) + y * (cosPeri * sinI),
+  );
+}
+
+/**
  * Положение спутника относительно планеты в её экваториальной системе, км.
  *
  * Ось z — северный полюс планеты, ось x — восходящий узел её экватора на
@@ -59,22 +104,40 @@ export function satellitePosition(
   const x = elements.a * (Math.cos(E) - elements.e);
   const y = elements.a * Math.sqrt(1 - elements.e * elements.e) * Math.sin(E);
 
-  const peri = elements.peri * DEG;
-  const node = elements.node * DEG;
-  const inclination = elements.i * DEG;
+  return place(orbitRotation(elements), x, y, out);
+}
 
-  const cosPeri = Math.cos(peri);
-  const sinPeri = Math.sin(peri);
-  const cosNode = Math.cos(node);
-  const sinNode = Math.sin(node);
-  const cosI = Math.cos(inclination);
-  const sinI = Math.sin(inclination);
+/**
+ * Точки орбиты спутника в экваториальной системе планеты, км.
+ *
+ * Обход идёт по эксцентрической аномалии, а не по времени: у эллипса это
+ * даёт равномерную по длине дуги линию вместо сгущения точек в апоцентре —
+ * то же соображение, что и у планетных орбит в `sampleOrbit`.
+ *
+ * Времени здесь нет вовсе, и это не упущение. Элементы спутника средние, без
+ * вековых членов, поэтому эллипс в системе планеты неподвижен: по нему
+ * движется только тело, а сама линия строится один раз и навсегда.
+ */
+export function sampleSatelliteOrbit(
+  elements: SatelliteElements,
+  segments = 256,
+): Vector3[] {
+  const rotation = orbitRotation(elements);
+  const semiMinor = elements.a * Math.sqrt(1 - elements.e * elements.e);
+  const points: Vector3[] = [];
 
-  return out.set(
-    x * (cosNode * cosPeri - sinNode * sinPeri * cosI) -
-      y * (cosNode * sinPeri + sinNode * cosPeri * cosI),
-    x * (sinNode * cosPeri + cosNode * sinPeri * cosI) -
-      y * (sinNode * sinPeri - cosNode * cosPeri * cosI),
-    x * (sinPeri * sinI) + y * (cosPeri * sinI),
-  );
+  for (let s = 0; s <= segments; s += 1) {
+    const E = (s / segments) * Math.PI * 2;
+
+    points.push(
+      place(
+        rotation,
+        elements.a * (Math.cos(E) - elements.e),
+        semiMinor * Math.sin(E),
+        new Vector3(),
+      ),
+    );
+  }
+
+  return points;
 }
