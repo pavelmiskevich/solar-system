@@ -1,4 +1,4 @@
-import { Vector3 } from 'three';
+import { Euler, Quaternion, Vector3 } from 'three';
 
 import { FlightControls } from './camera/flight';
 import { framingPosition } from './camera/framing';
@@ -7,7 +7,9 @@ import { FloatingOrigin } from './core/floatingOrigin';
 import { RenderLoop } from './core/loop';
 import { AdaptiveQuality } from './core/quality';
 import { Viewport } from './core/renderer';
-import { AU } from './core/units';
+import { decodeSceneState, encodeSceneState } from './core/sceneState';
+import type { SceneState } from './core/sceneState';
+import { AU, DEG, dateFromJulianDay } from './core/units';
 import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
 import { SceneLuminance } from './lighting/sceneLuminance';
@@ -24,6 +26,7 @@ import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
 import { HINT, HelpPanel } from './ui/help';
 import { SupportPanel } from './ui/support';
+import { DatePanel } from './ui/datePanel';
 import { TimeSlider } from './ui/timeSlider';
 import { TourButton } from './ui/tourButton';
 import { SnapshotButton, saveCanvasPng, snapshotFileName } from './ui/snapshotButton';
@@ -44,7 +47,21 @@ if (!container || !hudElement || !overlayElement || !panelElement) {
 }
 
 const viewport = new Viewport({ container });
-const clock = new SimClock(new Date(), DEFAULT_TIME_SCALE);
+
+/**
+ * Состояние из адреса страницы читается до всего остального.
+ *
+ * Иначе сцена успела бы завестись на сегодняшнем числе и прыгнуть на дату
+ * из ссылки уже на глазах у зрителя — а он открывал ссылку затем, чтобы
+ * увидеть сразу тот кадр, которым с ним поделились.
+ */
+const initialState = decodeSceneState(window.location.search);
+
+const clock = new SimClock(
+  initialState.jd === undefined ? new Date() : dateFromJulianDay(initialState.jd),
+  initialState.timeScale ?? DEFAULT_TIME_SCALE,
+);
+clock.paused = initialState.paused ?? false;
 const origin = new FloatingOrigin();
 const exposure = new AdaptiveExposure();
 /** Замер яркости кадра — им экспозиция узнаёт, на что направлена камера. */
@@ -176,6 +193,135 @@ function frameTargetName(): string | null {
   return id ? (findTarget(id)?.name ?? null) : null;
 }
 
+/**
+ * Куда смотрит сцена прямо сейчас — в том виде, в каком это пишется в адрес.
+ *
+ * Пока камера привязана к телу, вид описывается телом, расстоянием в его
+ * радиусах и двумя углами: такая запись переживает смену даты, потому что
+ * тело к тому времени уедет по орбите, а вид останется прежним. В свободном
+ * полёте привязки нет, и остаётся записать мировые координаты и направление
+ * взгляда. Посреди перелёта вид тоже свободный: орбитальный режим ещё не
+ * включён, и врать про привязку было бы хуже, чем записать честную точку.
+ */
+function readSceneState(): SceneState {
+  const state: SceneState = {
+    jd: clock.jd,
+    timeScale: clock.timeScale,
+    paused: clock.paused,
+  };
+
+  const held = frame.targetId ? findTarget(frame.targetId) : undefined;
+
+  if (held && orbit.isActive && !travel.isActive) {
+    state.view = {
+      kind: 'body',
+      body: held.id,
+      // Радиусы видимые, а не настоящие: множитель размеров меняет и то, и
+      // другое, но сохранить надо картинку — насколько крупным тело в кадре.
+      radii: orbit.radius / Math.max(held.radius, 1e-6),
+      azimuth: orbit.azimuthAngle / DEG,
+      elevation: orbit.elevationAngle / DEG,
+    };
+
+    return state;
+  }
+
+  cameraEuler.setFromQuaternion(flight.quaternion, 'YXZ');
+  state.view = {
+    kind: 'free',
+    position: [flight.worldPosition.x, flight.worldPosition.y, flight.worldPosition.z],
+    yaw: cameraEuler.y / DEG,
+    pitch: cameraEuler.x / DEG,
+  };
+
+  return state;
+}
+
+/**
+ * Поставить сцену в состояние из ссылки — сразу, без перелёта.
+ *
+ * Перелёт здесь был бы кино вместо обещанного кадра: человек открыл ссылку
+ * «смотри, вот затмение», а ему семь секунд показывают дорогу к нему.
+ */
+function applySceneState(state: SceneState): void {
+  const { view } = state;
+  if (!view) return;
+
+  if (view.kind === 'body') {
+    const target = findTarget(view.body);
+    if (!target) return;
+
+    const distance = view.radii * Math.max(target.radius, 1e-6);
+    const azimuth = view.azimuth * DEG;
+    const elevation = view.elevation * DEG;
+
+    // Те же соглашения, по которым орбитальный режим раскладывает смещение
+    // камеры на углы: азимут отсчитывается от оси z, возвышение — от плоскости.
+    scratchOffset
+      .set(
+        Math.sin(azimuth) * Math.cos(elevation),
+        Math.sin(elevation),
+        Math.cos(azimuth) * Math.cos(elevation),
+      )
+      .multiplyScalar(distance)
+      .add(target.worldPosition);
+
+    flight.placeLookingAt(scratchOffset, target.worldPosition);
+    frame.lockTo(target);
+    orbit.engage(flight.worldPosition, target.worldPosition);
+    bodyList.setActive(target.id);
+    exposure.reset(flight.worldPosition.length());
+
+    return;
+  }
+
+  scratchPosition.set(view.position[0], view.position[1], view.position[2]);
+  cameraEuler.set(view.pitch * DEG, view.yaw * DEG, 0, 'YXZ');
+  cameraOrientation.setFromEuler(cameraEuler);
+
+  // Точка взгляда вместо углов: камера умеет вставать «отсюда — туда», и
+  // заводить ради ссылки второй способ её ставить незачем. Миллион километров
+  // вперёд — достаточно далеко, чтобы направление не зависело от этой длины.
+  scratchOffset
+    .set(0, 0, -1)
+    .applyQuaternion(cameraOrientation)
+    .multiplyScalar(1e6)
+    .add(scratchPosition);
+
+  flight.placeLookingAt(scratchPosition, scratchOffset);
+  exposure.reset(flight.worldPosition.length());
+}
+
+/** Рабочие объекты для чтения и применения вида — чтобы не сорить в кадровом цикле. */
+const cameraEuler = new Euler();
+const cameraOrientation = new Quaternion();
+const scratchOffset = new Vector3();
+const scratchPosition = new Vector3();
+
+/**
+ * Адрес переписывается на месте, а не добавляется в историю.
+ *
+ * `pushState` превратил бы кнопку «назад» в отмену каждого поворота мыши.
+ * Раз в полсекунды и только при изменении: чаще незачем, а браузеры считают
+ * слишком частую правку адреса злоупотреблением и начинают её глушить.
+ */
+const URL_UPDATE_PERIOD = 0.5;
+let urlAge = 0;
+let urlSearch = '';
+
+function updateAddress(dt: number): void {
+  urlAge += dt;
+  if (urlAge < URL_UPDATE_PERIOD) return;
+  urlAge = 0;
+
+  const search = encodeSceneState(readSceneState());
+  if (search === urlSearch) return;
+
+  urlSearch = search;
+  window.history.replaceState(null, '', `${window.location.pathname}?${search}`);
+}
+
+
 const labels = new LabelLayer(overlayElement, targets, travelTo);
 
 const bodyList = new BodyList(
@@ -259,6 +405,9 @@ help.setOpen(true);
 
 const timeSliderContainer = document.getElementById('time-slider-container');
 const timeSlider = timeSliderContainer ? new TimeSlider(timeSliderContainer, clock) : null;
+
+const datePanelContainer = document.getElementById('date-panel-container');
+const datePanel = datePanelContainer ? new DatePanel(datePanelContainer, clock) : null;
 
 if (hintElement) hintElement.textContent = HINT;
 
@@ -446,6 +595,9 @@ const loop = new RenderLoop((dt, elapsed) => {
   bodyCard.show(cardSourceFor(travel.targetId ?? frame.targetId));
   bodyCard.update(dt);
 
+  updateAddress(dt);
+
+  datePanel?.update();
   timeSlider?.update();
   hud.update({
     fps: loop.fps,
@@ -459,6 +611,10 @@ const loop = new RenderLoop((dt, elapsed) => {
     sizeExaggeration: system.getSizeExaggeration(),
   });
 });
+
+// Вид из ссылки ставится последним и до первого кадра: тела уже расставлены
+// на её дату, панели созданы, список тел готов принять выбранное тело.
+applySceneState(initialState);
 
 loop.start();
 

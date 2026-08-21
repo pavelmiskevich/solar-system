@@ -8,7 +8,7 @@
 [![CI](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml/badge.svg)](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml)
 [![Лицензия MIT](https://img.shields.io/badge/%D0%9B%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-3DA639)](LICENSE)
 [![three.js](https://img.shields.io/badge/three.js-r185-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
-[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-230%20%2B%2039-729B1B?logo=vitest&logoColor=white)](#проверка)
+[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-239%20%2B%2041-729B1B?logo=vitest&logoColor=white)](#проверка)
 [![Поддержать](https://img.shields.io/badge/%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-9B6BFF?logo=buymeacoffee&logoColor=white)](https://pay.cloudtips.ru/p/86c3292c)
 
 ![Сатурн с кольцами](docs/shots/saturn.png)
@@ -88,6 +88,18 @@ npm run dev
 | `L` | подписи тел |
 | `M` | размеры тел: настоящие, ×10, ×100, ×1000 |
 | `K` | снимок кадра в PNG, без интерфейса |
+
+Дата и время задаются полем в справке — там же, где ползунок скорости.
+Кнопка «сейчас» возвращает к текущему моменту, стрелки шагают на сутки и на
+календарный год. Время всюду всемирное, и поле подписано этим прямо: местное
+время развело бы введённую дату с той, что стоит в HUD.
+
+Вид сцены пишется в адрес страницы: дата, выбранное тело, положение камеры и
+скорость времени. Ссылкой можно поделиться — «смотри, вот затмение» — и
+вернуться к тому же кадру после перезагрузки. Адрес читается глазами:
+`?d=2032-06-01T12:00:00Z&b=saturn&r=3.4&az=41&el=12`. Испорченная часть
+выбрасывается поодиночке: лучше показать верную дату без камеры, чем встретить
+человека пустой сценой.
 | `T` | автоматическая экскурсия |
 | Клик по расстоянию | единицы: по величине, километры, а.е., световые минуты |
 | `H` | справка |
@@ -216,8 +228,8 @@ Meeus — кеплеровский эллипс ошибался бы на ты�
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # 230 юнит-тестов
-npm run e2e         # 39 сквозных тестов, Playwright + Chromium
+npm test            # 239 юнит-тестов
+npm run e2e         # 41 сквозной тест, Playwright + Chromium
 ```
 
 Юнит-тесты проверяют то, что имеет правильный ответ: положения планет

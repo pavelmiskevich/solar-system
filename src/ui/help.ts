@@ -158,6 +158,14 @@ export class HelpPanel {
       columns.appendChild(block);
       
       if (section.title === 'Время') {
+        // Управление временем собрано в одном месте: сперва дата, под ней
+        // скорость её течения. Порядок тот же, что в вопросе зрителя:
+        // сначала «когда», потом «как быстро».
+        const dateRow = document.createElement('div');
+        dateRow.className = 'help-row';
+        dateRow.id = 'date-panel-container';
+        block.appendChild(dateRow);
+
         const sliderRow = document.createElement('div');
         sliderRow.className = 'help-row';
         sliderRow.id = 'time-slider-container';
