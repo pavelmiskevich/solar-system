@@ -65,6 +65,28 @@ test.describe('дата сцены', () => {
   });
 });
 
+test.describe('часы сцены', () => {
+  // Часовой пояс браузера намеренно не всемирный: на раннере CI время и так
+  // всемирное, и показания местным временем прошли бы проверку незамеченными.
+  test.use({ timezoneId: 'Asia/Tokyo' });
+
+  test('HUD показывает ту же дату, что стоит в поле, — всемирную', async ({ page }) => {
+    await openScene(page, { keepHelp: true });
+    await page.keyboard.press('KeyP');
+
+    await page.locator('.date-input').fill('2032-06-01T12:00');
+    await waitForFrames(page, 2);
+
+    const hud = (await page.locator('#hud').textContent()) ?? '';
+
+    // В Токио этот момент — девять вечера. Часовой пояс зрителя не должен
+    // разводить два показания времени на одном экране.
+    expect(hud, 'HUD показывает время не всемирное').toContain('12:00');
+    expect(hud).toContain('2032');
+    expect(hud).not.toContain('21:00');
+  });
+});
+
 test.describe('ссылка на вид', () => {
   test('открытие адреса возвращает камеру к тому же телу и на ту же дату', async ({
     page,
