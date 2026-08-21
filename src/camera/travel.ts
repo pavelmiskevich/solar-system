@@ -99,8 +99,29 @@ export function slerpDirection(from: Vector3, to: Vector3, t: number, out = new 
 
 const perpendicular = new Vector3();
 
+/**
+ * Куда встать у цели: направление от её центра и расстояние, км.
+ *
+ * Не мировая точка: за время перелёта тело уедет по орбите на миллионы
+ * километров, и точка, верная на старте, к прибытию окажется в пустоте.
+ * Направление же остаётся верным всю дорогу.
+ */
+export interface ArrivalView {
+  direction: Vector3;
+  distance: number;
+}
+
 export class TravelController {
   private target: TravelTarget | null = null;
+
+  /**
+   * Заданная точка прибытия — её приносят готовые виды.
+   *
+   * Обычный перелёт сам ставит камеру с освещённой стороны в 3.4 радиуса:
+   * для «полететь к Сатурну» это верно, а «Кольца Сатурна с ребра» так не
+   * покажешь — нужен свой угол.
+   */
+  private arrival: ArrivalView | null = null;
   private elapsed = 0;
   private duration = 1;
   private startDistance = 1;
@@ -134,9 +155,17 @@ export class TravelController {
    * @param cameraPosition текущее положение камеры, км
    * @param sunWorldPosition положение Солнца, км
    */
-  start(target: TravelTarget, cameraPosition: Vector3, sunWorldPosition: Vector3): void {
+  start(
+    target: TravelTarget,
+    cameraPosition: Vector3,
+    sunWorldPosition: Vector3,
+    arrival?: ArrivalView,
+  ): void {
     this.target = target;
     this.elapsed = 0;
+    this.arrival = arrival
+      ? { direction: arrival.direction.clone().normalize(), distance: arrival.distance }
+      : null;
 
     this.startDirection.subVectors(cameraPosition, target.worldPosition);
     this.startDistance = this.startDirection.length();
@@ -158,6 +187,7 @@ export class TravelController {
 
   cancel(): void {
     this.target = null;
+    this.arrival = null;
   }
 
   /**
@@ -193,6 +223,14 @@ export class TravelController {
   private resolveArrival(cameraPosition: Vector3, sunWorldPosition: Vector3): void {
     const target = this.target!;
     const distance = target.radius * ARRIVAL_RADII;
+
+    if (this.arrival) {
+      this.endDirection.copy(this.arrival.direction);
+      this.endPosition
+        .copy(target.worldPosition)
+        .addScaledVector(this.endDirection, this.arrival.distance);
+      return;
+    }
 
     if (target.worldPosition.distanceToSquared(sunWorldPosition) < 1) {
       // Само Солнце: «встать так, чтобы было освещено» для него бессмысленно,

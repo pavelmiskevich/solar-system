@@ -77,6 +77,8 @@ export interface SceneInputOptions {
    * кадровый цикл, сразу после отрисовки.
    */
   takeSnapshot(): void;
+  /** Список готовых видов. */
+  scenarios: { toggle(): void };
   /** Подсказка внизу экрана; прячется, как только пользователь взял мышь. */
   hint?: HTMLElement | null;
 }
@@ -115,6 +117,9 @@ function bindKeyboard(options: SceneInputOptions): void {
         break;
       case 'KeyB':
         bodyList.toggle();
+        break;
+      case 'KeyV':
+        options.scenarios.toggle();
         break;
       case 'KeyH':
       case 'Slash':
