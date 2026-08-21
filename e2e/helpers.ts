@@ -23,6 +23,13 @@ declare global {
 
 export interface OpenOptions {
   /**
+   * Адрес вместо корня страницы.
+   *
+   * Нужен там, где проверяется восстановление вида по ссылке: открыть
+   * адрес со состоянием — это и есть проверяемое действие.
+   */
+  url?: string;
+  /**
    * Оставить справку открытой. Она показывается при загрузке и накрывает
    * экран, поэтому всем тестам, кроме проверки самой справки, она мешает.
    */
@@ -37,7 +44,7 @@ export async function openScene(page: Page, options: OpenOptions = {}): Promise<
   });
   page.on('pageerror', (error) => errors.push(String(error)));
 
-  await page.goto('/');
+  await page.goto(options.url ?? '/');
 
   // Отладочный доступ появляется последним в main.ts — значит, модуль
   // выполнился целиком и первый кадр отрисован.

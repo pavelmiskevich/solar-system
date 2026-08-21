@@ -690,6 +690,63 @@
         100% { transform: translateX(400%); }
       }
       /* Ползунок скорости времени в справке */
+      /* Ввод даты: поле, подпись про всемирное время и ряд стрелок. */
+      .date-panel {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        margin-top: 4px;
+      }
+
+      .date-input {
+        flex: 1 1 auto;
+        min-width: 170px;
+        padding: 4px 6px;
+        border-radius: 8px;
+        border: 1px solid var(--ui-border);
+        background: rgba(10, 14, 24, 0.82);
+        color: var(--ui-fg);
+        font: inherit;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* Календарь браузера тёмный: иначе он выпадает белым пятном на сцену. */
+      .date-input::-webkit-calendar-picker-indicator {
+        filter: invert(0.8);
+        cursor: pointer;
+      }
+
+      .date-label {
+        color: var(--ui-dim);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+      }
+
+      .date-buttons {
+        display: flex;
+        flex: 1 1 100%;
+        gap: 4px;
+      }
+
+      .date-step {
+        flex: 1 1 0;
+        padding: 4px 0;
+        border-radius: 8px;
+        border: 1px solid var(--ui-border);
+        background: rgba(10, 14, 24, 0.82);
+        color: var(--ui-fg);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease;
+      }
+
+      .date-step:hover {
+        border-color: rgba(150, 180, 255, 0.4);
+        background: rgba(20, 28, 48, 0.72);
+      }
+
       .time-slider-wrapper {
         margin-top: 8px;
         position: relative;
