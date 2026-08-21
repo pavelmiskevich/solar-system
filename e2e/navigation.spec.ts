@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  coverOfLabel,
   distanceInRadii,
   expectNoErrors,
   openScene,
@@ -50,13 +51,18 @@ test.describe('перелёты', () => {
 
   test('клик по подписи тела работает так же, как клик по телу', async ({ page }) => {
     await openScene(page);
-    await pauseAt(page, '2026-08-14T12:00:00Z');
+    // Дата выбрана по положению Меркурия: подписи лежат в одном слое с
+    // колонкой кнопок у правого края, и колонка лежит выше. В середине
+    // августа 2026 года подпись Меркурия приходится ровно на неё, и щелчок
+    // достаётся кнопке «GitHub», а не подписи.
+    await pauseAt(page, '2026-11-14T12:00:00Z');
 
-    const label = page.locator('.label', { hasText: 'Юпитер' });
+    const label = page.locator('.label', { hasText: 'Меркурий' });
     await expect(label).toBeVisible();
+    expect(await coverOfLabel(page, 'Меркурий'), 'подпись Меркурия перекрыта').toBeNull();
     await label.click();
 
-    expect(await page.evaluate(() => window.sim.travel.targetId)).toBe('jupiter');
+    expect(await page.evaluate(() => window.sim.travel.targetId)).toBe('mercury');
   });
 
   test('клавиша движения прерывает перелёт', async ({ page }) => {

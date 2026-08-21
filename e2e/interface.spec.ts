@@ -220,16 +220,16 @@ test.describe('интерфейс', () => {
 
   test('ползунок скорости времени меняет масштаб и показывает его в HUD', async ({ page }) => {
     await openScene(page);
-    
+
     // Открываем справку, чтобы ползунок стал доступен для взаимодействия.
     await page.keyboard.press('KeyH');
-    
+
     const slider = page.locator('#time-slider-container input[type="range"]');
     await expect(slider).toBeVisible();
-    
+
     // Сдвигаем ползунок в крайнее правое положение. TIME_SCALES имеет 14 значений (0..13)
     await slider.fill('13');
-    
+
     const hud = page.locator('#hud');
     await expect(hud).toContainText('20 лет/с');
   });
@@ -300,7 +300,7 @@ test.describe('интерфейс', () => {
 
   test('кнопка снимка отдаёт файл с картинкой по размеру экрана', async ({ page }) => {
     await openScene(page);
-    
+
     const viewportSize = await page.evaluate(() => {
       const canvas = document.querySelector('canvas')!;
       return { width: canvas.width, height: canvas.height };
@@ -309,23 +309,57 @@ test.describe('интерфейс', () => {
     const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Снимок ⤓' }).click();
     const download = await downloadPromise;
-    
+
     expect(download.suggestedFilename()).toMatch(/^solar-system-.*\.png$/);
-    
+
     const path = await download.path();
     expect(path).toBeTruthy();
-    
+
     const fs = await import('node:fs');
     const buffer = fs.readFileSync(path!);
     const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-    
+
     // Проверка сигнатуры PNG
     expect(view.getUint32(0, false)).toBe(0x89504e47);
-    
+
     const width = view.getUint32(16, false);
     const height = view.getUint32(20, false);
-    
+
     expect(width).toBe(viewportSize.width);
     expect(height).toBe(viewportSize.height);
+
+    // Размер картинки о её содержимом не говорит ничего. Буфер WebGL живёт
+    // до вывода кадра и очищается сразу после: снимок, снятый мимо кадрового
+    // цикла, выходит правильных 900×600 и при этом прозрачным. Измерено — 13 КБ
+    // пустоты против 307 КБ настоящего кадра, и обе картинки одного размера.
+    const lit = await page.evaluate(async (base64) => {
+      const image = new Image();
+      image.src = 'data:image/png;base64,' + base64;
+      await image.decode();
+
+      const sheet = document.createElement('canvas');
+      sheet.width = image.width;
+      sheet.height = image.height;
+      const context = sheet.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+
+      const { data } = context.getImageData(0, 0, sheet.width, sheet.height);
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3]! > 0 && data[i]! + data[i + 1]! + data[i + 2]! > 0) count += 1;
+      }
+      return count;
+    }, buffer.toString('base64'));
+
+    expect(lit, 'снимок пуст: на нём нет ни одной светящейся точки').toBeGreaterThan(100);
+  });
+
+  test('клавиша K делает снимок так же, как кнопка', async ({ page }) => {
+    await openScene(page);
+
+    const download = page.waitForEvent('download');
+    await page.keyboard.press('KeyK');
+
+    expect((await download).suggestedFilename()).toMatch(/^solar-system-.+[.]png$/);
   });
 });

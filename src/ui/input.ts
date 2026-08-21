@@ -69,6 +69,14 @@ export interface SceneInputOptions {
    * работа со сценой, не с вводом.
    */
   cycleSizePreset(): void;
+  /**
+   * Попросить снимок кадра.
+   *
+   * Снять его прямо здесь нельзя: буфер WebGL живёт до вывода кадра, и к
+   * обработчику клавиши в нём уже пусто. Ввод только просит — снимает
+   * кадровый цикл, сразу после отрисовки.
+   */
+  takeSnapshot(): void;
   /** Подсказка внизу экрана; прячется, как только пользователь взял мышь. */
   hint?: HTMLElement | null;
 }
@@ -131,6 +139,9 @@ function bindKeyboard(options: SceneInputOptions): void {
         break;
       case 'KeyM':
         options.cycleSizePreset();
+        break;
+      case 'KeyK':
+        options.takeSnapshot();
         break;
       default:
         break;
