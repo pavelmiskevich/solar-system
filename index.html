@@ -498,7 +498,8 @@
         background: rgba(20, 28, 48, 0.72);
       }
 
-      .bodies-list {
+      /* Выпадающая панель колонки: общий вид у списка тел и списка видов. */
+      .panel-list {
         pointer-events: auto;
         display: flex;
         flex-direction: column;
@@ -511,6 +512,49 @@
         background: rgba(10, 14, 24, 0.86);
         transform-origin: top right;
         transition: opacity 0.22s ease, transform 0.22s ease;
+      }
+
+      /* Готовые виды: своя карточка в той же колонке, что список тел. */
+      .views {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+      }
+
+      .views-list {
+        max-height: 55vh;
+        transition: opacity 0.22s ease, transform 0.22s ease, max-height 0.22s ease;
+      }
+
+      /*
+       * Свёрнутая панель не занимает места. Список тел может позволить себе
+       * гаснуть одной прозрачностью — он последний в колонке, и пустая
+       * высота под ним никому не мешает. Виды стоят первыми, и та же пустота
+       * сдвинула бы вниз все кнопки разом.
+       */
+      .views.closed .views-list {
+        opacity: 0;
+        transform: scale(0.94) translateY(-6px);
+        pointer-events: none;
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        border-width: 0;
+        overflow: hidden;
+      }
+
+      /* Строка вида: имя и под ним подсказка, на что смотреть. */
+      .views-row {
+        display: block;
+        text-align: right;
+        line-height: 1.35;
+      }
+
+      .views-hint {
+        display: block;
+        color: var(--ui-dim);
+        font-size: 10px;
       }
 
       /* Свёрнутая панель не должна ловить мышь: она мешала бы полёту. */
@@ -607,12 +651,8 @@
         color: var(--ui-dim);
       }
 
-      .bodies-row {
-        display: grid;
-        grid-template-columns: 10px 1fr auto;
-        grid-template-areas: 'dot name distance' '. kind kind';
-        align-items: center;
-        gap: 2px 9px;
+      /* Строка выпадающей панели: общий вид у списка тел и списка видов. */
+      .panel-row {
         padding: 7px 9px;
         border: 0;
         border-radius: 8px;
@@ -624,8 +664,16 @@
         transition: background 0.15s ease;
       }
 
-      .bodies-row:hover { background: rgba(150, 180, 255, 0.12); }
-      .bodies-row.active { background: rgba(150, 180, 255, 0.2); }
+      .panel-row:hover { background: rgba(150, 180, 255, 0.12); }
+      .panel-row.active { background: rgba(150, 180, 255, 0.2); }
+
+      .bodies-row {
+        display: grid;
+        grid-template-columns: 10px 1fr auto;
+        grid-template-areas: 'dot name distance' '. kind kind';
+        align-items: center;
+        gap: 2px 9px;
+      }
 
       .bodies-row .dot {
         grid-area: dot;

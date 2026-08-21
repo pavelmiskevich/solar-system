@@ -184,6 +184,12 @@ export async function screenPositionOf(
  * далёкая планета стоит там точкой в два пикселя, и допуск наведения её
  * захватывает. Точка выбирается по сетке как самая дальняя от всех тел сразу,
  * поэтому не зависит ни от даты, ни от того, куда смотрит камера.
+ *
+ * Интерфейс — такая же помеха, как далёкая планета. Кнопки стоят по углам,
+ * и у них свой указатель: точка под кнопкой не пустая, даже если тел рядом
+ * нет. Поэтому кандидаты, под которыми оказалась разметка, отбрасываются
+ * сразу — иначе добавление кнопки роняет проверки наведения, к которым она
+ * не имеет отношения.
  */
 export async function emptyScreenPoint(page: Page): Promise<{ x: number; y: number }> {
   return page.evaluate(() => {
@@ -202,12 +208,24 @@ export async function emptyScreenPoint(page: Page): Promise<{ x: number; y: numb
       });
     }
 
+    /** Есть ли под точкой что-то из интерфейса. */
+    const covered = (x: number, y: number): boolean => {
+      const top = document.elementFromPoint(x, y);
+      if (top === null) return false;
+
+      // Пустыми считаются только холст сцены и слой подписей: у подписи
+      // свой указатель, у кнопок свой, и то и другое ломает замер.
+      return !(top === element || top.id === 'overlay' || top.id === 'panel');
+    };
+
     let best = { x: width * 0.5, y: height * 0.5 };
     let bestDistance = -1;
     for (let gx = 1; gx < 12; gx += 1) {
       for (let gy = 1; gy < 12; gy += 1) {
         const x = (width * gx) / 12;
         const y = (height * gy) / 12;
+        if (covered(x, y)) continue;
+
         let nearest = Infinity;
         for (const body of bodies) {
           nearest = Math.min(nearest, Math.hypot(body.x - x, body.y - y));

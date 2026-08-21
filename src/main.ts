@@ -10,6 +10,7 @@ import { Viewport } from './core/renderer';
 import { decodeSceneState, encodeSceneState } from './core/sceneState';
 import type { SceneState } from './core/sceneState';
 import { AU, DEG, dateFromJulianDay } from './core/units';
+import { SCENARIOS, scenarioById } from './data/scenarios';
 import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
 import { SceneLuminance } from './lighting/sceneLuminance';
@@ -27,6 +28,7 @@ import { BodyList } from './ui/bodyList';
 import { HINT, HelpPanel } from './ui/help';
 import { SupportPanel } from './ui/support';
 import { DatePanel } from './ui/datePanel';
+import { ScenarioList } from './ui/scenarioList';
 import { TimeSlider } from './ui/timeSlider';
 import { TourButton } from './ui/tourButton';
 import { SnapshotButton, saveCanvasPng, snapshotFileName } from './ui/snapshotButton';
@@ -185,6 +187,7 @@ function travelTo(id: string): void {
   orbit.release();
   travel.start(target, flight.worldPosition, sun.worldPosition);
   bodyList.setActive(id);
+  scenarioList.setActive(null);
   hintElement?.classList.add('hidden');
 }
 
@@ -252,17 +255,8 @@ function applySceneState(state: SceneState): void {
     if (!target) return;
 
     const distance = view.radii * Math.max(target.radius, 1e-6);
-    const azimuth = view.azimuth * DEG;
-    const elevation = view.elevation * DEG;
 
-    // Те же соглашения, по которым орбитальный режим раскладывает смещение
-    // камеры на углы: азимут отсчитывается от оси z, возвышение — от плоскости.
-    scratchOffset
-      .set(
-        Math.sin(azimuth) * Math.cos(elevation),
-        Math.sin(elevation),
-        Math.cos(azimuth) * Math.cos(elevation),
-      )
+    directionFromAngles(view.azimuth, view.elevation, scratchOffset)
       .multiplyScalar(distance)
       .add(target.worldPosition);
 
@@ -290,6 +284,56 @@ function applySceneState(state: SceneState): void {
 
   flight.placeLookingAt(scratchPosition, scratchOffset);
   exposure.reset(flight.worldPosition.length());
+}
+
+/**
+ * Направление от тела по азимуту и возвышению.
+ *
+ * Соглашение то же, по которому орбитальный режим раскладывает смещение
+ * камеры на углы: азимут отсчитывается от оси z, возвышение — от плоскости.
+ * Общая функция затем, чтобы ссылка и готовые виды не разошлись в трактовке
+ * одних и тех же двух чисел.
+ */
+function directionFromAngles(azimuth: number, elevation: number, out: Vector3): Vector3 {
+  const az = azimuth * DEG;
+  const el = elevation * DEG;
+
+  return out.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+}
+
+/**
+ * Показать готовый вид.
+ *
+ * Дата и скорость времени ставятся рывком, а камера летит: анимировать
+ * календарь нечем, да и незачем — «Кольца Сатурна с ребра» без нужной даты
+ * просто не кольца с ребра. Точка прибытия у вида своя: обычный перелёт
+ * встаёт в 3.4 радиуса с освещённой стороны, и этим углом ребра колец не
+ * покажешь.
+ */
+function showScenario(id: string): void {
+  const scenario = scenarioById(id);
+  if (!scenario) return;
+
+  const target = findTarget(scenario.body);
+  if (!target) return;
+
+  const { state } = scenario;
+  if (state.jd !== undefined) clock.jd = state.jd;
+  if (state.timeScale !== undefined) clock.timeScale = state.timeScale;
+  clock.paused = state.paused ?? false;
+
+  // Тела передвинулись на новую дату только со следующим кадром, а точка
+  // прибытия задана направлением и расстоянием — им это безразлично.
+  frame.release();
+  orbit.release();
+  travel.start(target, flight.worldPosition, sun.worldPosition, {
+    direction: directionFromAngles(state.view.azimuth, state.view.elevation, scratchOffset),
+    distance: state.view.radii * Math.max(target.radius, 1e-6),
+  });
+
+  bodyList.setActive(target.id);
+  scenarioList.setActive(id);
+  hintElement?.classList.add('hidden');
 }
 
 /** Рабочие объекты для чтения и применения вида — чтобы не сорить в кадровом цикле. */
@@ -408,6 +452,10 @@ const timeSlider = timeSliderContainer ? new TimeSlider(timeSliderContainer, clo
 
 const datePanelContainer = document.getElementById('date-panel-container');
 const datePanel = datePanelContainer ? new DatePanel(datePanelContainer, clock) : null;
+
+// Готовые виды стоят первыми в колонке: человеку, открывшему сцену впервые,
+// нужен не список тел, а ответ на вопрос «куда тут смотреть».
+const scenarioList = new ScenarioList(bodyList.column, SCENARIOS, showScenario);
 
 if (hintElement) hintElement.textContent = HINT;
 
@@ -643,6 +691,7 @@ bindSceneInput({
   orbit,
   cycleSizePreset,
   takeSnapshot: requestSnapshot,
+  scenarios: scenarioList,
   hint: hintElement,
 });
 

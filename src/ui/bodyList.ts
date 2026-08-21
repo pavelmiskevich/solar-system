@@ -54,12 +54,12 @@ export class BodyList {
     this.updateToggleLabel();
 
     const list = document.createElement('div');
-    list.className = 'bodies-list';
+    list.className = 'panel-list bodies-list';
 
     for (const entry of entries) {
       const element = document.createElement('button');
       element.type = 'button';
-      element.className = 'bodies-row';
+      element.className = 'panel-row bodies-row';
 
       const dot = document.createElement('span');
       dot.className = 'dot';
