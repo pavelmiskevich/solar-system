@@ -219,3 +219,31 @@ export async function emptyScreenPoint(page: Page): Promise<{ x: number; y: numb
 export function expectNoErrors(errors: string[]): void {
   expect(errors, `в консоли ошибки:\n${errors.join('\n')}`).toEqual([]);
 }
+
+/**
+ * Чем перекрыта подпись тела — или `null`, если по ней можно щёлкнуть.
+ *
+ * Подписи живут в том же слое, что колонка кнопок у правого края, и колонка
+ * лежит выше. Стоит добавить в неё кнопку, как всё, что ниже, съезжает на
+ * подпись, оказавшуюся в том углу, — щелчок по ней достаётся кнопке. Тест,
+ * который просто щёлкает по подписи, узнаёт об этом девяностасекундным
+ * таймаутом и жалобой на перехват; эта проверка говорит то же самое сразу и
+ * словами.
+ */
+export async function coverOfLabel(page: Page, name: string): Promise<string | null> {
+  return page.evaluate((bodyName) => {
+    const label = Array.from(document.querySelectorAll('.label')).find(
+      (el) => (el.querySelector('b')?.textContent ?? '').trim() === bodyName,
+    );
+    if (!label) return `подписи «${bodyName}» нет в кадре`;
+
+    const box = label.getBoundingClientRect();
+    const top = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    if (top !== null && (top === label || label.contains(top))) return null;
+
+    const covering = top?.closest('.bodies-toggle, .bodies-list, .body-card, .label') ?? top;
+    return `${covering?.tagName.toLowerCase() ?? 'ничто'}.${covering?.className ?? ''} «${(
+      covering?.textContent ?? ''
+    ).trim()}»`;
+  }, name);
+}

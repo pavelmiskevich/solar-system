@@ -215,9 +215,16 @@ function cardSourceFor(id: string | null): CardSource | null {
 const help = new HelpPanel(panelElement, bodyList.column, () => support.setOpen(false));
 const support = new SupportPanel(panelElement, bodyList.column, () => help.setOpen(false));
 let needsSnapshot = false;
-const snapshotButton = new SnapshotButton(bodyList.column, () => {
+/**
+ * Просьба о снимке — от кнопки или от клавиши `K`.
+ *
+ * Поднимает флаг и только: сам снимок делается ниже, в кадровом цикле,
+ * сразу после отрисовки, пока буфер WebGL ещё не очищен.
+ */
+function requestSnapshot(): void {
   needsSnapshot = true;
-});
+}
+const snapshotButton = new SnapshotButton(bodyList.column, requestSnapshot);
 const tourButton = new TourButton(bodyList.column, () => {
   if (tour.isActive) {
     tour.cancel();
@@ -462,6 +469,7 @@ bindSceneInput({
   travelTo,
   orbit,
   cycleSizePreset,
+  takeSnapshot: requestSnapshot,
   hint: hintElement,
 });
 
