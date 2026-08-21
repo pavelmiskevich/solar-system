@@ -8,7 +8,7 @@
 [![CI](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml/badge.svg)](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml)
 [![Лицензия MIT](https://img.shields.io/badge/%D0%9B%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-3DA639)](LICENSE)
 [![three.js](https://img.shields.io/badge/three.js-r185-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
-[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-225%20%2B%2038-729B1B?logo=vitest&logoColor=white)](#проверка)
+[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-230%20%2B%2039-729B1B?logo=vitest&logoColor=white)](#проверка)
 [![Поддержать](https://img.shields.io/badge/%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-9B6BFF?logo=buymeacoffee&logoColor=white)](https://pay.cloudtips.ru/p/86c3292c)
 
 ![Сатурн с кольцами](docs/shots/saturn.png)
@@ -174,6 +174,13 @@ Meeus — кеплеровский эллипс ошибался бы на ты�
 совпадает с экватором планеты. Вращение и ориентация осей — по отчёту рабочей
 группы МАС (IAU WGCCRE).
 
+Орбиты не только считаются, но и рисуются: гелиоцентрические — вокруг
+Солнца, орбиты Луны и спутников гигантов — вокруг своих планет. Линия
+появляется, когда орбита занимает в кадре заметный угол, и гаснет у самой
+поверхности: вблизи тела она из разметки превращается в полосу поперёк
+кадра. Линии спутников строятся теми же формулами, что и положения самих
+спутников, поэтому проходят через тело по построению, а не по совпадению.
+
 Всё это — аналитические функции времени, а не численное интегрирование.
 Положение любого тела честно вычисляется на момент кадра, поэтому фиксированный
 шаг симуляции не нужен, а просадка кадров не вызывает дрожания.
@@ -209,8 +216,8 @@ Meeus — кеплеровский эллипс ошибался бы на ты�
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # 225 юнит-тестов
-npm run e2e         # 38 сквозных тестов, Playwright + Chromium
+npm test            # 230 юнит-тестов
+npm run e2e         # 39 сквозных тестов, Playwright + Chromium
 ```
 
 Юнит-тесты проверяют то, что имеет правильный ответ: положения планет

@@ -16,6 +16,66 @@ import { eclipticToScene } from './system';
 
 const SEGMENTS = 720;
 
+/** Насыщенность линии орбиты в самом видном её положении. */
+export const ORBIT_OPACITY = 0.22;
+
+/**
+ * Линия орбиты: геометрия из готовых точек и общий для всех орбит вид.
+ *
+ * Вид один и тот же у гелиоцентрических орбит и у орбит спутников, и это не
+ * совпадение, а смысл: обе — навигационная разметка, и разное оформление
+ * читалось бы как разная природа линий. Отсюда и общая точка сборки.
+ *
+ * Аддитивное смешение без записи глубины: линии не заслоняют друг друга и не
+ * спорят с тем, что за ними, а складываются с ним.
+ */
+export function createOrbitLine(
+  positions: Float32Array,
+  color: number,
+): Line<BufferGeometry, ShaderMaterial> {
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new BufferAttribute(positions, 3));
+
+  const material = new ShaderMaterial({
+    transparent: true,
+    blending: AdditiveBlending,
+    depthWrite: false,
+    uniforms: {
+      uColor: { value: new Color(color) },
+      uOpacity: { value: ORBIT_OPACITY },
+    },
+    vertexShader: /* glsl */ `
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+
+      void main() {
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+
+        #include <logdepthbuf_vertex>
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      #include <logdepthbuf_pars_fragment>
+
+      uniform vec3 uColor;
+      uniform float uOpacity;
+
+      void main() {
+        #include <logdepthbuf_fragment>
+
+        gl_FragColor = vec4(uColor * uOpacity, 1.0);
+      }
+    `,
+  });
+
+  const line = new Line(geometry, material);
+  // Отключено намеренно: границы линии считаются в её собственных
+  // координатах, а группа переставляется плавающим началом каждый кадр.
+  line.frustumCulled = false;
+
+  return line;
+}
+
 /**
  * Линии орбит.
  *
@@ -50,43 +110,7 @@ export class OrbitLines {
         positions[i * 3 + 2] = scratch.z;
       }
 
-      const geometry = new BufferGeometry();
-      geometry.setAttribute('position', new BufferAttribute(positions, 3));
-
-      const material = new ShaderMaterial({
-        transparent: true,
-        blending: AdditiveBlending,
-        depthWrite: false,
-        uniforms: {
-          uColor: { value: new Color(planet.color) },
-          uOpacity: { value: 0.22 },
-        },
-        vertexShader: /* glsl */ `
-          #include <common>
-          #include <logdepthbuf_pars_vertex>
-
-          void main() {
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-
-            #include <logdepthbuf_vertex>
-          }
-        `,
-        fragmentShader: /* glsl */ `
-          #include <logdepthbuf_pars_fragment>
-
-          uniform vec3 uColor;
-          uniform float uOpacity;
-
-          void main() {
-            #include <logdepthbuf_fragment>
-
-            gl_FragColor = vec4(uColor * uOpacity, 1.0);
-          }
-        `,
-      });
-
-      const line = new Line(geometry, material);
-      line.frustumCulled = false;
+      const line = createOrbitLine(positions, planet.color);
       this.group.add(line);
       this.lines.push({ line, semiMajorKm: planet.orbit.a * AU });
     }
@@ -109,7 +133,8 @@ export class OrbitLines {
       const inside = smoothstep(0.04, 0.35, cameraDistanceToSun / semiMajorKm);
       const visibility = inside * proximity;
 
-      line.material.uniforms.uOpacity!.value = (0.22 * visibility) / Math.max(exposure, 1e-4);
+      line.material.uniforms.uOpacity!.value =
+        (ORBIT_OPACITY * visibility) / Math.max(exposure, 1e-4);
       line.visible = visibility > 0.002;
     }
   }
@@ -140,7 +165,7 @@ export class OrbitLines {
   }
 }
 
-function smoothstep(edge0: number, edge1: number, x: number): number {
+export function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
 }

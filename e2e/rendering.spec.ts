@@ -96,6 +96,105 @@ test.describe('рендеринг', () => {
     for (const value of tilt) expect(value).toBeLessThan(0.02);
   });
 
+  test('у Юпитера четыре линии орбит, и каждая проходит через свой спутник', async ({
+    page,
+  }) => {
+    await openScene(page);
+    await page.evaluate(() => window.sim.travelTo('jupiter'));
+    await waitForArrival(page, 'jupiter');
+    await waitForFrames(page, 3);
+
+    const measured = await page.evaluate(() => {
+      const sim = window.sim;
+      const jupiter = sim.system.find('jupiter');
+
+      // Группа Юпитера узнаётся по самому вектору его положения: плавающее
+      // начало координат ведёт группу именно по нему.
+      const entry = sim.satelliteOrbits.groups.find(
+        (candidate: { worldPosition: unknown }) => candidate.worldPosition === jupiter.worldPosition,
+      );
+      if (!entry) return null;
+
+      const lines = entry.group.children;
+
+      /** Расстояние от точки до ломаной линии, а не до ближайшего её узла. */
+      const distanceToLine = (line: any, target: { x: number; y: number; z: number }) => {
+        const array = line.geometry.getAttribute('position').array as Float32Array;
+        let best = Infinity;
+
+        for (let i = 0; i + 1 < array.length / 3; i += 1) {
+          const ax = array[i * 3]!;
+          const ay = array[i * 3 + 1]!;
+          const az = array[i * 3 + 2]!;
+          const bx = array[i * 3 + 3]!;
+          const by = array[i * 3 + 4]!;
+          const bz = array[i * 3 + 5]!;
+
+          const sx = bx - ax;
+          const sy = by - ay;
+          const sz = bz - az;
+          const lengthSquared = sx * sx + sy * sy + sz * sz;
+          const dot = (target.x - ax) * sx + (target.y - ay) * sy + (target.z - az) * sz;
+          const t = lengthSquared === 0 ? 0 : Math.min(1, Math.max(0, dot / lengthSquared));
+
+          const dx = target.x - (ax + sx * t);
+          const dy = target.y - (ay + sy * t);
+          const dz = target.z - (az + sz * t);
+          best = Math.min(best, Math.sqrt(dx * dx + dy * dy + dz * dz));
+        }
+
+        return best;
+      };
+
+      /** Замкнута ли линия: последняя точка совпадает с первой. */
+      const gap = (line: any) => {
+        const array = line.geometry.getAttribute('position').array as Float32Array;
+        const last = array.length - 3;
+        return Math.hypot(array[0]! - array[last]!, array[1]! - array[last + 1]!, array[2]! - array[last + 2]!);
+      };
+
+      // Геометрия линий задана относительно планеты, поэтому и спутник берётся
+      // смещением от неё, а не мировыми координатами.
+      const moons = ['io', 'europa', 'ganymede', 'callisto'].map((id) => {
+        const moon = sim.system.find(id);
+        const offset = {
+          x: moon.worldPosition.x - jupiter.worldPosition.x,
+          y: moon.worldPosition.y - jupiter.worldPosition.y,
+          z: moon.worldPosition.z - jupiter.worldPosition.z,
+        };
+        const distances = lines.map((line: unknown) => distanceToLine(line, offset));
+        const nearest = distances.indexOf(Math.min(...distances));
+
+        return {
+          id,
+          nearest,
+          distance: distances[nearest],
+          radius: Math.hypot(offset.x, offset.y, offset.z),
+          visible: (lines[nearest] as { visible: boolean }).visible,
+        };
+      });
+
+      return { count: lines.length, gaps: lines.map(gap), moons };
+    });
+
+    expect(measured, 'линии орбит спутников не найдены в сцене').not.toBeNull();
+    expect(measured!.count).toBe(4);
+
+    // Замкнутость: эллипс спутника неподвижен в системе планеты, поэтому
+    // концы линии обязаны сойтись точно, а не примерно.
+    for (const gap of measured!.gaps) expect(gap).toBeLessThan(1);
+
+    // Каждая линия своя: четыре спутника не могут делить одну.
+    expect(new Set(measured!.moons.map((moon) => moon.nearest)).size).toBe(4);
+
+    for (const moon of measured!.moons) {
+      expect(moon.visible, `линия ${moon.id} погашена у самой планеты`).toBe(true);
+      // Тысячная доля радиуса орбиты: линия проходит через тело, а не рядом.
+      expect(moon.distance, `линия ${moon.id} не проходит через спутник`).toBeLessThan(
+        moon.radius * 1e-3,
+      );
+    }
+  });
   test('кадр не чёрный: сцена действительно рисуется', async ({ page }) => {
     await openScene(page);
     await page.evaluate(() => window.sim.travelTo('jupiter'));

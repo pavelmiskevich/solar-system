@@ -142,3 +142,25 @@ export function moonPositionAt(jd: number): EclipticVector {
     z: distance * Math.sin(betaRad),
   };
 }
+
+/** Сидерический месяц, сутки: за него Луна возвращается к тем же звёздам. */
+export const SIDEREAL_MONTH = 27.321661;
+
+/**
+ * Точки орбиты Луны за один оборот от заданной даты, км.
+ *
+ * У спутников гигантов линия строится раз и навсегда: их эллипс в системе
+ * планеты неподвижен. У Луны неподвижного эллипса нет — ряд ELP2000 считает
+ * возмущённое движение, и за месяц линия не приходит ровно в начало.
+ * Поэтому выборка идёт по времени и её приходится перестраивать, когда сцена
+ * уходит от даты построения заметно далеко.
+ */
+export function sampleMoonOrbit(jd: number, segments = 180): EclipticVector[] {
+  const points: EclipticVector[] = [];
+
+  for (let s = 0; s <= segments; s += 1) {
+    points.push(moonPositionAt(jd + (s / segments) * SIDEREAL_MONTH));
+  }
+
+  return points;
+}

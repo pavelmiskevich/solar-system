@@ -12,6 +12,7 @@ import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
 import { SceneLuminance } from './lighting/sceneLuminance';
 import { OrbitLines } from './scene/orbits';
+import { SatelliteOrbits } from './scene/satelliteOrbits';
 import { Starfield } from './scene/starfield';
 import { Sun } from './scene/sun';
 import { SIZE_PRESETS, SolarSystem } from './scene/system';
@@ -62,6 +63,15 @@ for (const body of system.bodies) origin.track(body.group, body.worldPosition);
 const orbits = new OrbitLines(clock.jd);
 viewport.scene.add(orbits.group);
 origin.track(orbits.group, orbits.worldPosition);
+
+// Орбиты спутников привязаны не к Солнцу, а каждая к своей планете:
+// плавающее начало ведёт их группы по тем же векторам, по которым сцена
+// расставляет сами планеты.
+const satelliteOrbits = new SatelliteOrbits(system, clock.jd);
+viewport.scene.add(satelliteOrbits.group);
+for (const { group, worldPosition } of satelliteOrbits.groups) {
+  origin.track(group, worldPosition);
+}
 
 const starfield = new Starfield();
 viewport.scene.add(starfield.points);
@@ -386,6 +396,7 @@ const loop = new RenderLoop((dt, elapsed) => {
     starfield.points,
     system.pointLayer,
     orbits.group,
+    satelliteOrbits.group,
   ]);
   viewport.exposure = exposure.update(dt, distanceToSun, frameLuminance);
 
@@ -400,6 +411,12 @@ const loop = new RenderLoop((dt, elapsed) => {
   starfield.followCamera(viewport.camera.position);
   starfield.compensateExposure(viewport.exposure);
   orbits.update(distanceToSun, distanceToSurface, viewport.exposure);
+  satelliteOrbits.update(
+    flight.worldPosition,
+    distanceToSurface,
+    viewport.exposure,
+    clock.jd,
+  );
 
   if (quality.update(dt, loop.fps)) {
     viewport.setBloomEnabled(quality.level.bloom);
@@ -483,6 +500,7 @@ if (import.meta.env.DEV) {
     sun,
     system,
     orbits,
+    satelliteOrbits,
     exposure,
     labels,
     bodyList,
