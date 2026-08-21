@@ -41,16 +41,26 @@ test.describe('дата сцены', () => {
     // к лету 2032 года Сатурн разворачивает их к Солнцу почти на двадцать семь.
     expect(await ringOpeningAngle(page)).toBeGreaterThan(25);
 
+    const before = await page.evaluate(() => Date.now());
     await page.getByRole('button', { name: 'сейчас' }).click();
+    const after = await page.evaluate(() => Date.now());
+
+    const sceneTime = await page.evaluate(() => window.sim.clock.date.getTime());
+
+    // «Сейчас» ставит тот момент, когда его нажали, — значит он обязан лечь
+    // между двумя замерами системных часов, до нажатия и сразу после.
+    //
+    // Сравнивать с текущим временем нельзя: часы сцены стоят на паузе, и
+    // разница росла бы вместе с дорогой от нажатия до замера. На слабой
+    // машине эта дорога занимает больше секунды, и такая проверка мерила бы
+    // не кнопку, а скорость машины — на чём она и попалась в CI.
+    //
+    // Пара миллисекунд запаса: момент хранится юлианской датой, и обратный
+    // перевод в миллисекунды round-trip не обязан быть точным до единицы.
+    expect(sceneTime).toBeGreaterThanOrEqual(before - 2);
+    expect(sceneTime).toBeLessThanOrEqual(after + 2);
+
     await waitForFrames(page, 2);
-
-    const drift = await page.evaluate(() =>
-      Math.abs(window.sim.clock.date.getTime() - Date.now()),
-    );
-
-    // Секунда на дорогу от нажатия до замера: часы сцены остановлены паузой,
-    // а системные идут.
-    expect(drift).toBeLessThan(1000);
     expect(await ringOpeningAngle(page)).toBeLessThan(25);
   });
 });
