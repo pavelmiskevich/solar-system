@@ -17,6 +17,9 @@ const EXPECTED: Record<string, string> = {
   'earth-moon': 'earth',
   'jupiter-moons': 'jupiter',
   'saturn-rings-edge': 'saturn',
+  'solar-eclipse': 'earth',
+  'lunar-eclipse': 'moon',
+  'io-shadow': 'jupiter',
   earthshine: 'moon',
   'inner-system': 'sun',
   'uranus-tilt': 'uranus',
@@ -28,7 +31,7 @@ test.describe('готовые виды', () => {
 
     const panel = page.locator('.views');
     await expect(panel).toHaveClass(/closed/);
-    await expect(page.locator('.views-row')).toHaveCount(6);
+    await expect(page.locator('.views-row')).toHaveCount(SCENARIOS.length);
 
     await page.getByRole('button', { name: /Виды/ }).click();
     await expect(panel).not.toHaveClass(/closed/);

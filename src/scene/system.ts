@@ -6,11 +6,19 @@ import {
   ShaderMaterial,
   SphereGeometry,
   Vector3,
+  Vector4,
 } from 'three';
 
 import type { PerspectiveCamera } from 'three';
 
-import { MOON, MOONS, MOON_MASS_FRACTION, PLANETS, type BodyDefinition } from '../data/bodies';
+import {
+  MOON,
+  MOONS,
+  MOON_MASS_FRACTION,
+  PLANETS,
+  eclipseCasters,
+  type BodyDefinition,
+} from '../data/bodies';
 import { APPEARANCE, type Appearance } from '../data/appearance';
 import { AU } from '../core/units';
 import {
@@ -54,6 +62,8 @@ export interface Body {
   readonly point: BodyPoint;
   /** Кольца, если они есть. */
   readonly rings: PlanetRings | null;
+  /** Тела, способные закрыть этому Солнце: соседи по системе, а не вся сцена. */
+  readonly eclipseCasters: readonly string[];
   /** Видимый радиус с учётом множителя размера, км. */
   visualRadius: number;
 }
@@ -106,10 +116,12 @@ export class SolarSystem {
     // Сегментов много: на подлёте вплотную силуэт не должен выдавать многогранник.
     const geometry = new SphereGeometry(1, 128, 64);
     const appearance = APPEARANCE[definition.id]!;
+    const casters = eclipseCasters(definition.id);
     const material = createPlanetMaterial({
       appearance,
       radius: definition.radius,
       polarRadius: definition.polarRadius,
+      eclipseCasters: casters.length,
     });
 
     const mesh = new Mesh(geometry, material);
@@ -141,6 +153,7 @@ export class SolarSystem {
       group,
       point,
       rings,
+      eclipseCasters: casters,
       visualRadius: definition.radius,
     };
 
@@ -177,11 +190,22 @@ export class SolarSystem {
    * @param sunRenderPosition положение Солнца в координатах сцены
    * @param elapsed время от запуска, с — им живут облака и вихри
    */
-  updateLighting(sunRenderPosition: Vector3, elapsed: number, camera: PerspectiveCamera): void {
+  /**
+   * @param sunRadius видимый радиус Солнца, км — по нему считается, какую долю
+   *        его диска закрывает сосед: полутень, полная фаза или кольцо
+   */
+  updateLighting(
+    sunRenderPosition: Vector3,
+    sunRadius: number,
+    elapsed: number,
+    camera: PerspectiveCamera,
+  ): void {
     for (const body of this.bodies) {
       const uniforms = body.mesh.material.uniforms;
       (uniforms.uSunPosition!.value as Vector3).copy(sunRenderPosition);
       uniforms.uTime!.value = elapsed;
+
+      this.updateEclipseCasters(body, sunRadius);
 
       if (body.rings) {
         // Тень колец и сами кольца считаются в системе координат тела:
@@ -206,6 +230,46 @@ export class SolarSystem {
       this.applyReflectedLight(moon, earth);
       this.applyReflectedLight(earth, moon);
     }
+  }
+
+  /**
+   * Положить в шейдер тела его затмевающих соседей.
+   *
+   * Позиции берутся из сцены каждый кадр, а не из данных: тень обязана идти
+   * ровно за тем телом, которое нарисовано, — иначе она поедет относительно
+   * него на любом раздувании размеров или сдвиге начала координат.
+   */
+  private updateEclipseCasters(body: Body, sunRadius: number): void {
+    if (body.eclipseCasters.length === 0) return;
+
+    const uniforms = body.mesh.material.uniforms;
+    uniforms.uSunRadius!.value = sunRadius;
+    const slots = uniforms.uEclipseCasters!.value as Vector4[];
+    const air = uniforms.uEclipseAir!.value as number[];
+
+    body.eclipseCasters.forEach((id, index) => {
+      const slot = slots[index];
+      if (!slot) return;
+
+      const caster = this.find(id);
+      // Тела нет в сцене — пусть слот молчит: нулевой радиус в шейдере
+      // означает «никого», и проверять его отдельно не нужно.
+      if (!caster) {
+        slot.set(0, 0, 0, 0);
+        air[index] = 0;
+        return;
+      }
+
+      slot.set(
+        caster.group.position.x,
+        caster.group.position.y,
+        caster.group.position.z,
+        caster.visualRadius,
+      );
+      // Атмосфера заслонившего тела — тем же числом, каким задана его
+      // внешность: сквозь неё в тень попадает красный свет.
+      air[index] = caster.appearance.atmosphere;
+    });
   }
 
   private applyReflectedLight(target: Body, source: Body): void {

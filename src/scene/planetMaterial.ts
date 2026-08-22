@@ -4,6 +4,7 @@ import { DEG, SOLAR_IRRADIANCE_SCALE } from '../core/units';
 import type { Appearance, SurfaceSpot } from '../data/appearance';
 import noiseGlsl from '../shaders/lib/noise.glsl?raw';
 import cellularGlsl from '../shaders/lib/cellular.glsl?raw';
+import eclipseGlsl from '../shaders/lib/eclipse.glsl?raw';
 import ringsGlsl from '../shaders/lib/rings.glsl?raw';
 import planetVert from '../shaders/planet.vert.glsl?raw';
 import planetFrag from '../shaders/planet.frag.glsl?raw';
@@ -31,6 +32,13 @@ export interface PlanetMaterialOptions {
   radius: number;
   /** Полярный радиус, км. */
   polarRadius: number;
+  /**
+   * Сколько тел могут закрыть этому телу Солнце.
+   *
+   * Число, а не список: массив в шейдере объявляется размером, известным при
+   * компиляции, и у тела без соседей кода затмения в программе не окажется вовсе.
+   */
+  eclipseCasters?: number;
 }
 
 /**
@@ -49,6 +57,7 @@ export function createPlanetMaterial({
   appearance,
   radius,
   polarRadius,
+  eclipseCasters = 0,
 }: PlanetMaterialOptions): ShaderMaterial {
   const spot = appearance.spot;
   const direction = spot ? spotDirection(spot) : new Vector3(1, 0, 0);
@@ -57,10 +66,12 @@ export function createPlanetMaterial({
     noiseGlsl,
     appearance.family === 'rocky' ? cellularGlsl : '',
     appearance.rings ? ringsGlsl : '',
+    eclipseCasters > 0 ? eclipseGlsl : '',
     planetFrag,
   ].join('\n');
 
   const defines: Record<string, string> = { [FAMILY_DEFINE[appearance.family]]: '' };
+  if (eclipseCasters > 0) defines.ECLIPSE_CASTERS = String(eclipseCasters);
   if (appearance.rings) {
     defines.RING_SHADOW = '';
     defines.RING_BANDS = String(appearance.rings.bands.length);
@@ -80,6 +91,15 @@ export function createPlanetMaterial({
             uRingOuter: { value: appearance.rings.outer },
             uRingBands: { value: packBands(appearance.rings.bands) },
             uRingletStrength: { value: appearance.rings.ringlets },
+          }
+        : {}),
+      ...(eclipseCasters > 0
+        ? {
+            uEclipseCasters: {
+              value: Array.from({ length: eclipseCasters }, () => new Vector4(0, 0, 0, 0)),
+            },
+            uEclipseAir: { value: Array.from({ length: eclipseCasters }, () => 0) },
+            uSunRadius: { value: 0 },
           }
         : {}),
       uInvScaleSq: { value: invScaleSquared(radius, polarRadius) },
