@@ -69,6 +69,8 @@ export interface SceneInputOptions {
    * работа со сценой, не с вводом.
    */
   cycleSizePreset(): void;
+  /** Показать или убрать разметку неба: линии созвездий и имена звёзд. */
+  toggleSky(): void;
   /**
    * Попросить снимок кадра.
    *
@@ -161,6 +163,9 @@ function bindKeyboard(options: SceneInputOptions): void {
         break;
       case 'KeyK':
         options.takeSnapshot();
+        break;
+      case 'KeyN':
+        options.toggleSky();
         break;
       default:
         break;

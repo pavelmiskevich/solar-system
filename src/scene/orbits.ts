@@ -36,13 +36,31 @@ export function createOrbitLine(
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new BufferAttribute(positions, 3));
 
-  const material = new ShaderMaterial({
+  const line = new Line(geometry, createMarkingMaterial(color, ORBIT_OPACITY));
+  // Отключено намеренно: границы линии считаются в её собственных
+  // координатах, а группа переставляется плавающим началом каждый кадр.
+  line.frustumCulled = false;
+
+  return line;
+}
+
+/**
+ * Материал разметки: линии орбит и линии созвездий.
+ *
+ * Общий у них не только вид, но и причина этого вида. Разметка не изображает
+ * вещество — она подсказывает, и потому не заслоняет собой ничего: аддитивное
+ * смешение без записи глубины складывает её с тем, что за ней, а не
+ * закрашивает. Яркость правится снаружи через uOpacity: у орбит она гаснет
+ * при подлёте к планете, у созвездий — отменяет адаптацию экспозиции.
+ */
+export function createMarkingMaterial(color: number, opacity: number): ShaderMaterial {
+  return new ShaderMaterial({
     transparent: true,
     blending: AdditiveBlending,
     depthWrite: false,
     uniforms: {
       uColor: { value: new Color(color) },
-      uOpacity: { value: ORBIT_OPACITY },
+      uOpacity: { value: opacity },
     },
     vertexShader: /* glsl */ `
       #include <common>
@@ -67,13 +85,6 @@ export function createOrbitLine(
       }
     `,
   });
-
-  const line = new Line(geometry, material);
-  // Отключено намеренно: границы линии считаются в её собственных
-  // координатах, а группа переставляется плавающим началом каждый кадр.
-  line.frustumCulled = false;
-
-  return line;
 }
 
 /**

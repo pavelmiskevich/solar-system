@@ -112,6 +112,35 @@
         transform: rotate(135deg);
       }
 
+      /*
+       * Подпись неба: имя звезды или название созвездия.
+       *
+       * Тусклее подписи тела и без выноски. Звезда неподвижна, бесконечно
+       * далека и никуда не ведёт: подпись здесь — не кнопка, а надпись на
+       * карте, и вести себя должна соответственно.
+       */
+      .sky-label {
+        position: absolute;
+        left: 0;
+        top: 0;
+        will-change: transform, opacity;
+        white-space: nowrap;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        color: rgba(190, 210, 240, 0.85);
+        text-shadow: 0 0 6px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.95);
+        pointer-events: none;
+      }
+
+      /* Название созвездия — крупнее прописными и ещё тусклее: оно подписывает
+         рисунок целиком, а не точку, и не должно спорить с именами звёзд. */
+      .sky-label.figure {
+        font-size: 10px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: rgba(150, 175, 215, 0.7);
+      }
+
       #hud {
         position: fixed;
         left: 16px;
