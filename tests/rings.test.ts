@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { Group, PerspectiveCamera, Vector3 } from 'three';
 
 import { APPEARANCE } from '../src/data/appearance';
-import { packBands } from '../src/scene/rings';
+import { PlanetRings, packBands } from '../src/scene/rings';
 
 const saturn = APPEARANCE.saturn!.rings!;
 const uranus = APPEARANCE.uranus!.rings!;
@@ -67,5 +68,66 @@ describe('системы колец', () => {
     expect(packed[0]!.y).toBe(saturn.bands[0]!.outer);
     expect(packed[0]!.z).toBe(saturn.bands[0]!.density);
     expect(packed[0]!.w).toBe(saturn.bands[0]!.edge);
+  });
+});
+
+/**
+ * Камера в системе координат колец.
+ *
+ * Геометрия колец задана в настоящих километрах, а раздуваются они множителем
+ * размеров через масштаб меша. Шейдер считает и плотность, и тень, и наклон
+ * луча зрения в этих настоящих километрах — значит, и камеру ему надо давать
+ * в них же. Без деления на множитель у ×1000 шейдер видит камеру в тысяче
+ * радиусов от колец, стоя вплотную к ним.
+ */
+describe('камера в системе координат колец', () => {
+  /** Кольца в группе тела, как их собирает сцена. */
+  function ringsInGroup(scale: number): { rings: PlanetRings; group: Group } {
+    const rings = new PlanetRings({
+      inner: saturn.inner,
+      outer: saturn.outer,
+      color: saturn.color,
+      bands: saturn.bands,
+      ringlets: saturn.ringlets,
+      equatorial: 60268,
+      polar: 54364,
+    });
+
+    const group = new Group();
+    group.add(rings.mesh);
+    rings.mesh.scale.setScalar(scale);
+    group.updateMatrixWorld(true);
+
+    return { rings, group };
+  }
+
+  /** Положение камеры в системе координат колец после пересчёта. */
+  function cameraInRings(scale: number, offset: Vector3): Vector3 {
+    const { rings, group } = ringsInGroup(scale);
+    const body = new Vector3(0, 0, 0);
+    group.position.copy(body);
+
+    const camera = new PerspectiveCamera();
+    camera.position.copy(offset);
+
+    rings.update(new Vector3(1e8, 0, 0), body, camera);
+
+    return (rings.mesh.material.uniforms.uCameraBodyPosition!.value as Vector3).clone();
+  }
+
+  it('при настоящих размерах совпадает со смещением камеры от планеты', () => {
+    const offset = new Vector3(0, 204911, 0);
+    expect(cameraInRings(1, offset).y).toBeCloseTo(204911, 0);
+  });
+
+  it('при раздутых размерах уменьшается во столько же раз', () => {
+    // Камера стоит в 3.4 раздутых радиуса от планеты, то есть там же
+    // относительно колец, что и при настоящих размерах. Шейдер обязан увидеть
+    // то же самое число: кольца для него всё те же 136 775 км.
+    const offset = new Vector3(0, 204911 * 10, 0);
+    expect(cameraInRings(10, offset).y).toBeCloseTo(204911, 0);
+
+    const far = new Vector3(0, 204911 * 1000, 0);
+    expect(cameraInRings(1000, far).y).toBeCloseTo(204911, 0);
   });
 });
