@@ -17,6 +17,7 @@ import { SceneLuminance } from './lighting/sceneLuminance';
 import { OrbitLines } from './scene/orbits';
 import { SatelliteOrbits } from './scene/satelliteOrbits';
 import { ConstellationLines } from './scene/constellations';
+import { MilkyWay } from './scene/milkyWay';
 import { Starfield } from './scene/starfield';
 import { Sun } from './scene/sun';
 import { SIZE_PRESETS, SolarSystem } from './scene/system';
@@ -93,6 +94,10 @@ viewport.scene.add(satelliteOrbits.group);
 for (const { group, worldPosition } of satelliteOrbits.groups) {
   origin.track(group, worldPosition);
 }
+
+// Млечный Путь добавляется раньше звёзд: он позади них и всего остального.
+const milkyWay = new MilkyWay();
+viewport.scene.add(milkyWay.mesh);
 
 const starfield = new Starfield();
 viewport.scene.add(starfield.points);
@@ -611,6 +616,7 @@ const loop = new RenderLoop((dt, elapsed) => {
   // линии орбит компенсируют её, чтобы небо не разгоралось при удалении.
   // Небо и точки в измерение не входят: их яркость экспозицию компенсирует.
   const frameLuminance = luminance.measure(dt, viewport.renderer, viewport.scene, viewport.camera, [
+    milkyWay.mesh,
     starfield.points,
     constellations.lines,
     system.pointLayer,
@@ -627,6 +633,8 @@ const loop = new RenderLoop((dt, elapsed) => {
     sun.group.position,
     viewport.exposure,
   );
+  milkyWay.followCamera(viewport.camera.position);
+  milkyWay.compensateExposure(viewport.exposure);
   starfield.followCamera(viewport.camera.position);
   starfield.compensateExposure(viewport.exposure);
   constellations.followCamera(viewport.camera.position);
@@ -746,6 +754,7 @@ if (import.meta.env.DEV) {
     quality,
     tour,
     starfield,
+    milkyWay,
     constellations,
     skyLabels,
     travelTo,
