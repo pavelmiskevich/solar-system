@@ -106,6 +106,20 @@ function bindKeyboard(options: SceneInputOptions): void {
     }
 
     switch (event.code) {
+      // Стрелки принадлежат экскурсии, пока она идёт: они переводят её на
+      // соседнюю остановку, а не рулят камерой. Вне экскурсии заняты не они.
+      case 'ArrowRight':
+        if (tour.isActive) {
+          event.preventDefault();
+          tour.next();
+        }
+        break;
+      case 'ArrowLeft':
+        if (tour.isActive) {
+          event.preventDefault();
+          tour.previous();
+        }
+        break;
       case 'KeyT':
         if (tour.isActive) {
           tour.cancel();
@@ -157,6 +171,16 @@ function bindKeyboard(options: SceneInputOptions): void {
 /** Сдвиг курсора, начиная с которого нажатие считается протаскиванием, пиксели. */
 const DRAG_THRESHOLD_PX = 4;
 
+/**
+ * Сдвиг, начиная с которого протаскивание во время экскурсии считается
+ * свайпом, пиксели.
+ *
+ * Порог большой нарочно: внутри него жест ещё не решён — экскурсия не
+ * оборвана, но и остановка не сменена. Мелкое движение пальца при нажатии не
+ * должно ни того, ни другого.
+ */
+const SWIPE_THRESHOLD_PX = 48;
+
 function bindPointer(options: SceneInputOptions): void {
   const { canvas, camera, flight, travel, tour, bodyList, labels, targets, travelTo, hint, orbit } =
     options;
@@ -176,6 +200,17 @@ function bindPointer(options: SceneInputOptions): void {
   let moved = 0;
   let lastX = 0;
   let lastY = 0;
+
+  /*
+   * Протаскивание, начатое во время экскурсии, не решает свою судьбу сразу.
+   *
+   * Раньше любое нажатие по холсту обрывало экскурсию — теперь горизонтальное
+   * движение переводит её на соседнюю остановку, а всё остальное обрывает
+   * по-прежнему. Отличить одно от другого можно только по движению, поэтому
+   * нажатие лишь запоминает точку, а решение принимается на первом же сдвиге
+   * сверх порога (или на отпускании — тогда это был щелчок).
+   */
+  let swipeFrom: { x: number; y: number } | null = null;
 
   /**
    * Подсветка тела под курсором.
@@ -214,7 +249,17 @@ function bindPointer(options: SceneInputOptions): void {
   });
 
   canvas.addEventListener('pointerdown', (event) => {
-    if (tour.isActive) tour.cancel();
+    if (tour.isActive) {
+      // Пока экскурсия идёт, судьба жеста решается по движению. Свайп нужен и
+      // на перелёте между остановками, где орбитального режима ещё нет, —
+      // поэтому проверка орбиты сюда не входит.
+      if (event.button === 0 && !flight.isLocked) {
+        swipeFrom = { x: event.clientX, y: event.clientY };
+        canvas.setPointerCapture(event.pointerId);
+        return;
+      }
+      tour.cancel();
+    }
 
     // Захваченная мышь — это свободный полёт: там осмотр идёт движением мыши,
     // а не протаскиванием, и перехватывать его нечего.
@@ -228,6 +273,37 @@ function bindPointer(options: SceneInputOptions): void {
   });
 
   canvas.addEventListener('pointermove', (event) => {
+    if (swipeFrom) {
+      const dx = event.clientX - swipeFrom.x;
+      const dy = event.clientY - swipeFrom.y;
+
+      // Горизонталь — перемотка: движение влево уводит к следующей
+      // остановке, вправо — к предыдущей, как листают страницы. Жест на этом
+      // истрачен: следующий шаг — следующим жестом.
+      if (Math.abs(dx) >= SWIPE_THRESHOLD_PX && Math.abs(dx) > Math.abs(dy)) {
+        swipeFrom = null;
+        moved = Math.abs(dx) + Math.abs(dy);
+        if (dx < 0) tour.next();
+        else tour.previous();
+        return;
+      }
+
+      // Вертикаль — человек взялся осматривать сам: экскурсия обрывается, а
+      // начатое движение подхватывается вращением, чтобы жест не пропал.
+      if (Math.abs(dy) >= SWIPE_THRESHOLD_PX) {
+        swipeFrom = null;
+        tour.cancel();
+        if (orbit.isActive) {
+          dragging = true;
+          moved = Math.abs(dx) + Math.abs(dy);
+          lastX = event.clientX;
+          lastY = event.clientY;
+        }
+      }
+
+      return;
+    }
+
     if (!dragging) return;
 
     const dx = event.clientX - lastX;
@@ -242,9 +318,16 @@ function bindPointer(options: SceneInputOptions): void {
   });
 
   const endDrag = (event: PointerEvent): void => {
-    if (!dragging) return;
-    dragging = false;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+
+    // Жест кончился, так и не став свайпом, — значит это был щелчок по
+    // холсту, а он экскурсию обрывает, как обрывал всегда.
+    if (swipeFrom) {
+      swipeFrom = null;
+      tour.cancel();
+    }
+
+    dragging = false;
   };
 
   canvas.addEventListener('pointerup', endDrag);
@@ -269,13 +352,15 @@ function bindPointer(options: SceneInputOptions): void {
    * Попали в тело — летим к нему; попали в пустоту — берём мышь и смотрим сами.
    */
   canvas.addEventListener('click', (event) => {
-    if (tour.isActive) tour.cancel();
-
-    // Клик, оказавшийся концом протаскивания, не считается кликом.
+    // Клик, оказавшийся концом протаскивания, не считается кликом. Проверка
+    // стоит раньше экскурсии нарочно: свайп кончается щелчком по холсту, и
+    // если обрывать её здесь, переход по остановке сразу же отменялся бы.
     if (moved >= DRAG_THRESHOLD_PX) {
       moved = 0;
       return;
     }
+
+    if (tour.isActive) tour.cancel();
 
     const width = canvas.clientWidth;
     const height = canvas.clientHeight;

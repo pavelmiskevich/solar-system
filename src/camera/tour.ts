@@ -55,6 +55,33 @@ export class TourController {
     this.timer = WAIT_TIME;
   }
 
+  /**
+   * Перевести экскурсию на следующую остановку, не досматривая текущую.
+   *
+   * С последней остановки идти вперёд некуда — экскурсия кончается так же,
+   * как по исчерпании списка.
+   */
+  next() {
+    if (!this.active) return;
+    const step = this.step + 1;
+    if (step >= TOUR_STOPS.length) {
+      this.cancel();
+      return;
+    }
+    this.goTo(step);
+  }
+
+  /**
+   * Вернуть экскурсию на предыдущую остановку.
+   *
+   * С первой назад идти некуда: там ничего не происходит, и рассказ у первого
+   * тела доигрывается своим чередом, а не начинается заново.
+   */
+  previous() {
+    if (!this.active || this.step <= 0) return;
+    this.goTo(this.step - 1);
+  }
+
   cancel() {
     if (!this.active) return;
     this.active = false;
@@ -85,18 +112,23 @@ export class TourController {
       if (this.orbit.isActive) this.orbit.drag(dt * 150, 0, 1000);
 
       this.timer += dt;
-      if (this.timer >= WAIT_TIME) {
-        this.step++;
-        if (this.step >= TOUR_STOPS.length) {
-          this.cancel();
-          return;
-        }
-
-        this.state = 'traveling';
-        this.timer = 0;
-        this.setCaption(null);
-        this.doTravelTo(TOUR_STOPS[this.step]!.id);
-      }
+      // Досмотрели — дальше по маршруту тем же ходом, что и по стрелке.
+      if (this.timer >= WAIT_TIME) this.next();
     }
+  }
+
+  /**
+   * Отправиться к остановке под номером step.
+   *
+   * Недолетевший перелёт обрывается: иначе переход по стрелке оставил бы
+   * камеру лететь к брошенной остановке, пока рассказ идёт уже о новой.
+   */
+  private goTo(step: number): void {
+    if (this.state === 'traveling') this.travel.cancel();
+    this.step = step;
+    this.state = 'traveling';
+    this.timer = 0;
+    this.setCaption(null);
+    this.doTravelTo(TOUR_STOPS[step]!.id);
   }
 }

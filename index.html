@@ -35,7 +35,12 @@
         display: block;
       }
 
-      #viewport canvas { display: block; }
+      /*
+       * touch-action: none — чтобы браузер не забирал жест себе. Без этого
+       * горизонтальное движение пальца по сцене уходит в прокрутку страницы
+       * и до свайпа по остановкам экскурсии дело не доходит.
+       */
+      #viewport canvas { display: block; touch-action: none; }
 
       /* Слой меток и интерфейса поверх канваса. */
       #overlay {
