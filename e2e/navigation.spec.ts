@@ -210,6 +210,71 @@ async function cameraPosition(page: Page): Promise<[number, number, number]> {
   });
 }
 
+/** Насколько тело отошло от центра кадра — в долях его ширины и высоты. */
+async function missFromCentre(page: Page, id: string): Promise<number> {
+  const point = await screenPositionOf(page, id);
+  if (point === null) return Infinity;
+
+  const size = await page.evaluate(() => {
+    const element = window.sim.viewport.renderer.domElement;
+    return { width: element.clientWidth, height: element.clientHeight };
+  });
+
+  return Math.max(
+    Math.abs(point.x - size.width / 2) / size.width,
+    Math.abs(point.y - size.height / 2) / size.height,
+  );
+}
+
+/**
+ * Пролететь, удерживая клавишу, пока камера не отойдёт от старта на minPath.
+ *
+ * Ждать не секунды, а пройденный путь — потому что путь и секунды здесь не
+ * связаны. Шаг времени в кадровом цикле ограничен сверху, и на машине, где
+ * кадры идут редко (в headless небо считает программный растеризатор),
+ * за те же десять секунд настенных часов камера пролетает в разы меньше.
+ * Проверка, отмерявшая полёт секундомером, проходила на живой видеокарте и
+ * падала в CI — не потому, что захват сломался, а потому, что лететь ещё
+ * не начали.
+ *
+ * @param sample вызывается на каждом замере — им проверка следит за полётом
+ */
+async function flyUntilPath(
+  page: Page,
+  key: string,
+  minPath: number,
+  sample?: () => Promise<void>,
+): Promise<number> {
+  const start = await cameraPosition(page);
+  const travelled = async (): Promise<number> => {
+    const now = await cameraPosition(page);
+    return Math.hypot(now[0] - start[0], now[1] - start[1], now[2] - start[2]);
+  };
+
+  await page.keyboard.down(key);
+  try {
+    const deadline = Date.now() + 60_000;
+    let path = 0;
+
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(400);
+      if (sample) await sample();
+
+      path = await travelled();
+      if (path >= minPath) return path;
+    }
+
+    throw new Error(`камера прошла ${path.toFixed(0)} км из ${minPath.toFixed(0)} за минуту`);
+  } finally {
+    await page.keyboard.up(key);
+  }
+}
+
+/** Видимый радиус тела, км. */
+async function visualRadius(page: Page, id: string): Promise<number> {
+  return page.evaluate((bodyId) => window.sim.system.find(bodyId).visualRadius, id);
+}
+
 /**
  * Захват цели.
  *
@@ -238,42 +303,20 @@ test.describe('захват цели', () => {
     expect(await page.evaluate(() => window.sim.aim.targetId)).toBe('mars');
     await expect(page.locator('#hud')).toContainText('Марс');
 
-    // Откуда полетели: захват держит камеру носом на тело, поэтому боковое
-    // движение обводит её вокруг Марса — расстояние почти не меняется, и
-    // мерить пройденный путь приходится по самому пути.
-    const start = await cameraPosition(page);
-
     // Летим боком: так направление на тело разворачивается быстрее всего, а
-    // взгляду приходится поспевать за ним каждый кадр.
-    await page.keyboard.down('KeyD');
+    // взгляду приходится поспевать за ним каждый кадр. Захват держит камеру
+    // носом на Марс, поэтому боковое движение обводит её вокруг планеты:
+    // расстояние почти не меняется, и мерить остаётся сам путь.
+    const radius = await visualRadius(page, 'mars');
     const misses: number[] = [];
-    for (let i = 0; i < 10; i += 1) {
-      await page.waitForTimeout(1000);
-      const point = await screenPositionOf(page, 'mars');
-      expect(point, 'Марс ушёл за спину').not.toBeNull();
 
-      const size = await page.evaluate(() => {
-        const element = window.sim.viewport.renderer.domElement;
-        return { width: element.clientWidth, height: element.clientHeight };
-      });
-      misses.push(
-        Math.max(
-          Math.abs(point!.x - size.width / 2) / size.width,
-          Math.abs(point!.y - size.height / 2) / size.height,
-        ),
-      );
-    }
-    await page.keyboard.up('KeyD');
+    await flyUntilPath(page, 'KeyD', radius * 12, async () => {
+      misses.push(await missFromCentre(page, 'mars'));
+    });
 
     // Центральная треть кадра — это шестая часть в каждую сторону от центра.
+    expect(misses.length).toBeGreaterThan(2);
     expect(Math.max(...misses)).toBeLessThan(1 / 6);
-
-    // И проверка, что тест не прошёл на неподвижной камере: за десять секунд
-    // камера обязана пройти хотя бы десяток радиусов Марса.
-    const finish = await cameraPosition(page);
-    const radius = await page.evaluate(() => window.sim.system.find('mars').visualRadius);
-    const path = Math.hypot(finish[0] - start[0], finish[1] - start[1], finish[2] - start[2]);
-    expect(path).toBeGreaterThan(radius * 10);
 
     expectNoErrors(errors);
   });
@@ -293,24 +336,13 @@ test.describe('захват цели', () => {
     await page.keyboard.press('KeyF');
     expect(await page.evaluate(() => window.sim.aim.targetId)).toBeNull();
 
-    // Без захвата тело уходит из кадра при том же самом движении.
-    await page.keyboard.down('KeyD');
-    await page.waitForTimeout(10_000);
-    await page.keyboard.up('KeyD');
+    // Без захвата тело уходит из кадра на том же самом пути: с тридцати
+    // радиусов двенадцать в сторону — это двадцать градусов мимо, а половина
+    // кадра по ширине здесь меньше.
+    const radius = await visualRadius(page, 'mars');
+    await flyUntilPath(page, 'KeyD', radius * 12);
 
-    const point = await screenPositionOf(page, 'mars');
-    const size = await page.evaluate(() => {
-      const element = window.sim.viewport.renderer.domElement;
-      return { width: element.clientWidth, height: element.clientHeight };
-    });
-    const miss =
-      point === null
-        ? Infinity
-        : Math.max(
-            Math.abs(point.x - size.width / 2) / size.width,
-            Math.abs(point.y - size.height / 2) / size.height,
-          );
-    expect(miss).toBeGreaterThan(1 / 6);
+    expect(await missFromCentre(page, 'mars')).toBeGreaterThan(1 / 6);
 
     expectNoErrors(errors);
   });
