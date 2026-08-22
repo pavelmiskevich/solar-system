@@ -72,6 +72,14 @@ export interface SceneInputOptions {
   /** Показать или убрать разметку неба: линии созвездий и имена звёзд. */
   toggleSky(): void;
   /**
+   * Захватить тело, на которое показывают, — или отпустить захваченное.
+   *
+   * Ввод передаёт только имя тела под прицелом или под курсором и `null`,
+   * если там пусто. Чем заменить пустоту, знает сцена: ввод не ведает ни
+   * системы отсчёта, ни того, что захвачено сейчас.
+   */
+  toggleAimLock(id: string | null): void;
+  /**
    * Попросить снимок кадра.
    *
    * Снять его прямо здесь нельзя: буфер WebGL живёт до вывода кадра, и к
@@ -91,7 +99,7 @@ export function bindSceneInput(options: SceneInputOptions): void {
 }
 
 function bindKeyboard(options: SceneInputOptions): void {
-  const { clock, travel, tour, labels, bodyList, help, support, orbit } = options;
+  const { clock, travel, tour, labels, bodyList, help, support, orbit, flight } = options;
 
   window.addEventListener('keydown', (event) => {
     if (event.target instanceof HTMLInputElement) return;
@@ -167,10 +175,30 @@ function bindKeyboard(options: SceneInputOptions): void {
       case 'KeyN':
         options.toggleSky();
         break;
+      case 'KeyF':
+        // Захватывается то, на что человек показывает: с захваченной мышью —
+        // прицел в центре кадра, без неё — курсор, то есть подсвеченная
+        // подпись. Ровно тот же выбор, каким отработал бы щелчок.
+        options.toggleAimLock(flight.isLocked ? pickAtCrosshair(options) : labels.highlightedId);
+        break;
       default:
         break;
     }
   });
+}
+
+/**
+ * Тело под прицелом в центре кадра — или null, если там пусто.
+ *
+ * Нужно только захвату цели: у щелчка есть свои координаты, а у клавиши их
+ * нет, и целиться ей больше нечем.
+ */
+function pickAtCrosshair(options: SceneInputOptions): string | null {
+  const { canvas } = options;
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  const hit = pickBody(width / 2, height / 2, options.targets, options.camera, width, height);
+  return hit?.candidate.id ?? null;
 }
 
 /** Сдвиг курсора, начиная с которого нажатие считается протаскиванием, пиксели. */

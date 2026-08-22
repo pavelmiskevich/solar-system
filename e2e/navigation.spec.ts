@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import {
   coverOfLabel,
@@ -198,5 +198,138 @@ test.describe('перелёты', () => {
     // движению, возвращаясь каждый кадр на свою окружность.
     await page.keyboard.press('KeyW');
     expect(await page.evaluate(() => window.sim.orbit.isActive)).toBe(false);
+  });
+});
+
+
+/** Положение камеры в мировых координатах, км. */
+async function cameraPosition(page: Page): Promise<[number, number, number]> {
+  return page.evaluate(() => {
+    const p = window.sim.flight.worldPosition;
+    return [p.x, p.y, p.z] as [number, number, number];
+  });
+}
+
+/**
+ * Захват цели.
+ *
+ * Обещание: пока захват включён, тело не уходит из кадра, что бы ни делали
+ * рули. Сквозная проверка нужна не ради математики — она есть в юнит-тестах, —
+ * а ради того, что захват вообще включается тем, чем обещано, и что кадровый
+ * цикл его действительно спрашивает.
+ */
+test.describe('захват цели', () => {
+  test('захваченное тело держится в центре кадра во время полёта', async ({ page }) => {
+    const errors = await openScene(page);
+    await pauseAt(page, '2032-01-01T00:00:00Z');
+
+    // Встаём поодаль от Марса: с трёх радиусов полёт вперёд утыкается в
+    // планету, и проверять нечего.
+    await page.evaluate(() => window.sim.goTo('mars', 30));
+    await waitForFrames(page, 3);
+
+    // Наводим курсор на Марс и захватываем его — тем же выбором, каким
+    // отработал бы щелчок.
+    const mars = await screenPositionOf(page, 'mars');
+    expect(mars).not.toBeNull();
+    await page.mouse.move(mars!.x, mars!.y);
+    await page.keyboard.press('KeyF');
+
+    expect(await page.evaluate(() => window.sim.aim.targetId)).toBe('mars');
+    await expect(page.locator('#hud')).toContainText('Марс');
+
+    // Откуда полетели: захват держит камеру носом на тело, поэтому боковое
+    // движение обводит её вокруг Марса — расстояние почти не меняется, и
+    // мерить пройденный путь приходится по самому пути.
+    const start = await cameraPosition(page);
+
+    // Летим боком: так направление на тело разворачивается быстрее всего, а
+    // взгляду приходится поспевать за ним каждый кадр.
+    await page.keyboard.down('KeyD');
+    const misses: number[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      await page.waitForTimeout(1000);
+      const point = await screenPositionOf(page, 'mars');
+      expect(point, 'Марс ушёл за спину').not.toBeNull();
+
+      const size = await page.evaluate(() => {
+        const element = window.sim.viewport.renderer.domElement;
+        return { width: element.clientWidth, height: element.clientHeight };
+      });
+      misses.push(
+        Math.max(
+          Math.abs(point!.x - size.width / 2) / size.width,
+          Math.abs(point!.y - size.height / 2) / size.height,
+        ),
+      );
+    }
+    await page.keyboard.up('KeyD');
+
+    // Центральная треть кадра — это шестая часть в каждую сторону от центра.
+    expect(Math.max(...misses)).toBeLessThan(1 / 6);
+
+    // И проверка, что тест не прошёл на неподвижной камере: за десять секунд
+    // камера обязана пройти хотя бы десяток радиусов Марса.
+    const finish = await cameraPosition(page);
+    const radius = await page.evaluate(() => window.sim.system.find('mars').visualRadius);
+    const path = Math.hypot(finish[0] - start[0], finish[1] - start[1], finish[2] - start[2]);
+    expect(path).toBeGreaterThan(radius * 10);
+
+    expectNoErrors(errors);
+  });
+
+  test('повторное нажатие снимает захват, и тело уходит из кадра', async ({ page }) => {
+    const errors = await openScene(page);
+    await pauseAt(page, '2032-01-01T00:00:00Z');
+
+    await page.evaluate(() => window.sim.goTo('mars', 30));
+    await waitForFrames(page, 3);
+
+    const mars = await screenPositionOf(page, 'mars');
+    await page.mouse.move(mars!.x, mars!.y);
+    await page.keyboard.press('KeyF');
+    expect(await page.evaluate(() => window.sim.aim.targetId)).toBe('mars');
+
+    await page.keyboard.press('KeyF');
+    expect(await page.evaluate(() => window.sim.aim.targetId)).toBeNull();
+
+    // Без захвата тело уходит из кадра при том же самом движении.
+    await page.keyboard.down('KeyD');
+    await page.waitForTimeout(10_000);
+    await page.keyboard.up('KeyD');
+
+    const point = await screenPositionOf(page, 'mars');
+    const size = await page.evaluate(() => {
+      const element = window.sim.viewport.renderer.domElement;
+      return { width: element.clientWidth, height: element.clientHeight };
+    });
+    const miss =
+      point === null
+        ? Infinity
+        : Math.max(
+            Math.abs(point.x - size.width / 2) / size.width,
+            Math.abs(point.y - size.height / 2) / size.height,
+          );
+    expect(miss).toBeGreaterThan(1 / 6);
+
+    expectNoErrors(errors);
+  });
+
+  test('выбор другой цели снимает захват', async ({ page }) => {
+    const errors = await openScene(page);
+    await pauseAt(page, '2032-01-01T00:00:00Z');
+
+    await page.evaluate(() => window.sim.goTo('mars', 30));
+    await waitForFrames(page, 3);
+
+    const mars = await screenPositionOf(page, 'mars');
+    await page.mouse.move(mars!.x, mars!.y);
+    await page.keyboard.press('KeyF');
+    expect(await page.evaluate(() => window.sim.aim.targetId)).toBe('mars');
+
+    await page.evaluate(() => window.sim.travelTo('venus'));
+    expect(await page.evaluate(() => window.sim.aim.targetId)).toBeNull();
+
+    expectNoErrors(errors);
   });
 });
