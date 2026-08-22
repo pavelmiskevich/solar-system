@@ -16,6 +16,7 @@ import { AdaptiveExposure } from './lighting/exposure';
 import { SceneLuminance } from './lighting/sceneLuminance';
 import { OrbitLines } from './scene/orbits';
 import { SatelliteOrbits } from './scene/satelliteOrbits';
+import { ConstellationLines } from './scene/constellations';
 import { Starfield } from './scene/starfield';
 import { Sun } from './scene/sun';
 import { SIZE_PRESETS, SolarSystem } from './scene/system';
@@ -34,6 +35,7 @@ import { TourButton } from './ui/tourButton';
 import { SnapshotButton, saveCanvasPng, snapshotFileName } from './ui/snapshotButton';
 import { Hud } from './ui/hud';
 import { LabelLayer } from './ui/labels';
+import { SkyLabels } from './ui/skyLabels';
 import { bindSceneInput } from './ui/input';
 import { createSourceLink } from './ui/sourceLink';
 
@@ -94,6 +96,11 @@ for (const { group, worldPosition } of satelliteOrbits.groups) {
 
 const starfield = new Starfield();
 viewport.scene.add(starfield.points);
+
+// Разметка неба: линии созвездий и имена звёзд. По умолчанию выключена —
+// небо сначала показывают как небо, а разбирают по фигурам уже потом.
+const constellations = new ConstellationLines();
+viewport.scene.add(constellations.lines);
 
 system.update(clock.jd);
 
@@ -367,6 +374,7 @@ function updateAddress(dt: number): void {
 
 
 const labels = new LabelLayer(overlayElement, targets, travelTo);
+const skyLabels = new SkyLabels(overlayElement);
 
 const bodyList = new BodyList(
   panelElement,
@@ -500,6 +508,19 @@ function applySizeExaggeration(next: number): void {
   if (orbit.isActive) orbit.engage(flight.worldPosition, anchor.worldPosition);
 }
 
+/**
+ * Показать или убрать разметку неба.
+ *
+ * Линии и подписи включаются вместе: по отдельности они бессмысленны —
+ * фигура без имён не говорит, что это за фигура, а имена без линий не
+ * складываются в рисунок.
+ */
+function toggleSky(): void {
+  const enabled = !constellations.isEnabled();
+  constellations.setEnabled(enabled);
+  skyLabels.setEnabled(enabled);
+}
+
 /** Следующий множитель размеров по кругу. */
 function cycleSizePreset(): void {
   // Раздутые тела — честная модель, а не обман: вместе с планетой растёт вся
@@ -591,6 +612,7 @@ const loop = new RenderLoop((dt, elapsed) => {
   // Небо и точки в измерение не входят: их яркость экспозицию компенсирует.
   const frameLuminance = luminance.measure(dt, viewport.renderer, viewport.scene, viewport.camera, [
     starfield.points,
+    constellations.lines,
     system.pointLayer,
     orbits.group,
     satelliteOrbits.group,
@@ -607,6 +629,8 @@ const loop = new RenderLoop((dt, elapsed) => {
   );
   starfield.followCamera(viewport.camera.position);
   starfield.compensateExposure(viewport.exposure);
+  constellations.followCamera(viewport.camera.position);
+  constellations.compensateExposure(viewport.exposure);
   orbits.update(distanceToSun, distanceToSurface, viewport.exposure);
   satelliteOrbits.update(
     flight.worldPosition,
@@ -634,6 +658,12 @@ const loop = new RenderLoop((dt, elapsed) => {
   // Подписи обновляются после кадра: проекция опирается на матрицы камеры,
   // а те приводятся в порядок отрисовкой.
   labels.update(
+    viewport.camera,
+    viewport.renderer.domElement.clientWidth,
+    viewport.renderer.domElement.clientHeight,
+    dt,
+  );
+  skyLabels.update(
     viewport.camera,
     viewport.renderer.domElement.clientWidth,
     viewport.renderer.domElement.clientHeight,
@@ -689,6 +719,7 @@ bindSceneInput({
   targets,
   travelTo,
   orbit,
+  toggleSky,
   cycleSizePreset,
   takeSnapshot: requestSnapshot,
   scenarios: scenarioList,
@@ -714,6 +745,9 @@ if (import.meta.env.DEV) {
     orbit,
     quality,
     tour,
+    starfield,
+    constellations,
+    skyLabels,
     travelTo,
     lookAt(from: [number, number, number], at: [number, number, number] = [0, 0, 0]) {
       flight.placeLookingAt(new Vector3(...from), new Vector3(...at));
