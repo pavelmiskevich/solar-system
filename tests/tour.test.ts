@@ -147,3 +147,110 @@ describe('экскурсия', () => {
     expect(r.visited).toEqual(['sun', 'mercury', 'venus', 'earth']);
   });
 });
+
+describe('переход по остановкам вручную', () => {
+  it('шаг вперёд не ждёт восьми секунд и сбрасывает отсчёт', () => {
+    const r = rig();
+    r.tour.start();
+    wait(r);
+    arrive(r);
+    expect(r.visited).toEqual(['sun']);
+
+    // Полсекунды у Солнца — до конца остановки ещё далеко.
+    wait(r, 0.5);
+    r.tour.next();
+
+    expect(r.visited).toEqual(['sun', 'mercury']);
+    expect(r.captions.at(-1)).toBeNull();
+
+    arrive(r);
+    expect(r.captions.at(-1)).toContain('Меркурий');
+
+    // Отсчёт начат заново: полсекунды, набранные у Солнца, не переехали сюда.
+    wait(r, 7);
+    expect(r.visited).toEqual(['sun', 'mercury']);
+    wait(r, 1.5);
+    expect(r.visited).toEqual(['sun', 'mercury', 'venus']);
+  });
+
+  it('шаг назад возвращает на предыдущую остановку', () => {
+    const r = rig();
+    r.tour.start();
+    wait(r);
+    arrive(r);
+    wait(r);
+    arrive(r);
+    expect(r.visited).toEqual(['sun', 'mercury']);
+
+    r.tour.previous();
+
+    expect(r.visited).toEqual(['sun', 'mercury', 'sun']);
+    arrive(r);
+    expect(r.captions.at(-1)).toContain('Солнце');
+  });
+
+  it('с первой остановки назад идти некуда', () => {
+    const r = rig();
+    r.tour.start();
+    wait(r);
+    arrive(r);
+    expect(r.visited).toEqual(['sun']);
+
+    // Половина рассказа у Солнца уже позади.
+    wait(r, 5);
+    r.tour.previous();
+
+    expect(r.visited).toEqual(['sun']);
+    expect(r.tour.isActive).toBe(true);
+    // Остановка не начата заново: оставшихся четырёх секунд хватает, чтобы
+    // рассказ кончился в свой срок, а не спустя восемь секунд заново.
+    wait(r, 4);
+    expect(r.visited).toEqual(['sun', 'mercury']);
+  });
+
+  it('шаг вперёд с последней остановки завершает экскурсию', () => {
+    const r = rig();
+    r.tour.start();
+
+    for (let stop = 0; stop < 20 && r.visited.at(-1) !== 'pluto'; stop += 1) {
+      wait(r);
+      if (r.travel.isActive) arrive(r);
+    }
+    expect(r.tour.isActive).toBe(true);
+
+    r.tour.next();
+
+    expect(r.tour.isActive).toBe(false);
+    expect(r.captions.at(-1)).toBeNull();
+  });
+
+  it('шаг на перелёте бросает недолетевший перелёт и начинает новый', () => {
+    const r = rig();
+    r.tour.start();
+    wait(r);
+    arrive(r);
+    wait(r);
+    expect(r.travel.isActive).toBe(true);
+    expect(r.visited).toEqual(['sun', 'mercury']);
+
+    r.tour.next();
+
+    expect(r.travel.cancelled).toBe(1);
+    expect(r.visited).toEqual(['sun', 'mercury', 'venus']);
+    expect(r.tour.isActive).toBe(true);
+  });
+
+  it('остановленную экскурсию стрелки не воскрешают', () => {
+    const r = rig();
+    r.tour.start();
+    wait(r);
+    arrive(r);
+    r.tour.cancel();
+
+    r.tour.next();
+    r.tour.previous();
+
+    expect(r.tour.isActive).toBe(false);
+    expect(r.visited).toEqual(['sun']);
+  });
+});
