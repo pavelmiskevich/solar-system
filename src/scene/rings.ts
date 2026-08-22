@@ -116,7 +116,17 @@ export class PlanetRings {
       .applyQuaternion(inverseQuaternion);
     (uniforms.uSunBodyDirection!.value as Vector3).copy(scratchSun);
 
-    scratchCamera.copy(camera.position).sub(bodyRenderPosition).applyQuaternion(inverseQuaternion);
+    // Деление на масштаб меша — не мелочь. Геометрия колец задана в настоящих
+    // километрах, и шейдер в них же считает и плотность, и тень, и наклон луча
+    // зрения; множитель размеров раздувает кольца масштабом меша, не трогая
+    // саму геометрию. Смещение камеры приходит сюда в километрах сцены, то
+    // есть уже раздутых, — и без деления шейдер при ×1000 видел бы камеру в
+    // тысяче радиусов от колец в тот момент, когда она стоит вплотную к ним.
+    scratchCamera
+      .copy(camera.position)
+      .sub(bodyRenderPosition)
+      .applyQuaternion(inverseQuaternion)
+      .divideScalar(this.mesh.scale.x || 1);
     (uniforms.uCameraBodyPosition!.value as Vector3).copy(scratchCamera);
   }
 }
