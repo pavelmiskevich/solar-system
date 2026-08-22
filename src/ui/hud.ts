@@ -32,6 +32,8 @@ export interface HudData {
   nearestDistanceKm: number;
   /** Тело, в системе отсчёта которого камера; null — гелиоцентрическая. */
   frame: string | null;
+  /** Захваченное тело: камера держит его в центре кадра. null — захвата нет. */
+  aim: string | null;
   /** Во сколько раз раздуты размеры тел. Единица — настоящие. */
   sizeExaggeration: number;
 }
@@ -42,6 +44,7 @@ const ROWS = [
   'до Солнца',
   'ближайшее',
   'отсчёт',
+  'захват',
   'размеры',
   'скорость',
   'кадры',
@@ -130,9 +133,11 @@ export class Hud {
     // Гелиоцентрическая система — состояние по умолчанию, и называть её честнее так,
     // чем прочерком: камера всё равно всегда в чьёй-то системе отсчёта.
     this.set(4, data.frame ?? 'Солнце');
-    this.set(5, data.sizeExaggeration === 1 ? 'настоящие' : `×${data.sizeExaggeration}`);
-    this.set(6, formatSpeed(data.speedKmS));
-    this.set(7, `${data.fps.toFixed(0)} fps`);
+    // Прочерк здесь честнее слова: захвата либо нет вовсе, либо он на теле.
+    this.set(5, data.aim ?? '—');
+    this.set(6, data.sizeExaggeration === 1 ? 'настоящие' : `×${data.sizeExaggeration}`);
+    this.set(7, formatSpeed(data.speedKmS));
+    this.set(8, `${data.fps.toFixed(0)} fps`);
   }
 
   /** Название тела — обычным текстом, расстояние — переключателем единиц. */

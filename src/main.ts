@@ -23,6 +23,7 @@ import { SIZE_PRESETS, SolarSystem } from './scene/system';
 import { ReferenceFrame } from './camera/frame';
 import { OrbitControls } from './camera/orbit';
 import { TravelController } from './camera/travel';
+import { AimLock } from './camera/aimLock';
 import { TourController } from './camera/tour';
 import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
@@ -172,6 +173,7 @@ function findTarget(id: string): Target | undefined {
 
 const travel = new TravelController();
 const frame = new ReferenceFrame();
+const aim = new AimLock();
 const orbit = new OrbitControls();
 const tour = new TourController(travel, orbit, travelTo, (text) => {
   if (hintElement) {
@@ -192,6 +194,8 @@ function travelTo(id: string): void {
   // с Землёй незачем — это увело бы камеру с рассчитанной траектории.
   frame.release();
   orbit.release();
+  // Выбрана другая цель — прежний захват кончился вместе с прежним выбором.
+  aim.release();
   travel.start(target, flight.worldPosition, sun.worldPosition);
   bodyList.setActive(id);
   scenarioList.setActive(null);
@@ -201,6 +205,27 @@ function travelTo(id: string): void {
 function frameTargetName(): string | null {
   const id = frame.targetId;
   return id ? (findTarget(id)?.name ?? null) : null;
+}
+
+/** Имя захваченного тела — для HUD. */
+function aimTargetName(): string | null {
+  const id = aim.targetId;
+  return id ? (findTarget(id)?.name ?? null) : null;
+}
+
+/**
+ * Захватить тело — или отпустить захваченное.
+ *
+ * Что захватывать, решает не эта функция целиком: ввод передаёт сюда тело под
+ * прицелом или под курсором, и оно главное. Не показали ни на что — берём то,
+ * вокруг которого стоим: после осмотра планеты человек чаще всего трогает
+ * рули, чтобы отлететь и посмотреть на неё со стороны, а не чтобы потерять её
+ * из виду. Не нашлось и его — остаётся снять захват, если он был; иначе
+ * захват было бы нечем выключить, стоя в пустоте.
+ */
+function toggleAimLock(id: string | null): void {
+  const wanted = id ?? frame.targetId ?? aim.targetId;
+  if (wanted) aim.toggle(wanted);
 }
 
 /**
@@ -269,6 +294,7 @@ function applySceneState(state: SceneState): void {
 
     flight.placeLookingAt(scratchOffset, target.worldPosition);
     frame.lockTo(target);
+    aim.release();
     orbit.engage(flight.worldPosition, target.worldPosition);
     bodyList.setActive(target.id);
     exposure.reset(flight.worldPosition.length());
@@ -333,6 +359,7 @@ function showScenario(id: string): void {
   // прибытия задана направлением и расстоянием — им это безразлично.
   frame.release();
   orbit.release();
+  aim.release();
   travel.start(target, flight.worldPosition, sun.worldPosition, {
     direction: directionFromAngles(state.view.azimuth, state.view.elevation, scratchOffset),
     distance: state.view.radii * Math.max(target.radius, 1e-6),
@@ -590,6 +617,10 @@ const loop = new RenderLoop((dt, elapsed) => {
       flight.update(dt, distanceToSurface);
     }
   } else {
+    // Захват держит цель в центре кадра, пока рулями ведут камеру. Тело
+    // ищется каждый кадр по имени, а не хранится ссылкой: захват переживает
+    // и смену системы отсчёта, и уход на другой конец системы.
+    aim.hold(flight, aim.targetId ? findTarget(aim.targetId) ?? null : null);
     flight.update(dt, distanceToSurface);
   }
 
@@ -686,6 +717,7 @@ const loop = new RenderLoop((dt, elapsed) => {
     nearestBody: nearest.body?.definition.name ?? 'Солнце',
     nearestDistanceKm: Math.max(nearest.distance, 0),
     frame: frameTargetName(),
+    aim: aimTargetName(),
     sizeExaggeration: system.getSizeExaggeration(),
   });
 });
@@ -720,6 +752,7 @@ bindSceneInput({
   travelTo,
   orbit,
   toggleSky,
+  toggleAimLock,
   cycleSizePreset,
   takeSnapshot: requestSnapshot,
   scenarios: scenarioList,
@@ -748,6 +781,7 @@ if (import.meta.env.DEV) {
     starfield,
     constellations,
     skyLabels,
+    aim,
     travelTo,
     lookAt(from: [number, number, number], at: [number, number, number] = [0, 0, 0]) {
       flight.placeLookingAt(new Vector3(...from), new Vector3(...at));
