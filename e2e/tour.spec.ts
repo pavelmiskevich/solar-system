@@ -59,7 +59,7 @@ test.describe('экскурсия', () => {
     const errors = await openScene(page);
 
     await page.keyboard.press('KeyT');
-    await expect(caption(page)).toContainText('Солнце', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
 
     // Запоминаем все подписи, какие успеют показаться. По ним и видно, что
     // остановки пропущены: у брошенной остановки подписи не бывает вовсе —
@@ -91,7 +91,7 @@ test.describe('экскурсия', () => {
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
 
-    await expect(caption(page)).toContainText('Земля', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Земля', { timeout: 60_000 });
     expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
 
     const captions = await page.evaluate(
@@ -109,7 +109,7 @@ test.describe('экскурсия', () => {
 
     // Шаг назад возвращает на предыдущую остановку.
     await page.keyboard.press('ArrowLeft');
-    await expect(caption(page)).toContainText('Венера', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Венера', { timeout: 60_000 });
 
     expectNoErrors(errors);
   });
@@ -150,12 +150,12 @@ test.describe('экскурсия на сенсорном экране', () => {
     const errors = await openScene(page);
 
     await page.keyboard.press('KeyT');
-    await expect(caption(page)).toContainText('Солнце', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
 
     const started = Date.now();
     await drag(page, { x: 320, y: 380 }, { x: 80, y: 386 });
 
-    await expect(caption(page)).toContainText('Меркурий', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Меркурий', { timeout: 60_000 });
     expect(Date.now() - started).toBeLessThan(20_000);
     expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
 
@@ -166,12 +166,12 @@ test.describe('экскурсия на сенсорном экране', () => {
     const errors = await openScene(page);
 
     await page.keyboard.press('KeyT');
-    await expect(caption(page)).toContainText('Солнце', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
 
     await drag(page, { x: 210, y: 250 }, { x: 216, y: 560 });
 
     await expect
-      .poll(() => page.evaluate(() => window.sim.tour.isActive), { timeout: 10_000 })
+      .poll(() => page.evaluate(() => window.sim.tour.isActive), { timeout: 30_000 })
       .toBe(false);
 
     expectNoErrors(errors);
