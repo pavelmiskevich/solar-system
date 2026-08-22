@@ -272,3 +272,91 @@ export async function coverOfLabel(page: Page, name: string): Promise<string | n
     ).trim()}»`;
   }, name);
 }
+
+/** Яркость кадра по клеткам и средний цвет — чем меряется тень в сцене. */
+export interface FrameLight {
+  /** Самая тёмная клетка. */
+  min: number;
+  /** Медиана по клеткам: устойчива к одиночному пятну и к звёздам в углах. */
+  median: number;
+  /** Средний цвет области, 0…255 по каналам. */
+  red: number;
+  green: number;
+  blue: number;
+}
+
+/**
+ * Померить свет в середине кадра.
+ *
+ * Тень — единственное, что видно в затмении, и проверять её по внутренним
+ * величинам нельзя: затенение живёт в шейдере, наружу не выходит и в
+ * `window.sim` его нет. Остаются пиксели — то же, что видит человек.
+ *
+ * Меряется клетками, а не пикселями: облака, материки и океан дают разброс в
+ * разы на соседних пикселях, а тень — это плавное потемнение области в
+ * тысячи километров. Клетка усредняет первое и сохраняет второе.
+ *
+ * @param radiusFraction полуразмер области в долях высоты кадра
+ */
+export async function frameLight(
+  page: Page,
+  radiusFraction = 0.2,
+  block = 24,
+): Promise<FrameLight> {
+  const shot = (await page.screenshot()).toString('base64');
+
+  return page.evaluate(
+    async ([base64, radiusFraction, block]) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64 as string}`;
+      await image.decode();
+
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      const { data } = context.getImageData(0, 0, image.width, image.height);
+
+      const cx = image.width / 2;
+      const cy = image.height / 2;
+      const radius = image.height * (radiusFraction as number);
+      const step = block as number;
+
+      const blocks: number[] = [];
+      let red = 0;
+      let green = 0;
+      let blue = 0;
+      let samples = 0;
+
+      for (let by = cy - radius; by < cy + radius - step; by += step) {
+        for (let bx = cx - radius; bx < cx + radius - step; bx += step) {
+          let sum = 0;
+          let count = 0;
+          for (let y = by; y < by + step; y += 2) {
+            for (let x = bx; x < bx + step; x += 2) {
+              const i = ((y | 0) * image.width + (x | 0)) * 4;
+              red += data[i]!;
+              green += data[i + 1]!;
+              blue += data[i + 2]!;
+              sum += (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
+              count += 1;
+              samples += 1;
+            }
+          }
+          blocks.push(sum / count);
+        }
+      }
+
+      blocks.sort((a, b) => a - b);
+      return {
+        min: blocks[0]!,
+        median: blocks[Math.floor(blocks.length / 2)]!,
+        red: red / samples,
+        green: green / samples,
+        blue: blue / samples,
+      };
+    },
+    [shot, radiusFraction, block] as const,
+  );
+}
