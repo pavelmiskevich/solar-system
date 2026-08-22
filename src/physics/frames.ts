@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 
-import { OBLIQUITY_J2000 } from '../core/units';
+import { DEG, OBLIQUITY_J2000 } from '../core/units';
 
 /**
  * Переходы между системами координат.
@@ -53,4 +53,55 @@ export function sphericalEquatorialToScene(
     Math.sin(declination),
     out,
   );
+}
+
+/**
+ * Полюс и центр Галактики в экваториальных координатах, эпоха J2000.
+ *
+ * Два направления задают всю галактическую систему: полюс — куда смотрит её
+ * ось, центр — откуда отсчитывается долгота. Именно в этой системе лежит
+ * Млечный Путь, и без неё его полосу пришлось бы класть на небо на глаз.
+ */
+const GALACTIC_POLE = { ra: 192.85948 * DEG, dec: 27.12825 * DEG };
+const GALACTIC_CENTRE = { ra: 266.4051 * DEG, dec: -28.93617 * DEG };
+
+/**
+ * Оси галактической системы в координатах сцены.
+ *
+ * Тройка правая: centre — на центр Галактики (долгота 0°), pole — на северный
+ * полюс Галактики (широта +90°), east дополняет их так, чтобы долгота росла
+ * в принятую сторону — от центра через Лебедя.
+ *
+ * Направление на центр берётся не как есть, а исправленное: измеренные полюс
+ * и центр перпендикулярны друг другу не идеально, и без ортогонализации
+ * широта у центра вышла бы не нулём.
+ */
+export interface GalacticBasis {
+  readonly centre: Vector3;
+  readonly east: Vector3;
+  readonly pole: Vector3;
+}
+
+export function galacticBasis(): GalacticBasis {
+  const pole = sphericalEquatorialToScene(GALACTIC_POLE.ra, GALACTIC_POLE.dec).normalize();
+  const centre = sphericalEquatorialToScene(GALACTIC_CENTRE.ra, GALACTIC_CENTRE.dec);
+
+  centre.addScaledVector(pole, -centre.dot(pole)).normalize();
+  const east = new Vector3().crossVectors(pole, centre).normalize();
+
+  return { centre, east, pole };
+}
+
+/**
+ * Галактические координаты направления: долгота и широта в радианах.
+ *
+ * @param direction единичный вектор в координатах сцены
+ */
+export function galacticCoordinates(
+  direction: Vector3,
+  basis: GalacticBasis,
+): { longitude: number; latitude: number } {
+  const latitude = Math.asin(Math.max(-1, Math.min(1, direction.dot(basis.pole))));
+  const longitude = Math.atan2(direction.dot(basis.east), direction.dot(basis.centre));
+  return { longitude, latitude };
 }
