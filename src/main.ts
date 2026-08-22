@@ -620,7 +620,7 @@ const loop = new RenderLoop((dt, elapsed) => {
   viewport.exposure = exposure.update(dt, distanceToSun, frameLuminance);
 
   sun.update(elapsed, viewport.camera, viewport.renderer.domElement.height);
-  system.updateLighting(sun.group.position, elapsed, viewport.camera);
+  system.updateLighting(sun.group.position, sun.visualRadius, elapsed, viewport.camera);
   system.updatePoints(
     viewport.camera,
     viewport.renderer.domElement.height,
