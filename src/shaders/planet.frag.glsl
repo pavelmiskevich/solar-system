@@ -223,7 +223,22 @@ void main() {
   float ndl = dot(N, L);
   float diffuse = max((ndl + wrap) / (1.0 + wrap), 0.0);
 
-  vec3 color = albedo * diffuse * irradiance;
+  // Затмение: соседнее тело закрывает Солнце — целиком или частью диска.
+  // Ослабляется весь прямой солнечный свет: и рассеянный поверхностью, и
+  // блик, и свечение лимба. Пепельный свет считается от облучённости без
+  // этой поправки — он приходит не от Солнца, а от соседа.
+  float sunlight = 1.0;
+  vec3 refracted = vec3(0.0);
+#ifdef ECLIPSE_CASTERS
+  sunlight = sunlightThrough(vWorldPosition, toSun, sunDistance, uSunRadius, refracted);
+#endif
+  float sunIrradiance = irradiance * sunlight;
+
+  vec3 color = albedo * diffuse * sunIrradiance;
+
+  // Свет, прошедший в тень сквозь атмосферу заслонившего тела. Он приходит
+  // оттуда же, откуда солнечный, — значит, и падает на ту же половину диска.
+  color += albedo * refracted * irradiance * max(ndl, 0.0);
 
 #ifdef RING_SHADOW
   // Тень колец на планете. Из точки поверхности пускается луч на Солнце; если
@@ -250,14 +265,14 @@ void main() {
     // Показатель высокий: солнечная дорожка на океане — это блик почти
     // зеркальной поверхности, а не широкое пятно глянца.
     float spec = pow(max(dot(N, H), 0.0), 260.0) * gloss * step(0.0, ndl);
-    color += vec3(1.0, 0.97, 0.9) * spec * irradiance * 1.6;
+    color += vec3(1.0, 0.97, 0.9) * spec * sunIrradiance * 1.6;
   }
 
   if (uAtmosphere > 0.0) {
     // Лимб: у края диска луч идёт сквозь толщу атмосферы по касательной и
     // проходит в разы больший путь — оттого край и светится.
     float rim = pow(1.0 - abs(dot(normalize(vWorldNormal), V)), 3.0);
-    color += uAtmosphereColor * rim * uAtmosphere * 0.55 * max(ndl + 0.3, 0.0) * irradiance;
+    color += uAtmosphereColor * rim * uAtmosphere * 0.55 * max(ndl + 0.3, 0.0) * sunIrradiance;
   }
 
   if (uSecondStrength > 0.0) {

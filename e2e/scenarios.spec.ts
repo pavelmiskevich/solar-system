@@ -17,6 +17,9 @@ const EXPECTED: Record<string, string> = {
   'earth-moon': 'earth',
   'jupiter-moons': 'jupiter',
   'saturn-rings-edge': 'saturn',
+  'solar-eclipse': 'earth',
+  'lunar-eclipse': 'moon',
+  'io-shadow': 'jupiter',
   earthshine: 'moon',
   'inner-system': 'sun',
   'uranus-tilt': 'uranus',
@@ -28,7 +31,7 @@ test.describe('готовые виды', () => {
 
     const panel = page.locator('.views');
     await expect(panel).toHaveClass(/closed/);
-    await expect(page.locator('.views-row')).toHaveCount(6);
+    await expect(page.locator('.views-row')).toHaveCount(SCENARIOS.length);
 
     await page.getByRole('button', { name: /Виды/ }).click();
     await expect(panel).not.toHaveClass(/closed/);
@@ -54,9 +57,12 @@ test.describe('готовые виды', () => {
       await page.getByRole('button', { name: /Виды/ }).click();
       await page.locator(`[data-scenario="${id}"]`).click();
 
-      // Перелёт занимает секунды; ждём, пока управление вернётся полёту.
+      // Перелёт занимает секунды модельного времени — но настенных секунд
+      // на них уходит тем больше, чем реже идут кадры. На машине без
+      // видеокарты те же семь секунд перелёта растягиваются на полминуты,
+      // поэтому срок здесь тот же, что у общего помощника ожидания прилёта.
       await page.waitForFunction(() => window.sim.travel.isActive === false, null, {
-        timeout: 30_000,
+        timeout: 60_000,
       });
       await waitForFrames(page, 3);
 

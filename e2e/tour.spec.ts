@@ -59,22 +59,57 @@ test.describe('экскурсия', () => {
     const errors = await openScene(page);
 
     await page.keyboard.press('KeyT');
-    await expect(caption(page)).toContainText('Солнце', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
 
-    // Три шага вперёд подряд: сами по себе Меркурий и Венера заняли бы больше
-    // тридцати секунд, поэтому уложиться в двадцать можно только стрелками.
-    const started = Date.now();
+    // Запоминаем все подписи, какие успеют показаться. По ним и видно, что
+    // остановки пропущены: у брошенной остановки подписи не бывает вовсе —
+    // она появляется только по прибытии.
+    //
+    // Считать это секундомером не годится: экскурсия идёт по модельному
+    // времени, шаг которого ограничен сверху, и на машине без видеокарты те
+    // же три перелёта занимают вдвое больше настенных секунд. Проверка,
+    // отмерявшая двадцать секунд, проходила локально и падала в CI.
+    await page.evaluate(() => {
+      const hint = document.getElementById('hint')!;
+      const seen: string[] = [];
+      (window as unknown as { captions: string[] }).captions = seen;
+
+      const record = () => {
+        const text = (hint.textContent ?? '').trim();
+        if (text && seen.at(-1) !== text) seen.push(text);
+      };
+
+      record();
+      new MutationObserver(record).observe(hint, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
 
-    await expect(caption(page)).toContainText('Земля', { timeout: 30_000 });
-    expect(Date.now() - started).toBeLessThan(20_000);
+    await expect(caption(page)).toContainText('Земля', { timeout: 60_000 });
     expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
+
+    const captions = await page.evaluate(
+      () => (window as unknown as { captions: string[] }).captions,
+    );
+    const shown = captions.join(' | ');
+    // Сначала — что список вообще собрался: пустой прошёл бы любые проверки
+    // на отсутствие, ничего не проверив.
+    expect(shown).toContain('Солнце');
+    expect(shown).toContain('Земля');
+    // И главное: через Меркурий и Венеру экскурсия прошла, ни на одной не
+    // задержавшись, — будь иначе, их подписи оказались бы здесь же.
+    expect(shown).not.toContain('Меркурий');
+    expect(shown).not.toContain('Венера');
 
     // Шаг назад возвращает на предыдущую остановку.
     await page.keyboard.press('ArrowLeft');
-    await expect(caption(page)).toContainText('Венера', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Венера', { timeout: 60_000 });
 
     expectNoErrors(errors);
   });
@@ -115,12 +150,12 @@ test.describe('экскурсия на сенсорном экране', () => {
     const errors = await openScene(page);
 
     await page.keyboard.press('KeyT');
-    await expect(caption(page)).toContainText('Солнце', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
 
     const started = Date.now();
     await drag(page, { x: 320, y: 380 }, { x: 80, y: 386 });
 
-    await expect(caption(page)).toContainText('Меркурий', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Меркурий', { timeout: 60_000 });
     expect(Date.now() - started).toBeLessThan(20_000);
     expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
 
@@ -131,12 +166,12 @@ test.describe('экскурсия на сенсорном экране', () => {
     const errors = await openScene(page);
 
     await page.keyboard.press('KeyT');
-    await expect(caption(page)).toContainText('Солнце', { timeout: 30_000 });
+    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
 
     await drag(page, { x: 210, y: 250 }, { x: 216, y: 560 });
 
     await expect
-      .poll(() => page.evaluate(() => window.sim.tour.isActive), { timeout: 10_000 })
+      .poll(() => page.evaluate(() => window.sim.tour.isActive), { timeout: 30_000 })
       .toBe(false);
 
     expectNoErrors(errors);

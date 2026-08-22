@@ -437,3 +437,36 @@ export const ALL_BODIES: BodyDefinition[] = [SUN, ...PLANETS, MOON, ...MOONS];
 export function bodyById(id: string): BodyDefinition | undefined {
   return ALL_BODIES.find((b) => b.id === id);
 }
+
+/**
+ * Кто может закрыть телу Солнце: родитель, соседи по родителю и его спутники.
+ *
+ * Список короткий не из экономии, а по существу: заслонить свет способен
+ * только сосед — тело, до которого несколько своих радиусов, а не миллионы.
+ * Марс Земле Солнца не закроет никогда, и держать его в списке значило бы
+ * считать в шейдере заведомую пустоту на каждом пикселе каждого кадра.
+ *
+ * Солнце в списки не входит: оно и есть источник света.
+ */
+export function eclipseCasters(id: string): string[] {
+  const body = bodyById(id);
+  if (!body || id === SUN.id) return [];
+
+  // Родитель — только настоящий: у планет его нет вовсе, и считать Солнце
+  // родителем значило бы записать все планеты друг другу в соседи.
+  const parent = body.parent && body.parent !== SUN.id ? body.parent : null;
+
+  const casters: string[] = [];
+
+  // Планета закрывает Солнце своему спутнику — это лунное затмение.
+  if (parent) casters.push(parent);
+
+  for (const other of ALL_BODIES) {
+    if (other.id === id || other.id === SUN.id) continue;
+    // Спутники тела — солнечные затмения на нём; соседи по родителю —
+    // взаимные затмения спутников, какие видны у галилеевых лун.
+    if (other.parent === id || (parent && other.parent === parent)) casters.push(other.id);
+  }
+
+  return casters;
+}
