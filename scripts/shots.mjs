@@ -58,6 +58,73 @@ const SHOTS = [
     place: (sim) => sim.goTo('moon', 3.0, 75),
   },
   {
+    file: 'milkyway.png',
+    what: 'Млечный Путь: полоса Галактики и созвездия',
+    // Камера смотрит в сторону центра Галактики (17ʰ45ᵐ, −29°), направление
+    // переведено в координаты сцены поворотом на наклон эклиптики. Разметка
+    // неба включается на этот кадр: полоса и линии созвездий вместе
+    // показывают, что небо настоящее, а не декорация.
+    place: (sim) => {
+      const OBLIQUITY = (23.4392911 * Math.PI) / 180;
+      const ra = (17 + 45 / 60) * (Math.PI / 12);
+      const dec = (-28.94 * Math.PI) / 180;
+      const x = Math.cos(dec) * Math.cos(ra);
+      const y = Math.cos(dec) * Math.sin(ra);
+      const z = Math.sin(dec);
+      const at = [
+        x,
+        -y * Math.sin(OBLIQUITY) + z * Math.cos(OBLIQUITY),
+        -(y * Math.cos(OBLIQUITY) + z * Math.sin(OBLIQUITY)),
+      ];
+      const from = [3e8, 1e8, 2e8];
+      sim.lookAt(from, [from[0] + at[0] * 1e12, from[1] + at[1] * 1e12, from[2] + at[2] * 1e12]);
+    },
+    sky: true,
+  },
+  {
+    file: 'eclipse.png',
+    what: 'Солнечное затмение 12 августа 2026 года: тень Луны на Земле',
+    date: '2026-08-12T17:50:00Z',
+    // Камера на оси лунной тени: пятно приходится на середину диска, вокруг
+    // него — полутень в несколько тысяч километров.
+    place: (sim) => {
+      const earth = sim.system.find('earth');
+      const moon = sim.system.find('moon');
+      const sun = sim.sun.worldPosition;
+      const m = moon.worldPosition;
+      const e = earth.worldPosition;
+
+      let dx = m.x - sun.x;
+      let dy = m.y - sun.y;
+      let dz = m.z - sun.z;
+      const d = Math.hypot(dx, dy, dz);
+      dx /= d;
+      dy /= d;
+      dz /= d;
+
+      const ox = m.x - e.x;
+      const oy = m.y - e.y;
+      const oz = m.z - e.z;
+      const b = 2 * (ox * dx + oy * dy + oz * dz);
+      const c = ox * ox + oy * oy + oz * oz - earth.visualRadius * earth.visualRadius;
+      const t = (-b - Math.sqrt(b * b - 4 * c)) / 2;
+
+      let nx = m.x + dx * t - e.x;
+      let ny = m.y + dy * t - e.y;
+      let nz = m.z + dz * t - e.z;
+      const n = Math.hypot(nx, ny, nz);
+      nx /= n;
+      ny /= n;
+      nz /= n;
+
+      const distance = earth.visualRadius * 3;
+      sim.lookAt(
+        [e.x + nx * distance, e.y + ny * distance, e.z + nz * distance],
+        [e.x, e.y, e.z],
+      );
+    },
+  },
+  {
     file: 'system.png',
     what: 'Внутренняя система с орбитами — вид сверху',
     place: (sim) => sim.lookAt([1.5e8, 2.2e8, 2.6e8], [0, 0, 0]),
@@ -123,9 +190,13 @@ try {
       });
     }
     for (const key of shot.press ?? []) await page.keyboard.press(key);
+    // Разметка неба включается на свой кадр и тут же выключается: иначе
+    // подписи звёзд остались бы на всех следующих снимках.
+    if (shot.sky) await page.keyboard.press('KeyN');
     await page.waitForTimeout(SETTLE_MS);
 
     await page.screenshot({ path: resolve(OUTPUT, shot.file) });
+    if (shot.sky) await page.keyboard.press('KeyN');
     console.log(`${shot.file} — ${shot.what}`);
   }
 } finally {
