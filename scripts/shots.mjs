@@ -53,6 +53,49 @@ const SHOTS = [
     place: (sim) => sim.goTo('earth', 3.0, 55),
   },
   {
+    file: 'atmosphere.png',
+    what: 'Атмосфера Земли с орбиты: голубая кайма и красный терминатор',
+    // Камера на четырёхстах километрах над поверхностью — там, откуда
+    // атмосферу и снимают, — смотрит вдоль горизонта назад, на терминатор:
+    // именно в этом ракурсе видно, как голубое небо у горизонта краснеет.
+    place: (sim) => {
+      const earth = sim.system.find('earth');
+      const e = earth.worldPosition;
+      const s = sim.sun.worldPosition;
+
+      let sx = s.x - e.x;
+      let sy = s.y - e.y;
+      let sz = s.z - e.z;
+      const sl = Math.hypot(sx, sy, sz);
+      sx /= sl;
+      sy /= sl;
+      sz /= sl;
+
+      let ux = 0;
+      let uy = 1;
+      let uz = 0;
+      const dot = sx * ux + sy * uy + sz * uz;
+      ux -= sx * dot;
+      uy -= sy * dot;
+      uz -= sz * dot;
+      const ul = Math.hypot(ux, uy, uz);
+      ux /= ul;
+      uy /= ul;
+      uz /= ul;
+
+      const point = (degrees, radius) => {
+        const a = (degrees * Math.PI) / 180;
+        return [
+          e.x + (sx * Math.cos(a) + ux * Math.sin(a)) * radius,
+          e.y + (sy * Math.cos(a) + uy * Math.sin(a)) * radius,
+          e.z + (sz * Math.cos(a) + uz * Math.sin(a)) * radius,
+        ];
+      };
+
+      sim.lookAt(point(100, earth.visualRadius + 400), point(72, earth.visualRadius));
+    },
+  },
+  {
     file: 'moon.png',
     what: 'Луна: кратеры и моря вдоль терминатора',
     place: (sim) => sim.goTo('moon', 3.0, 75),

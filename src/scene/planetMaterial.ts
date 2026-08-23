@@ -121,6 +121,8 @@ export function createPlanetMaterial({
       uCapLatitude: { value: appearance.capLatitude },
       uCraters: { value: appearance.craters },
       uAtmosphere: { value: appearance.atmosphere },
+      // Ободок рисуется только там, где нет настоящего слоя рассеяния.
+      uLimbGlow: { value: appearance.scattering ? 0 : appearance.atmosphere },
       uSpecular: { value: appearance.specular },
       uBumpScale: { value: radius * appearance.relief },
       uTime: { value: 0 },
