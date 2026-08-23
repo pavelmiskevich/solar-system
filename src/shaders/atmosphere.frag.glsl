@@ -35,9 +35,12 @@ uniform float uSunIrradiance;
 
 varying vec3 vLocalPosition;
 
+/** Пи: три.js подставляет её только там, где подключён common. */
+const float PI_ = 3.141592653589793;
+
 /** Точек по лучу зрения и по лучу на Солнце. */
-const int VIEW_STEPS = 10;
-const int SUN_STEPS = 4;
+const int VIEW_STEPS = 16;
+const int SUN_STEPS = 8;
 
 /** Асимметрия рассеяния на аэрозоле: пыль и капли рассеивают вперёд. */
 const float MIE_G = 0.76;
@@ -113,10 +116,10 @@ void main() {
   }
 
   float cosine = dot(direction, uSunLocal);
-  float rayleighPhase = 3.0 / (16.0 * PI) * (1.0 + cosine * cosine);
+  float rayleighPhase = 3.0 / (16.0 * PI_) * (1.0 + cosine * cosine);
 
   float g2 = MIE_G * MIE_G;
-  float miePhase = 3.0 / (8.0 * PI) * ((1.0 - g2) * (1.0 + cosine * cosine)) /
+  float miePhase = 3.0 / (8.0 * PI_) * ((1.0 - g2) * (1.0 + cosine * cosine)) /
     ((2.0 + g2) * pow(1.0 + g2 - 2.0 * MIE_G * cosine, 1.5));
 
   vec3 color = uSunIrradiance * (

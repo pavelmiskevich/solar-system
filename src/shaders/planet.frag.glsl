@@ -34,6 +34,12 @@ uniform float uContrast;
 uniform float uCapLatitude;
 uniform float uCraters;
 uniform float uAtmosphere;
+/**
+ * Сила лимбового свечения. У тела с настоящим слоем рассеяния она нулевая:
+ * свечение края там получается само, из хода лучей сквозь воздух, и рисовать
+ * его вторым способом поверх первого значило бы удвоить ободок.
+ */
+uniform float uLimbGlow;
 uniform float uSpecular;
 uniform float uBumpScale;
 uniform float uTime;
@@ -268,11 +274,12 @@ void main() {
     color += vec3(1.0, 0.97, 0.9) * spec * sunIrradiance * 1.6;
   }
 
-  if (uAtmosphere > 0.0) {
+  if (uLimbGlow > 0.0) {
     // Лимб: у края диска луч идёт сквозь толщу атмосферы по касательной и
-    // проходит в разы больший путь — оттого край и светится.
+    // проходит в разы больший путь — оттого край и светится. Это упрощение
+    // для тел, у которых настоящего слоя рассеяния нет.
     float rim = pow(1.0 - abs(dot(normalize(vWorldNormal), V)), 3.0);
-    color += uAtmosphereColor * rim * uAtmosphere * 0.55 * max(ndl + 0.3, 0.0) * sunIrradiance;
+    color += uAtmosphereColor * rim * uLimbGlow * 0.55 * max(ndl + 0.3, 0.0) * sunIrradiance;
   }
 
   if (uSecondStrength > 0.0) {

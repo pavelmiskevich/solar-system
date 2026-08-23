@@ -25,6 +25,7 @@ import {
   illuminatedFraction,
   reflectedIrradianceFraction,
 } from '../lighting/reflectedLight';
+import { Atmosphere } from './atmosphere';
 import { BodyPoint } from './bodyPoint';
 import { createPlanetMaterial, updatePlanetScale } from './planetMaterial';
 import { PlanetRings } from './rings';
@@ -62,6 +63,8 @@ export interface Body {
   readonly point: BodyPoint;
   /** Кольца, если они есть. */
   readonly rings: PlanetRings | null;
+  /** Слой рассеяния: есть у тел с достаточно плотной атмосферой. */
+  readonly atmosphere: Atmosphere | null;
   /** Тела, способные закрыть этому Солнце: соседи по системе, а не вся сцена. */
   readonly eclipseCasters: readonly string[];
   /** Видимый радиус с учётом множителя размера, км. */
@@ -140,6 +143,18 @@ export class SolarSystem {
       group.add(rings.mesh);
     }
 
+    // Атмосфера — такая же оболочка в системе координат тела, как и кольца:
+    // наклон оси ей безразличен, а вот вращение планеты под ней должно идти
+    // само собой.
+    let atmosphere: Atmosphere | null = null;
+    if (appearance.scattering) {
+      atmosphere = new Atmosphere({
+        radius: definition.radius,
+        scattering: appearance.scattering,
+      });
+      group.add(atmosphere.mesh);
+    }
+
     // Точка живёт отдельно от группы тела: группа повёрнута по оси вращения
     // планеты, а билборд обязан смотреть в камеру.
     const point = new BodyPoint(definition.color, definition.albedo, definition.radius);
@@ -153,6 +168,7 @@ export class SolarSystem {
       group,
       point,
       rings,
+      atmosphere,
       eclipseCasters: casters,
       visualRadius: definition.radius,
     };
@@ -219,6 +235,13 @@ export class SolarSystem {
 
         body.rings.update(sunRenderPosition, body.group.position, camera);
       }
+
+      body.atmosphere?.update(
+        sunRenderPosition,
+        body.group.position,
+        camera,
+        this.sizeExaggeration,
+      );
     }
 
     // Единственная пара, где отражённый свет действительно виден. Земля
@@ -303,6 +326,9 @@ export class SolarSystem {
     // Кольца раздуваются вместе с планетой: их геометрия задана в настоящих
     // километрах, поэтому достаточно того же множителя на группе.
     body.rings?.mesh.scale.setScalar(k);
+    // Атмосфера раздувается вместе с планетой: её геометрия, как и у колец,
+    // задана в настоящих километрах.
+    body.atmosphere?.mesh.scale.setScalar(k);
   }
 
   setSizeExaggeration(value: number): void {
