@@ -8,7 +8,7 @@
 [![CI](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml/badge.svg)](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml)
 [![Лицензия MIT](https://img.shields.io/badge/%D0%9B%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-3DA639)](LICENSE)
 [![three.js](https://img.shields.io/badge/three.js-r185-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
-[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-246%20%2B%2049-729B1B?logo=vitest&logoColor=white)](#проверка)
+[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-287%20%2B%2070-729B1B?logo=vitest&logoColor=white)](#проверка)
 [![Поддержать](https://img.shields.io/badge/%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-9B6BFF?logo=buymeacoffee&logoColor=white)](https://pay.cloudtips.ru/p/86c3292c)
 
 ![Сатурн с кольцами](docs/shots/saturn.png)
@@ -320,8 +320,8 @@ UTC ось лунной тени проходит в 5 780 км от центр�
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # 246 юнит-тестов
-npm run e2e         # 49 сквозных тестов, Playwright + Chromium
+npm test            # 287 юнит-тестов
+npm run e2e         # 70 сквозных тестов, Playwright + Chromium
 ```
 
 Юнит-тесты проверяют то, что имеет правильный ответ: положения планет
@@ -333,6 +333,11 @@ npm run e2e         # 49 сквозных тестов, Playwright + Chromium
 шейдеры, идут ли кадры, раскрывается ли экспозиция на ночной стороне, попадает
 ли клик по Юпитеру в Юпитер, а не в Ганимед. Сцена отвечает на вопросы через
 отладочный доступ `window.sim`, существующий только в режиме разработки.
+
+На своей машине они идут минут пять, на CI — полчаса: видеокарты у runner нет,
+и каждый кадр считает процессор. Поэтому там набор разделён на три доли
+(`--shard`), по одной на runner, и ускорить его иначе нечем — время уходит не
+на логику проверок, а на кадры.
 
 ## Язык
 
