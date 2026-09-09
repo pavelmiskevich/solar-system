@@ -151,6 +151,7 @@ export class SolarSystem {
       atmosphere = new Atmosphere({
         radius: definition.radius,
         scattering: appearance.scattering,
+        eclipseCasters: casters.length,
       });
       group.add(atmosphere.mesh);
     }
@@ -236,11 +237,17 @@ export class SolarSystem {
         body.rings.update(sunRenderPosition, body.group.position, camera);
       }
 
+      // Слою рассеяния достаются те же соседи, что и поверхности, — уже
+      // разложенные по слотам строкой выше. Второй раз их искать незачем, а
+      // главное, нельзя: разойдись эти два списка хоть на кадр, и тень на
+      // воздухе поедет относительно тени на земле.
       body.atmosphere?.update(
         sunRenderPosition,
         body.group.position,
         camera,
         this.sizeExaggeration,
+        (uniforms.uEclipseCasters?.value as Vector4[] | undefined) ?? [],
+        sunRadius,
       );
     }
 
