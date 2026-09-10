@@ -20,7 +20,7 @@ import {
   type BodyDefinition,
 } from '../data/bodies';
 import { APPEARANCE, type Appearance } from '../data/appearance';
-import { AU } from '../core/units';
+import { AU, DEG } from '../core/units';
 import {
   illuminatedFraction,
   reflectedIrradianceFraction,
@@ -69,6 +69,15 @@ export interface Body {
   readonly eclipseCasters: readonly string[];
   /** Видимый радиус с учётом множителя размера, км. */
   visualRadius: number;
+  /**
+   * Угол между плоскостью колец и направлением на Солнце, °. У тела без колец
+   * не имеет смысла и остаётся нулём.
+   *
+   * Величина живая и меняется вместе с датой: у Сатурна она пробегает от нуля
+   * в равноденствие до двадцати семи градусов, и от неё прямо зависит, сколько
+   * света достаётся кольцам.
+   */
+  ringSunElevation: number;
 }
 
 const scratchEcliptic = new Vector3();
@@ -172,6 +181,7 @@ export class SolarSystem {
       atmosphere,
       eclipseCasters: casters,
       visualRadius: definition.radius,
+      ringSunElevation: 0,
     };
 
     this.applySize(body);
@@ -233,6 +243,13 @@ export class SolarSystem {
           .normalize()
           .applyQuaternion(scratchQuaternion.copy(body.group.quaternion).invert());
         (uniforms.uSunBodyDirection!.value as Vector3).copy(scratchDirection);
+
+        // Раскрытие колец к Солнцу — то же самое число, только выраженное
+        // углом: ось тела перпендикулярна плоскости колец, значит вдоль неё
+        // лежит синус угла между плоскостью и направлением на Солнце. Отсюда
+        // же берётся и яркость колец в шейдере, поэтому карточка объясняет
+        // ровно то, что видно в кадре, а не считает это заново по-своему.
+        body.ringSunElevation = Math.asin(Math.min(Math.abs(scratchDirection.y), 1)) / DEG;
 
         body.rings.update(sunRenderPosition, body.group.position, camera);
       }

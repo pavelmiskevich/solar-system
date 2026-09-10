@@ -142,6 +142,14 @@ test.describe('интерфейс', () => {
     expect(text).toContain('водород 96 %');
     expect(text).toMatch(/спутников\s*\d+/);
     await expect(card.locator('.body-card-note')).toContainText('плотность');
+
+    // Раскрытие колец к Солнцу — величина живая, она меняется с датой, поэтому
+    // проверяется вид, а не число. Без неё тусклые кольца у равноденствия
+    // читаются как поломка: узнать, что света им досталось на порядок меньше
+    // обычного, было бы неоткуда.
+    await expect(
+      card.locator('.body-card-row:not(.hidden)', { hasText: 'кольца к Солнцу' }).locator('.value'),
+    ).toHaveText(/^\d+\.\d°$/);
   });
 
   test('в карточке спутника нет строки о его собственных спутниках', async ({ page }) => {
@@ -157,6 +165,8 @@ test.describe('интерфейс', () => {
 
     const shown = await card.locator('.body-card-row:not(.hidden)').allTextContents();
     expect(shown.join(' | ')).not.toContain('спутников');
+    // По той же причине убрана и строка о кольцах: их у Луны нет.
+    expect(shown.join(' | ')).not.toContain('кольца');
     await expect(card.locator('.body-card-note')).toContainText('одной стороной');
   });
 

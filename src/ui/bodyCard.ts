@@ -79,6 +79,13 @@ export interface CardSource {
   distanceToCamera(): number;
   /** Расстояние тела от Солнца, км. */
   distanceToSun(): number;
+  /**
+   * Угол между плоскостью колец и направлением на Солнце, °; null — колец нет.
+   *
+   * Строка живая, как и расстояния: у Сатурна этот угол пробегает от нуля в
+   * равноденствие до двадцати семи градусов за четырнадцать лет.
+   */
+  ringSunElevationDeg(): number | null;
 }
 
 const ROWS = [
@@ -88,6 +95,7 @@ const ROWS = [
   'атмосфера',
   'спутников',
   'наклон оси',
+  'кольца к Солнцу',
   'сутки',
   'оборот',
   'от Солнца',
@@ -202,6 +210,14 @@ export class BodyCard {
 
     this.set('от Солнца', formatDistance(Math.max(this.source.distanceToSun(), 0)));
     this.set('до камеры', formatDistance(Math.max(this.source.distanceToCamera(), 0)));
+
+    // Кольца, повёрнутые к Солнцу ребром, получают почти ничего и тускнеют до
+    // неразличимости. Без этой строки такой кадр читается как поломка, а это
+    // явление: у равноденствия 2025 года кольцам Сатурна достаётся около
+    // десятой доли того света, что в начале тридцатых.
+    const rings = this.source.ringSunElevationDeg();
+    this.showRow('кольца к Солнцу', rings !== null);
+    if (rings !== null) this.set('кольца к Солнцу', `${rings.toFixed(1)}°`);
   }
 
   private set(label: RowLabel, text: string): void {

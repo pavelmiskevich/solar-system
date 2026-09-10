@@ -74,6 +74,110 @@ test.describe('рендеринг', () => {
     expect(rings.uranusBands).toBe(10);
   });
 
+  test('с неосвещённой стороны кольца выворачиваются негативом', async ({ page }) => {
+    /*
+     * Кольцо — не поверхность, а слой обломков, и с теневой стороны оно не
+     * отражает, а просвечивает. Значит, плотная полоса, самая яркая на свету,
+     * с изнанки самая тёмная: сквозь неё почти ничего не проходит. Это видно
+     * на снимках «Кассини» и это единственная проверка на то, что кольца не
+     * гасятся с изнанки одним множителем — при нём порядок полос сохранялся бы.
+     */
+    await openScene(page);
+
+    // Начало 2032 года: кольца раскрыты к Солнцу почти на максимум, и разница
+    // между полосами видна. У равноденствия мерить было бы нечего.
+    const radii = { C: 83_000, B: 104_000, cassini: 119_800, A: 129_000 };
+
+    await page.evaluate(() => {
+      const sim = window.sim;
+      sim.setDate('2032-01-01T00:00:00Z');
+      sim.clock.paused = true;
+
+      const saturn = sim.system.find('saturn');
+      const p = saturn.worldPosition;
+      const V = p.constructor;
+
+      // Камера встаёт зеркально Солнцу относительно плоскости колец: планета
+      // при этом освещена, а кольца видны на просвет под тем же углом.
+      const pole = new V(0, 1, 0).applyQuaternion(saturn.group.quaternion).normalize();
+      const toSun = new V(-p.x, -p.y, -p.z).normalize();
+      const mirrored = toSun.clone().addScaledVector(pole, -2 * toSun.dot(pole));
+      const d = saturn.visualRadius * 4.2;
+
+      sim.lookAt(
+        [p.x + mirrored.x * d, p.y + mirrored.y * d, p.z + mirrored.z * d],
+        [p.x, p.y, p.z],
+      );
+    });
+
+    await page.waitForTimeout(3000);
+    await waitForFrames(page, 3);
+
+    const shot = (await page.screenshot()).toString('base64');
+    const light = await page.evaluate(
+      async ([base64, radii]) => {
+        const sim = window.sim;
+        const saturn = sim.system.find('saturn');
+        const centre = saturn.group.position;
+        const V = centre.constructor;
+
+        // Анса — та сторона колец, что уходит от планеты поперёк луча зрения:
+        // там кольцо видно само по себе, а не на фоне диска.
+        const pole = new V(0, 1, 0).applyQuaternion(saturn.group.quaternion).normalize();
+        const view = new V(centre.x, centre.y, centre.z).normalize();
+        const ansa = new V().crossVectors(pole, view).normalize();
+
+        const image = new Image();
+        image.src = `data:image/png;base64,${base64 as string}`;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const context = canvas.getContext('2d')!;
+        context.drawImage(image, 0, 0);
+        const { data } = context.getImageData(0, 0, image.width, image.height);
+
+        const at = (radius: number): number => {
+          const point = new V(
+            centre.x + ansa.x * radius,
+            centre.y + ansa.y * radius,
+            centre.z + ansa.z * radius,
+          ).project(sim.viewport.camera);
+
+          const px = Math.round(((point.x + 1) / 2) * image.width);
+          const py = Math.round(((1 - point.y) / 2) * image.height);
+
+          // Пятно, а не пиксель: колечки дают разброс на соседних пикселях.
+          let sum = 0;
+          let count = 0;
+          for (let y = py - 2; y <= py + 2; y++) {
+            for (let x = px - 2; x <= px + 2; x++) {
+              const i = (y * image.width + x) * 4;
+              sum += (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
+              count++;
+            }
+          }
+          return sum / count;
+        };
+
+        const r = radii as Record<string, number>;
+        return { C: at(r.C!), B: at(r.B!), cassini: at(r.cassini!), A: at(r.A!) };
+      },
+      [shot, radii] as const,
+    );
+
+    // Кольцо B плотнее всех — с изнанки оно и темнее всех. Единый множитель
+    // оставил бы его самым ярким, каким оно выглядит с освещённой стороны.
+    expect(light.B).toBeLessThan(light.C * 0.5);
+    expect(light.B).toBeLessThan(light.cassini * 0.5);
+    expect(light.B).toBeLessThan(light.A);
+    // Но не в ноль: кольца обязаны остаться видимыми, иначе это тот же дефект
+    // с другой стороны.
+    expect(light.C).toBeGreaterThan(3);
+    expect(light.cassini).toBeGreaterThan(3);
+    expect(light.A).toBeGreaterThan(1);
+  });
+
   test('спутники держатся в плоскости экватора своей планеты', async ({ page }) => {
     await openScene(page);
     await pauseAt(page, '2026-08-14T12:00:00Z');
