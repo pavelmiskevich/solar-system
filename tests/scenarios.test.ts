@@ -37,7 +37,7 @@ describe('готовые виды', () => {
       expect(Math.abs(elevation), scenario.id).toBeLessThan(90);
 
       const year = dateFromJulianDay(scenario.state.jd!).getUTCFullYear();
-      // Таблицы JPL, по которым считаются положения, покрывают 1800–2050.
+      // Таблицы JPL, по которым считаются положения, покрывают 1800-2050.
       expect(year, scenario.id).toBeGreaterThanOrEqual(1800);
       expect(year, scenario.id).toBeLessThanOrEqual(2050);
 
