@@ -29,9 +29,10 @@ test.describe('готовые виды', () => {
   test('список открывается кнопкой и клавишей V', async ({ page }) => {
     await openScene(page);
 
-    const panel = page.locator('.views');
+    // Именно эта панель: в колонке рядом стоит такая же со списком событий.
+    const panel = page.locator('[data-panel="views"]');
     await expect(panel).toHaveClass(/closed/);
-    await expect(page.locator('.views-row')).toHaveCount(SCENARIOS.length);
+    await expect(panel.locator('.views-row')).toHaveCount(SCENARIOS.length);
 
     await page.getByRole('button', { name: /Виды/ }).click();
     await expect(panel).not.toHaveClass(/closed/);
@@ -46,7 +47,7 @@ test.describe('готовые виды', () => {
     // клики по небу в своём углу, а её самой не видно.
     await page.keyboard.press('KeyV');
     expect(
-      await page.locator('.views-list').evaluate((node) => getComputedStyle(node).pointerEvents),
+      await panel.locator('.views-list').evaluate((node) => getComputedStyle(node).pointerEvents),
     ).toBe('none');
   });
 
