@@ -33,6 +33,17 @@ uniform float uMieHeight;
 /** Облучённость от Солнца на этом расстоянии — та же, что у поверхности. */
 uniform float uSunIrradiance;
 
+#ifdef ECLIPSE_CASTERS
+/**
+ * Расстояние до центра Солнца, км.
+ *
+ * Направления `uSunLocal` для затмения мало: сосед закрывает Солнце не всей
+ * планете сразу, а пятну на ней, и разница между точками этого пятна — как раз
+ * в том, под каким углом с каждой из них видны два диска.
+ */
+uniform float uSunDistance;
+#endif
+
 varying vec3 vLocalPosition;
 
 /** Пи: три.js подставляет её только там, где подключён common. */
@@ -64,6 +75,29 @@ vec2 density(float height) {
   return exp(-max(height, 0.0) / vec2(uScaleHeight, uMieHeight));
 }
 
+#ifdef ECLIPSE_CASTERS
+/**
+ * Во сколько раз ослаблен прямой солнечный свет в точке слоя. 1 — Солнце открыто.
+ *
+ * Считается той же `eclipseCoverage`, что и тень на поверхности, и по тем же
+ * данным: тень на воздухе и тень на земле — одна тень, и расходиться им нельзя.
+ *
+ * Красный свет, попадающий в тень сквозь воздух заслонившего тела, здесь не
+ * берётся. Планету со слоем рассеяния заслоняет её же спутник, а он безвоздушен;
+ * да и разбирать рассеяние света, уже прошедшего сквозь чужую атмосферу, эта
+ * модель всё равно не умеет.
+ */
+float eclipseLight(vec3 point, vec3 toSun, float sunDistance) {
+  float light = 1.0;
+
+  for (int i = 0; i < ECLIPSE_CASTERS; i++) {
+    light *= 1.0 - eclipseCoverage(point, toSun, sunDistance, uSunRadius, uEclipseCasters[i]);
+  }
+
+  return light;
+}
+#endif
+
 void main() {
   #include <logdepthbuf_fragment>
 
@@ -79,6 +113,12 @@ void main() {
   vec2 planet = raySphere(uCameraLocal, direction, uPlanetRadius);
   if (planet.x <= planet.y && planet.y > 0.0) far = min(far, max(planet.x, 0.0));
   if (far <= near) discard;
+
+#ifdef ECLIPSE_CASTERS
+  // Центр Солнца в тех же координатах: направление на него от каждой точки
+  // луча своё, и без этого затмение вышло бы одинаковым по всей планете.
+  vec3 sunCenter = uSunLocal * uSunDistance;
+#endif
 
   float step = (far - near) / float(VIEW_STEPS);
   vec2 viewDepth = vec2(0.0);
@@ -98,6 +138,16 @@ void main() {
     // Точка в тени планеты: до неё прямой свет не доходит вовсе.
     if (sunGround.x <= sunGround.y && sunGround.y > 0.0 && sunGround.x > 0.0) continue;
 
+    // Точка в тени соседа — та самая полоса затмения. Воздух над ней темнеет
+    // вместе с землёй под ней, и это видно с орбиты не хуже самой тени.
+    float sunlight = 1.0;
+#ifdef ECLIPSE_CASTERS
+    vec3 toSun = sunCenter - point;
+    sunlight = eclipseLight(point, toSun, max(length(toSun), 1.0));
+    // В полной тени рассеивать нечего, и восемь шагов до Солнца ни к чему.
+    if (sunlight <= 0.0) continue;
+#endif
+
     float sunStep = max(sunEdge.y, 0.0) / float(SUN_STEPS);
     vec2 sunDepth = vec2(0.0);
     for (int j = 0; j < SUN_STEPS; j++) {
@@ -111,8 +161,8 @@ void main() {
       uRayleigh * (sunDepth.x + viewDepth.x) + uMie * 1.1 * (sunDepth.y + viewDepth.y);
     vec3 attenuation = exp(-opticalDepth);
 
-    rayleighSum += local.x * attenuation;
-    mieSum += local.y * attenuation;
+    rayleighSum += local.x * attenuation * sunlight;
+    mieSum += local.y * attenuation * sunlight;
   }
 
   float cosine = dot(direction, uSunLocal);

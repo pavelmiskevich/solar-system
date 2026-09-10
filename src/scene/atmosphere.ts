@@ -7,11 +7,13 @@ import {
   ShaderMaterial,
   SphereGeometry,
   Vector3,
+  Vector4,
   type PerspectiveCamera,
 } from 'three';
 
 import { SOLAR_IRRADIANCE_SCALE } from '../core/units';
 import type { Scattering } from '../data/appearance';
+import eclipseGlsl from '../shaders/lib/eclipse.glsl?raw';
 import atmosphereVert from '../shaders/atmosphere.vert.glsl?raw';
 import atmosphereFrag from '../shaders/atmosphere.frag.glsl?raw';
 
@@ -52,11 +54,21 @@ const SCATTER_GAIN = 2 * Math.PI;
 
 /** Рабочий поворот: сцена → система координат тела. */
 const toLocal = new Quaternion();
+/** Рабочее место для перевода заслоняющего тела в ту же систему координат. */
+const toBody = new Vector3();
 
 export interface AtmosphereOptions {
   /** Экваториальный радиус планеты, км. */
   radius: number;
   scattering: Scattering;
+  /**
+   * Сколько тел могут закрыть Солнце этой планете — столько же, сколько её
+   * поверхности: тень на воздухе и тень на земле обязаны быть одной тенью.
+   *
+   * Число, а не список: массив в шейдере объявляется размером, известным при
+   * компиляции. У планеты без соседей кода затмения в программе не окажется.
+   */
+  eclipseCasters?: number;
 }
 
 export class Atmosphere {
@@ -67,13 +79,14 @@ export class Atmosphere {
   private readonly camera = new Vector3();
   private readonly sun = new Vector3();
 
-  constructor({ radius, scattering }: AtmosphereOptions) {
+  constructor({ radius, scattering, eclipseCasters = 0 }: AtmosphereOptions) {
     this.planetRadius = radius;
     this.outerRadius = radius + scattering.thickness;
 
     const material = new ShaderMaterial({
       vertexShader: atmosphereVert,
-      fragmentShader: atmosphereFrag,
+      fragmentShader: [eclipseCasters > 0 ? eclipseGlsl : '', atmosphereFrag].join('\n'),
+      defines: eclipseCasters > 0 ? { ECLIPSE_CASTERS: String(eclipseCasters) } : {},
       transparent: true,
       blending: AdditiveBlending,
       depthWrite: false,
@@ -88,6 +101,15 @@ export class Atmosphere {
         uScaleHeight: { value: scattering.scaleHeight },
         uMieHeight: { value: scattering.mieHeight },
         uSunIrradiance: { value: 0 },
+        ...(eclipseCasters > 0
+          ? {
+              uEclipseCasters: {
+                value: Array.from({ length: eclipseCasters }, () => new Vector4(0, 0, 0, 0)),
+              },
+              uSunRadius: { value: 0 },
+              uSunDistance: { value: 1 },
+            }
+          : {}),
       },
     });
 
@@ -103,12 +125,18 @@ export class Atmosphere {
    * @param bodyRenderPosition положение планеты в координатах сцены
    * @param camera камера — она всегда в начале координат сцены
    * @param scale множитель размеров: геометрия задана в настоящих километрах
+   * @param casters заслоняющие тела в координатах сцены: xyz — центр,
+   *        w — видимый радиус. Те же слоты, что ушли в шейдер поверхности:
+   *        тень на воздухе обязана лежать там же, где тень на земле
+   * @param sunRadius видимый радиус Солнца, км
    */
   update(
     sunRenderPosition: Vector3,
     bodyRenderPosition: Vector3,
     camera: PerspectiveCamera,
     scale: number,
+    casters: readonly Vector4[] = [],
+    sunRadius = 0,
   ): void {
     const parent = this.mesh.parent;
     if (!parent) return;
@@ -140,6 +168,36 @@ export class Atmosphere {
     const distance = Math.max(sunRenderPosition.distanceTo(bodyRenderPosition), 1);
     uniforms.uSunIrradiance!.value =
       (SOLAR_IRRADIANCE_SCALE / (distance * distance)) * SCATTER_GAIN;
+
+    // Затмение: соседнее тело закрывает Солнце не всей планете, а пятну на ней
+    // в тысячи километров, — значит, и заслоняющее тело нужно шейдеру целиком,
+    // положением, а не одним лишь направлением. Делится на тот же множитель
+    // размеров, что и всё остальное: раздувание множит радиусы и не трогает
+    // расстояния, и деление возвращает и то и другое к одним километрам.
+    const slots = uniforms.uEclipseCasters?.value as Vector4[] | undefined;
+    if (slots) {
+      const k = scale || 1;
+      uniforms.uSunRadius!.value = sunRadius / k;
+      uniforms.uSunDistance!.value = distance / k;
+
+      for (let i = 0; i < slots.length; i++) {
+        const caster = casters[i];
+        const slot = slots[i]!;
+        // Слота без тела быть не должно, но нулевой радиус в шейдере означает
+        // «никого», и на такой слот он не потратит ни одной строчки.
+        if (!caster) {
+          slot.set(0, 0, 0, 0);
+          continue;
+        }
+
+        toBody
+          .set(caster.x, caster.y, caster.z)
+          .sub(bodyRenderPosition)
+          .applyQuaternion(toLocal)
+          .divideScalar(k);
+        slot.set(toBody.x, toBody.y, toBody.z, caster.w / k);
+      }
+    }
 
     // Изнутри оболочки видна её изнанка: рисовать надо ту грань, сквозь
     // которую смотрит камера, иначе слой пропадёт при подлёте вплотную.
