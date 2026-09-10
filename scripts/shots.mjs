@@ -43,6 +43,29 @@ const SHOTS = [
     place: (sim) => sim.goTo('saturn', 4.2, 40),
   },
   {
+    file: 'rings-back.png',
+    what: 'Кольца Сатурна с неосвещённой стороны: плотное B темнее разреженного C',
+    date: '2032-01-01T00:00:00Z',
+    // Камера встаёт зеркально Солнцу относительно плоскости колец: планета при
+    // этом освещена, а кольца видны на просвет под тем же углом, что и на
+    // кадре выше. Тот же Сатурн, та же дата — вся разница в стороне.
+    place: (sim) => {
+      const saturn = sim.system.find('saturn');
+      const p = saturn.worldPosition;
+      const V = p.constructor;
+
+      const pole = new V(0, 1, 0).applyQuaternion(saturn.group.quaternion).normalize();
+      const toSun = new V(-p.x, -p.y, -p.z).normalize();
+      const mirrored = toSun.clone().addScaledVector(pole, -2 * toSun.dot(pole));
+      const d = saturn.visualRadius * 4.2;
+
+      sim.lookAt(
+        [p.x + mirrored.x * d, p.y + mirrored.y * d, p.z + mirrored.z * d],
+        [p.x, p.y, p.z],
+      );
+    },
+  },
+  {
     file: 'jupiter.png',
     what: 'Юпитер: полосы, Красное пятно и галилеевы спутники',
     place: (sim) => sim.goTo('jupiter', 4.6, 45),
