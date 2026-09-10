@@ -5,7 +5,7 @@ varying vec3 vDirection;
 
 void main() {
   // Сфера неба огромна и ездит вместе с камерой, поэтому направление на
-  // точку — это просто её положение на сфере, без всяких вычитаний.
+  // точку - это просто её положение на сфере, без всяких вычитаний.
   vDirection = position;
 
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);

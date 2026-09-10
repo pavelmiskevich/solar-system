@@ -52,7 +52,7 @@ describe('AdaptiveQuality', () => {
     const quality = new AdaptiveQuality();
 
     run(quality, 4, 60);
-    // Полсекунды тяжёлых кадров — обычное дело на подлёте к телу.
+    // Полсекунды тяжёлых кадров - обычное дело на подлёте к телу.
     run(quality, 0.5, 20);
     run(quality, 2, 60);
 
@@ -66,7 +66,7 @@ describe('AdaptiveQuality', () => {
     run(quality, 3, 30);
     expect(quality.levelIndex).toBe(1);
 
-    // Пяти секунд высокого fps ещё недостаточно — иначе качество замигает.
+    // Пяти секунд высокого fps ещё недостаточно - иначе качество замигает.
     run(quality, 5, 120);
     expect(quality.levelIndex).toBe(1);
 

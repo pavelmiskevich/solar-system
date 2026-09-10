@@ -1,4 +1,4 @@
-// defineConfig из vitest/config — тот же, что у vite, но знает про поле test.
+// defineConfig из vitest/config - тот же, что у vite, но знает про поле test.
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({

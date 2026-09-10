@@ -1,16 +1,16 @@
 import { cycleDistanceUnit, distanceUnit, formatDistance, UNIT_NAMES } from './distanceUnits';
 
-/** Скорость света, км/с — ориентир для показаний скорости. */
+/** Скорость света, км/с - ориентир для показаний скорости. */
 const C = 299_792.458;
 
 /**
- * Дата сцены — всемирным временем, как и всё остальное в ней.
+ * Дата сцены - всемирным временем, как и всё остальное в ней.
  *
  * Часовой пояс зрителя здесь не при чём: эфемериды считаются в UTC, поле
  * ввода даты подписано UTC, ссылка на вид хранит UTC. Пока показания шли
  * местным временем, на одном экране стояли два времени, расходящиеся на
  * часовой пояс: поле обещало 12:00, HUD показывал 02:00. Разницу видно
- * не всем и не сразу — в Лондоне её нет вовсе, — а сверить их зрителю
+ * не всем и не сразу - в Лондоне её нет вовсе, - а сверить их зрителю
  * нечем.
  */
 const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
@@ -30,11 +30,11 @@ export interface HudData {
   timeScale: string;
   nearestBody: string;
   nearestDistanceKm: number;
-  /** Тело, в системе отсчёта которого камера; null — гелиоцентрическая. */
+  /** Тело, в системе отсчёта которого камера; null - гелиоцентрическая. */
   frame: string | null;
-  /** Захваченное тело: камера держит его в центре кадра. null — захвата нет. */
+  /** Захваченное тело: камера держит его в центре кадра. null - захвата нет. */
   aim: string | null;
-  /** Во сколько раз раздуты размеры тел. Единица — настоящие. */
+  /** Во сколько раз раздуты размеры тел. Единица - настоящие. */
   sizeExaggeration: number;
 }
 
@@ -86,21 +86,21 @@ export function makeUnitToggle(node: HTMLElement): void {
 }
 
 function refreshTitle(node: HTMLElement): void {
-  node.title = `Единицы: ${UNIT_NAMES[distanceUnit()]}. Щелчок — следующие`;
+  node.title = `Единицы: ${UNIT_NAMES[distanceUnit()]}. Щелчок - следующие`;
 }
 
 /**
  * Строки HUD собираются один раз, дальше меняется только текст значений.
  * Пересборка разметки каждый кадр стоила бы разбора HTML и лишнего layout
- * шестьдесят раз в секунду — за такое платить нечем.
+ * шестьдесят раз в секунду - за такое платить нечем.
  */
 export class Hud {
   private readonly values: HTMLElement[] = [];
 
   /**
-   * Расстояние до ближайшего тела — отдельным узлом внутри своей строки.
+   * Расстояние до ближайшего тела - отдельным узлом внутри своей строки.
    *
-   * В строке стоит «Сатурн, 144 643 км», и переключатель единиц — только
+   * В строке стоит «Сатурн, 144 643 км», и переключатель единиц - только
    * вторая половина. Будь строка одним узлом, пунктир под ней обещал бы, что
    * по названию тела тоже можно щёлкнуть, а по нему нельзя.
    */
@@ -113,7 +113,7 @@ export class Hud {
       key.textContent = label.padEnd(10, ' ');
 
       const value = document.createElement('b');
-      value.textContent = '—';
+      value.textContent = '-';
       if (DISTANCE_ROWS.has(label)) makeUnitToggle(value);
       if (label === 'ближайшее') {
         makeUnitToggle(this.nearestDistance);
@@ -130,17 +130,17 @@ export class Hud {
     this.set(1, data.timeScale);
     this.set(2, formatDistance(data.distanceToSunKm));
     this.setNearest(data.nearestBody, formatDistance(data.nearestDistanceKm));
-    // Гелиоцентрическая система — состояние по умолчанию, и называть её честнее так,
+    // Гелиоцентрическая система - состояние по умолчанию, и называть её честнее так,
     // чем прочерком: камера всё равно всегда в чьёй-то системе отсчёта.
     this.set(4, data.frame ?? 'Солнце');
     // Прочерк здесь честнее слова: захвата либо нет вовсе, либо он на теле.
-    this.set(5, data.aim ?? '—');
+    this.set(5, data.aim ?? '-');
     this.set(6, data.sizeExaggeration === 1 ? 'настоящие' : `×${data.sizeExaggeration}`);
     this.set(7, formatSpeed(data.speedKmS));
     this.set(8, `${data.fps.toFixed(0)} fps`);
   }
 
-  /** Название тела — обычным текстом, расстояние — переключателем единиц. */
+  /** Название тела - обычным текстом, расстояние - переключателем единиц. */
   private setNearest(name: string, distance: string): void {
     const node = this.values[3];
     if (!node) return;

@@ -3,7 +3,7 @@ import { Vector3 } from 'three';
 
 import { framingPosition } from '../src/camera/framing';
 
-/** Юпитер и Солнце в плоскости эклиптики — как почти всё в этой системе. */
+/** Юпитер и Солнце в плоскости эклиптики - как почти всё в этой системе. */
 const SUN = new Vector3(0, 0, 0);
 const JUPITER = new Vector3(778.5e6, 0, 0);
 const RADIUS = 71492;
@@ -14,7 +14,7 @@ function elevationDeg(from: Vector3, to: Vector3): number {
   return (Math.asin(Math.abs(offset.y)) * 180) / Math.PI;
 }
 
-/** Угол Солнце — тело — камера, градусы. Это и есть фазовый угол. */
+/** Угол Солнце - тело - камера, градусы. Это и есть фазовый угол. */
 function phaseDeg(camera: Vector3, body: Vector3, sun: Vector3): number {
   const toCamera = new Vector3().subVectors(camera, body).normalize();
   const toSun = new Vector3().subVectors(sun, body).normalize();
@@ -41,7 +41,7 @@ describe('framingPosition', () => {
   /*
    * Главное свойство: камера отводится вбок, а не вверх. Поворот вокруг
    * перпендикуляра к нормали эклиптики поднимал бы камеру на весь фазовый угол,
-   * и планета показывала бы полюс — полосы Юпитера кругами, кольца Сатурна
+   * и планета показывала бы полюс - полосы Юпитера кругами, кольца Сатурна
    * неосвещённой стороной. Наклон над плоскостью нужен, но небольшой.
    */
   it('держится вблизи плоскости эклиптики при любом фазовом угле', () => {

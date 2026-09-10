@@ -23,7 +23,7 @@ import ringFrag from '../shaders/ring.frag.glsl?raw';
  * Геометрия строится сразу в километрах и в плоскости экватора тела, поэтому
  * достаточно вложить её в группу тела: наклон оси, а с ним и наклон колец,
  * получается сам собой. У Сатурна ось наклонена на 27°, и именно поэтому
- * кольца то раскрываются, то обращаются к нам ребром — с периодом в пятнадцать
+ * кольца то раскрываются, то обращаются к нам ребром - с периодом в пятнадцать
  * лет. Отдельно этот эффект не программируется, он следует из ориентации.
  */
 
@@ -35,7 +35,7 @@ export interface RingOptions {
   color: number;
   bands: RingBand[];
   ringlets: number;
-  /** Экваториальный и полярный радиусы планеты — для расчёта её тени. */
+  /** Экваториальный и полярный радиусы планеты - для расчёта её тени. */
   equatorial: number;
   polar: number;
 }
@@ -63,7 +63,7 @@ export class PlanetRings {
 
   constructor(options: RingOptions) {
     const geometry = new RingGeometry(options.inner, options.outer, RADIAL_SEGMENTS, RING_SEGMENTS);
-    // Кольцо three лежит в плоскости xy, а экватор тела — плоскость xz.
+    // Кольцо three лежит в плоскости xy, а экватор тела - плоскость xz.
     geometry.rotateX(-Math.PI / 2);
 
     const material = new ShaderMaterial({
@@ -96,7 +96,7 @@ export class PlanetRings {
   /**
    * @param sunRenderPosition положение Солнца в координатах сцены
    * @param bodyRenderPosition положение планеты в координатах сцены
-   * @param camera камера — она всегда в начале координат сцены
+   * @param camera камера - она всегда в начале координат сцены
    */
   update(sunRenderPosition: Vector3, bodyRenderPosition: Vector3, camera: PerspectiveCamera): void {
     const uniforms = this.mesh.material.uniforms;
@@ -116,11 +116,11 @@ export class PlanetRings {
       .applyQuaternion(inverseQuaternion);
     (uniforms.uSunBodyDirection!.value as Vector3).copy(scratchSun);
 
-    // Деление на масштаб меша — не мелочь. Геометрия колец задана в настоящих
+    // Деление на масштаб меша - не мелочь. Геометрия колец задана в настоящих
     // километрах, и шейдер в них же считает и плотность, и тень, и наклон луча
     // зрения; множитель размеров раздувает кольца масштабом меша, не трогая
     // саму геометрию. Смещение камеры приходит сюда в километрах сцены, то
-    // есть уже раздутых, — и без деления шейдер при ×1000 видел бы камеру в
+    // есть уже раздутых, - и без деления шейдер при ×1000 видел бы камеру в
     // тысяче радиусов от колец в тот момент, когда она стоит вплотную к ним.
     scratchCamera
       .copy(camera.position)
@@ -133,7 +133,7 @@ export class PlanetRings {
 
 /**
  * Полосы → массив vec4 для шейдера: внутренний, внешний, плотность, край.
- * Та же укладка нужна и материалу планеты — он считает тень колец тем же кодом.
+ * Та же укладка нужна и материалу планеты - он считает тень колец тем же кодом.
  */
 export function packBands(bands: readonly RingBand[]): Vector4[] {
   return bands.map((band) => new Vector4(band.inner, band.outer, band.density, band.edge));

@@ -5,7 +5,7 @@ import { formatDistance, onDistanceUnitChange } from './distanceUnits';
  *
  * По умолчанию свёрнут до одной кнопки: развёрнутая панель отнимает край
  * экрана, а смотреть в этой сцене надо на небо, а не на интерфейс. Развёрнутая
- * панель ловит мышь только собой — остальной кадр остаётся кликабельным.
+ * панель ловит мышь только собой - остальной кадр остаётся кликабельным.
  */
 
 /** Расстояния в списке обновляются трижды в секунду: чаще глазу не нужно. */
@@ -75,7 +75,7 @@ export class BodyList {
 
       const distanceNode = document.createElement('span');
       distanceNode.className = 'distance';
-      distanceNode.textContent = '—';
+      distanceNode.textContent = '-';
 
       element.append(dot, name, kind, distanceNode);
       element.addEventListener('click', () => this.onSelect(entry.id));

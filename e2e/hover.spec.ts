@@ -7,7 +7,7 @@ import {
   waitForFrames,
 } from './helpers';
 
-/** Курсор того, что лежит под точкой: над телом это холст, над подписью — она. */
+/** Курсор того, что лежит под точкой: над телом это холст, над подписью - она. */
 async function cursorAt(page: Page, point: { x: number; y: number }): Promise<string> {
   return page.evaluate(({ x, y }) => {
     const element = document.elementFromPoint(x, y);
@@ -20,15 +20,15 @@ async function cursorAt(page: Page, point: { x: number; y: number }): Promise<st
  *
  * Тело в этой сцене занимает доли пикселя, и то, что по нему можно щёлкнуть,
  * из картинки никак не следовало: об этом можно было узнать только из справки.
- * Подсветка отвечает на это раньше щелчка — курсор ещё только подошёл, а
+ * Подсветка отвечает на это раньше щелчка - курсор ещё только подошёл, а
  * подпись уже говорит, во что попадёт.
  */
 test.describe('наведение', () => {
-  test('наведение на подпись подсвечивает её, увод — снимает', async ({ page }) => {
+  test('наведение на подпись подсвечивает её, увод - снимает', async ({ page }) => {
     await openScene(page);
     // Прилетаем к телу, а не полагаемся на то, где оно окажется при запуске:
     // сцена стартует с текущей даты, и в другой день подпись Юпитера стоит в
-    // другом месте кадра — а то и за его краем.
+    // другом месте кадра - а то и за его краем.
     await page.evaluate(() => window.sim.travelTo('jupiter'));
     await waitForArrival(page, 'jupiter');
     await waitForFrames(page, 3);
@@ -55,7 +55,7 @@ test.describe('наведение', () => {
 
     const label = page.locator('.label', { hasText: 'Юпитер' }).first();
 
-    // Пустое место: подсветки нет, и указателя тоже — нажимать там не на что.
+    // Пустое место: подсветки нет, и указателя тоже - нажимать там не на что.
     const empty = await emptyScreenPoint(page);
     await page.mouse.move(empty.x, empty.y);
     await waitForFrames(page, 2);
@@ -63,7 +63,7 @@ test.describe('наведение', () => {
     expect(await cursorAt(page, empty)).not.toBe('pointer');
 
     // Диск Юпитера: после прилёта он занимает середину кадра. Берём точку на
-    // диске в стороне от подписи — иначе проверялась бы подпись, а не тело.
+    // диске в стороне от подписи - иначе проверялась бы подпись, а не тело.
     const centre = await screenPositionOf(page, 'jupiter');
     expect(centre, 'Юпитер должен быть в кадре').not.toBeNull();
     const onDisc = { x: centre!.x - 60, y: centre!.y + 60 };
@@ -72,7 +72,7 @@ test.describe('наведение', () => {
     await waitForFrames(page, 2);
 
     await expect(label).toHaveClass(/highlight/);
-    // Указатель — обещание, что здесь есть куда нажать.
+    // Указатель - обещание, что здесь есть куда нажать.
     expect(await cursorAt(page, onDisc)).toBe('pointer');
 
     // Подсвечено всегда не больше одного тела: иначе непонятно, куда полетим.
@@ -83,7 +83,7 @@ test.describe('наведение', () => {
     await openScene(page);
     // Прилетаем к телу, а не полагаемся на то, где оно окажется при запуске:
     // сцена стартует с текущей даты, и в другой день Юпитер стоит в другом
-    // месте кадра — а то и за Солнцем.
+    // месте кадра - а то и за Солнцем.
     await page.evaluate(() => window.sim.travelTo('jupiter'));
     await waitForArrival(page, 'jupiter');
     await waitForFrames(page, 3);

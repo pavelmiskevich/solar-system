@@ -49,7 +49,7 @@ describe('каталог звёзд', () => {
     expect(sirius.magnitude).toBeCloseTo(-1.44, 1);
     expect(sirius.colorIndex).toBeCloseTo(0.0, 1);
 
-    // Бетельгейзе: 5ʰ55ᵐ, +7.4°, красная — показатель цвета около 1.5.
+    // Бетельгейзе: 5ʰ55ᵐ, +7.4°, красная - показатель цвета около 1.5.
     const betelgeuse = findStar(5.9195, 7.407);
     expect(betelgeuse.separationArcsec).toBeLessThan(30);
     expect(betelgeuse.colorIndex).toBeGreaterThan(1.3);
@@ -84,7 +84,7 @@ describe('каталог звёзд', () => {
 
 describe('перевод координат неба', () => {
   it('северный полюс мира отстоит от оси сцены на наклон эклиптики', () => {
-    // Полюс мира: склонение +90°. Ось y сцены — полюс эклиптики.
+    // Полюс мира: склонение +90°. Ось y сцены - полюс эклиптики.
     const pole = sphericalEquatorialToScene(0, Math.PI / 2);
 
     expect(pole.length()).toBeCloseTo(1, 9);
@@ -92,7 +92,7 @@ describe('перевод координат неба', () => {
   });
 
   it('точка весеннего равноденствия совпадает у обеих систем', () => {
-    // Нулевые прямое восхождение и склонение — общая ось x двух систем.
+    // Нулевые прямое восхождение и склонение - общая ось x двух систем.
     const equinox = sphericalEquatorialToScene(0, 0);
 
     expect(equinox.x).toBeCloseTo(1, 6);
@@ -101,7 +101,7 @@ describe('перевод координат неба', () => {
   });
 
   it('северный полюс эклиптики лежит в созвездии Дракона', () => {
-    // 18ʰ00ᵐ, +66.56° — справочное положение полюса эклиптики.
+    // 18ʰ00ᵐ, +66.56° - справочное положение полюса эклиптики.
     const direction = sphericalEquatorialToScene((18 / 24) * Math.PI * 2, 66.56 * DEG);
 
     expect(direction.y).toBeCloseTo(1, 3);

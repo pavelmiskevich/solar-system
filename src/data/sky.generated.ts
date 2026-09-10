@@ -9,7 +9,7 @@ import type { ConstellationFigure, NamedStar } from './sky';
  * Координаты экваториальные, эпоха J2000, радианы.
  */
 
-/** Ярчайшие звёзды неба — те, по именам которых на нём ориентируются. */
+/** Ярчайшие звёзды неба - те, по именам которых на нём ориентируются. */
 export const NAMED_STARS: readonly NamedStar[] = [
   { name: 'Сириус', ra: 1.7677954, dec: -0.2917513, magnitude: -1.44 },
   { name: 'Канопус', ra: 1.6753054, dec: -0.9197128, magnitude: -0.62 },
@@ -54,7 +54,7 @@ export const NAMED_STARS: readonly NamedStar[] = [
   { name: 'Полярная', ra: 0.6622871, dec: 1.5579526, magnitude: 1.97 },
 ];
 
-/** Фигуры созвездий: отрезок задан парой вершин — ra1, dec1, ra2, dec2. */
+/** Фигуры созвездий: отрезок задан парой вершин - ra1, dec1, ra2, dec2. */
 export const CONSTELLATIONS: readonly ConstellationFigure[] = [
   {
     name: 'Орион',

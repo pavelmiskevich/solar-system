@@ -40,7 +40,7 @@ describe('interpolateDistance', () => {
     expect(interpolateDistance(1e9, 1e5, 1)).toBeCloseTo(1e5, 0);
   });
 
-  it('середина пути — среднее геометрическое, а не арифметическое', () => {
+  it('середина пути - среднее геометрическое, а не арифметическое', () => {
     // Ровно в этом смысл: тело растёт на экране равномерно, а не рывком в конце.
     expect(interpolateDistance(1e8, 1e4, 0.5)).toBeCloseTo(1e6, 0);
   });
@@ -91,7 +91,7 @@ describe('slerpDirection', () => {
     expect(middle.angleTo(from)).toBeCloseTo(Math.PI / 4, 9);
   });
 
-  it('длина сохраняется — иначе камера проваливалась бы внутрь планеты', () => {
+  it('длина сохраняется - иначе камера проваливалась бы внутрь планеты', () => {
     const from = new Vector3(1, 0, 0);
     const to = new Vector3(-1, 0.02, 0).normalize();
 
@@ -140,7 +140,7 @@ describe('pickBody', () => {
   });
 
   it('по крупному диску можно попасть далеко от его центра', () => {
-    // Земля с двух радиусов занимает почти весь кадр: клик в край — тоже клик.
+    // Земля с двух радиусов занимает почти весь кадр: клик в край - тоже клик.
     const earth = candidate('earth', new Vector3(0, 0, -12756), 6378);
     const hit = pickBody(WIDTH / 2 + 200, HEIGHT / 2, [earth], camera(), WIDTH, HEIGHT);
 

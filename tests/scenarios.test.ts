@@ -18,7 +18,7 @@ describe('готовые виды', () => {
 
   it('ведут к тому телу, которое названо в самом виде', () => {
     for (const scenario of SCENARIOS) {
-      // Тело перелёта и тело привязки камеры — одно и то же: иначе камера
+      // Тело перелёта и тело привязки камеры - одно и то же: иначе камера
       // прилетела бы к одному, а встала бы вокруг другого.
       expect(scenario.state.view.body, scenario.id).toBe(scenario.body);
       expect(scenario.body === 'sun' || bodyById(scenario.body) !== undefined, scenario.id).toBe(
@@ -31,7 +31,7 @@ describe('готовые виды', () => {
     for (const scenario of SCENARIOS) {
       const { radii, elevation } = scenario.state.view;
 
-      // Ближе радиуса — внутри тела, дальше тысячи — тело в точку.
+      // Ближе радиуса - внутри тела, дальше тысячи - тело в точку.
       expect(radii, scenario.id).toBeGreaterThan(1.05);
       expect(radii, scenario.id).toBeLessThan(1000);
       expect(Math.abs(elevation), scenario.id).toBeLessThan(90);
@@ -48,8 +48,8 @@ describe('готовые виды', () => {
     }
   });
 
-  it('каждый вид — готовая ссылка: переживает дорогу через адрес страницы', () => {
-    // Не украшение проверки, а суть устройства: вид и ссылка — одно и то же
+  it('каждый вид - готовая ссылка: переживает дорогу через адрес страницы', () => {
+    // Не украшение проверки, а суть устройства: вид и ссылка - одно и то же
     // состояние сцены. Разойдись они, и «поделиться видом» перестало бы
     // означать «поделиться тем, что видишь».
     for (const scenario of SCENARIOS) {

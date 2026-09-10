@@ -19,7 +19,7 @@ import {
  * Скачивает базу HYG (Hipparcos + Yale BSC + Gliese), отбирает звёзды ярче
  * предела невооружённого глаза и упаковывает их по шесть байт на звезду в
  * готовый к импорту модуль. Скрипт запускается вручную и редко: каталог
- * меняется раз в несколько лет, а результат лежит в репозитории — сборка не
+ * меняется раз в несколько лет, а результат лежит в репозитории - сборка не
  * должна зависеть от сети.
  *
  *   node scripts/fetch-stars.mjs
@@ -42,7 +42,7 @@ const MAGNITUDE_LIMIT = 6.5;
 const OUTPUT = resolve(dirname(fileURLToPath(import.meta.url)), '../src/data/stars.generated.ts');
 const SKY_OUTPUT = resolve(dirname(fileURLToPath(import.meta.url)), '../src/data/sky.generated.ts');
 
-/** Кванты упаковки — см. комментарий в src/data/stars.ts. */
+/** Кванты упаковки - см. комментарий в src/data/stars.ts. */
 const MAG_OFFSET = 2;
 const MAG_SCALE = 20;
 const CI_OFFSET = 0.5;
@@ -78,7 +78,7 @@ for (let i = 1; i < lines.length; i += 1) {
     mag,
     ci: Number.isFinite(ci) ? ci : 0.65,
     // Приметы звезды: по ним собираются имена и фигуры созвездий. В упаковку
-    // они не идут — там только то, что нужно, чтобы нарисовать точку.
+    // они не идут - там только то, что нужно, чтобы нарисовать точку.
     proper: fields[column.proper],
     bayer: fields[column.bayer],
     con: fields[column.con],
@@ -87,7 +87,7 @@ for (let i = 1; i < lines.length; i += 1) {
   });
 }
 
-// Порядок по яркости: так первые записи в файле — самые заметные звёзды неба,
+// Порядок по яркости: так первые записи в файле - самые заметные звёзды неба,
 // и глазами проверять сгенерированное проще.
 stars.sort((a, b) => a.mag - b.mag);
 
@@ -122,7 +122,7 @@ const file = `/**
 /** Число звёзд в каталоге. */
 export const STAR_COUNT = ${stars.length};
 
-/** Упакованные записи в base64; разбор — в src/data/stars.ts. */
+/** Упакованные записи в base64; разбор - в src/data/stars.ts. */
 export const STAR_DATA =
   '${Buffer.from(bytes).toString('base64')}';
 `;
@@ -132,7 +132,7 @@ writeFileSync(OUTPUT, file, 'utf8');
 
 console.log(`Записано ${stars.length} звёзд в ${OUTPUT} (${(bytes.length / 1024).toFixed(1)} КБ до base64)`);
 
-/** Разбор строки CSV с кавычками — в именах звёзд встречаются запятые. */
+/** Разбор строки CSV с кавычками - в именах звёзд встречаются запятые. */
 function parseCsvLine(line) {
   const fields = [];
   let current = '';
@@ -162,10 +162,10 @@ function clampByte(value) {
 writeSky(stars);
 
 /**
- * Имена ярких звёзд и фигуры созвездий — вторым файлом.
+ * Имена ярких звёзд и фигуры созвездий - вторым файлом.
  *
  * Координаты берутся в радианах и без упаковки: подписей три десятка,
- * отрезков — сотня, экономить здесь нечего. А вершина, съехавшая на квант
+ * отрезков - сотня, экономить здесь нечего. А вершина, съехавшая на квант
  * упаковки, отличалась бы от нарисованной звезды на десяток секунд дуги.
  */
 function writeSky(all) {
@@ -177,7 +177,7 @@ function writeSky(all) {
     return star;
   });
 
-  // Список — это первые NAMED_COUNT звёзд каталога с собственным именем, и
+  // Список - это первые NAMED_COUNT звёзд каталога с собственным именем, и
   // «первые» здесь по яркости: каталог отсортирован. Звезда без перевода
   // список не пропускает, а роняет сборку: молча пропустить её значило бы
   // подменить «сорок ярчайших» на «сорок, для которых нашёлся перевод».
@@ -190,7 +190,7 @@ function writeSky(all) {
 
     if (!RU_NAMES[star.proper]) {
       throw new Error(
-        `Нет русского имени для ${star.proper} (${star.mag.toFixed(2)}ᵐ) — ` +
+        `Нет русского имени для ${star.proper} (${star.mag.toFixed(2)}ᵐ) - ` +
           `допишите его в scripts/sky-figures.mjs`,
       );
     }
@@ -200,7 +200,7 @@ function writeSky(all) {
   for (const star of forced) if (!named.includes(star)) named.push(star);
 
   // Указатель по обозначению Байера: «Alp Ori». Компоненты кратных («Alp-1»)
-  // сводятся к одной записи — самой яркой из них.
+  // сводятся к одной записи - самой яркой из них.
   const byBayer = new Map();
   for (const star of all) {
     if (!star.bayer || !star.con) continue;
@@ -217,7 +217,7 @@ function writeSky(all) {
       const length = angleDeg(a, b);
       if (length > MAX_SEGMENT_DEG) {
         throw new Error(
-          `${figure.name}: отрезок ${from}—${to} длиной ${length.toFixed(1)}° — похоже на опечатку`,
+          `${figure.name}: отрезок ${from}-${to} длиной ${length.toFixed(1)}° - похоже на опечатку`,
         );
       }
 
@@ -261,12 +261,12 @@ function writeSky(all) {
  * Координаты экваториальные, эпоха J2000, радианы.
  */
 
-/** Ярчайшие звёзды неба — те, по именам которых на нём ориентируются. */
+/** Ярчайшие звёзды неба - те, по именам которых на нём ориентируются. */
 export const NAMED_STARS: readonly NamedStar[] = [
 ${names}
 ];
 
-/** Фигуры созвездий: отрезок задан парой вершин — ra1, dec1, ra2, dec2. */
+/** Фигуры созвездий: отрезок задан парой вершин - ra1, dec1, ra2, dec2. */
 export const CONSTELLATIONS: readonly ConstellationFigure[] = [
 ${figureText}
 ];
@@ -279,7 +279,7 @@ ${figureText}
   );
 }
 
-/** Вершина фигуры: «Alp» своего созвездия или «Bet@Tau» — чужого. */
+/** Вершина фигуры: «Alp» своего созвездия или «Bet@Tau» - чужого. */
 function vertex(byBayer, figure, token) {
   const [letter, con] = token.includes('@') ? token.split('@') : [token, figure.con];
   const star = byBayer.get(`${letter} ${con}`);
