@@ -440,6 +440,13 @@ function cardSourceFor(id: string | null): CardSource | null {
     kind: target.kind,
     distanceToCamera: () => target.worldPosition.distanceTo(flight.worldPosition) - target.radius,
     distanceToSun: () => target.worldPosition.length(),
+    // Число берётся из сцены, а не считается здесь заново: там оно уже
+    // посчитано для шейдера колец, и карточка обязана объяснять ровно тот
+    // кадр, который человек видит.
+    ringSunElevationDeg: () => {
+      const body = system.find(target.id);
+      return body?.rings ? body.ringSunElevation : null;
+    },
   };
 }
 
