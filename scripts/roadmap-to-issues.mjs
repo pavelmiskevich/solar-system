@@ -93,7 +93,7 @@ function parseRoadmap(markdown) {
 
 /** Метка трудоёмкости; у сделанных пунктов размера нет. */
 function sizeLabel(size) {
-  const match = /^(S|M|L)(–(S|M|L))?$/.exec(size.replace(/\s/g, ''));
+  const match = /^(S|M|L)(-(S|M|L))?$/.exec(size.replace(/\s/g, ''));
   return match ? `размер: ${size}` : null;
 }
 
