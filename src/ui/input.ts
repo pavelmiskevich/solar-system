@@ -89,6 +89,8 @@ export interface SceneInputOptions {
   takeSnapshot(): void;
   /** Список готовых видов. */
   scenarios: { toggle(): void };
+  /** Список ближайших астрономических событий. */
+  events: { toggle(): void };
   /** Подсказка внизу экрана; прячется, как только пользователь взял мышь. */
   hint?: HTMLElement | null;
 }
@@ -144,6 +146,9 @@ function bindKeyboard(options: SceneInputOptions): void {
         break;
       case 'KeyV':
         options.scenarios.toggle();
+        break;
+      case 'KeyE':
+        options.events.toggle();
         break;
       case 'KeyH':
       case 'Slash':

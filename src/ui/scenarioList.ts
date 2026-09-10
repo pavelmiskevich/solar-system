@@ -21,9 +21,15 @@ export class ScenarioList {
     container: HTMLElement,
     scenarios: readonly Scenario[],
     private readonly onSelect: (id: string) => void,
+    /** Панель открыли: соседняя в той же колонке должна закрыться. */
+    private readonly onOpen: () => void = () => {},
   ) {
     this.root = document.createElement('aside');
     this.root.className = 'views closed';
+    // Панелей этого вида в колонке две, и различать их надо снаружи: у
+    // свёрнутой строки остаются в разметке, она гаснет обрезкой, а не
+    // удалением, - и «какая панель закрыта» читается только по ней самой.
+    this.root.dataset.panel = 'views';
 
     this.toggleButton = document.createElement('button');
     this.toggleButton.type = 'button';
@@ -74,6 +80,7 @@ export class ScenarioList {
     this.open = open;
     this.root.classList.toggle('closed', !open);
     this.updateLabel();
+    if (open) this.onOpen();
 
     // Пока мышь захвачена полётом, курсора нет и кликать нечем.
     if (open && document.pointerLockElement) document.exitPointerLock();

@@ -8,9 +8,11 @@ import { RenderLoop } from './core/loop';
 import { AdaptiveQuality } from './core/quality';
 import { Viewport } from './core/renderer';
 import { decodeSceneState, encodeSceneState } from './core/sceneState';
-import type { SceneState } from './core/sceneState';
+import type { BodyView, SceneState } from './core/sceneState';
 import { AU, DEG, dateFromJulianDay } from './core/units';
 import { SCENARIOS, scenarioById } from './data/scenarios';
+import { EVENT_WINDOW_YEARS, upcomingEvents } from './data/events';
+import type { EventRow } from './data/events';
 import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
 import { SceneLuminance } from './lighting/sceneLuminance';
@@ -32,6 +34,7 @@ import { HINT, HelpPanel } from './ui/help';
 import { SupportPanel } from './ui/support';
 import { DatePanel } from './ui/datePanel';
 import { ScenarioList } from './ui/scenarioList';
+import { EventList } from './ui/eventList';
 import { TimeSlider } from './ui/timeSlider';
 import { TourButton } from './ui/tourButton';
 import { SnapshotButton, saveCanvasPng, snapshotFileName } from './ui/snapshotButton';
@@ -352,10 +355,33 @@ function showScenario(id: string): void {
   const scenario = scenarioById(id);
   if (!scenario) return;
 
-  const target = findTarget(scenario.body);
-  if (!target) return;
+  if (!showView(scenario.body, scenario.state)) return;
+  scenarioList.setActive(id);
+  eventList.setActive(null);
+}
 
-  const { state } = scenario;
+/**
+ * Показать событие из списка ближайших.
+ *
+ * Отличий от готового вида нет вовсе - и это не совпадение: событие тоже
+ * описано датой, телом и двумя углами. Разница только в том, откуда взялись
+ * числа: у вида они записаны в коде, у события посчитаны по эфемеридам.
+ */
+function showEvent(row: EventRow): void {
+  if (!showView(row.body, row.state)) return;
+  scenarioList.setActive(null);
+  eventList.setActive(row.id);
+}
+
+/**
+ * Поставить дату и увести камеру к телу под нужным углом.
+ *
+ * @returns удалось ли: тела с таким именем в сцене может и не быть
+ */
+function showView(bodyId: string, state: SceneState & { view: BodyView }): boolean {
+  const target = findTarget(bodyId);
+  if (!target) return false;
+
   if (state.jd !== undefined) clock.jd = state.jd;
   if (state.timeScale !== undefined) clock.timeScale = state.timeScale;
   clock.paused = state.paused ?? false;
@@ -371,8 +397,8 @@ function showScenario(id: string): void {
   });
 
   bodyList.setActive(target.id);
-  scenarioList.setActive(id);
   hintElement?.classList.add('hidden');
+  return true;
 }
 
 /** Рабочие объекты для чтения и применения вида - чтобы не сорить в кадровом цикле. */
@@ -500,9 +526,50 @@ const timeSlider = timeSliderContainer ? new TimeSlider(timeSliderContainer, clo
 const datePanelContainer = document.getElementById('date-panel-container');
 const datePanel = datePanelContainer ? new DatePanel(datePanelContainer, clock) : null;
 
+/**
+ * Ближайшие события. Список считается при первом открытии и держится, пока
+ * дата сцены не ушла за край окна поиска: пересчитывать его на каждый шаг
+ * времени незачем, а четверть секунды при загрузке страницы - незачем тем более.
+ */
+let eventWindowStart = clock.jd;
+let eventCache: readonly EventRow[] | null = null;
+
+const eventList: EventList = new EventList(
+  bodyList.column,
+  () => {
+    if (!eventCache) {
+      eventWindowStart = clock.jd;
+      eventCache = upcomingEvents(eventWindowStart);
+    }
+    return eventCache;
+  },
+  showEvent,
+);
+
+/**
+ * Список событий устарел, если дата сцены вышла за окно, по которому он
+ * считался: назад он не смотрит вовсе, а вперёд знает лишь на пять лет. Ввод
+ * даты рукой или готовый вид на 2038 год уводят время как раз так далеко.
+ */
+function refreshEventsIfOutOfWindow(): void {
+  if (!eventCache) return;
+  const behind = clock.jd < eventWindowStart;
+  const ahead = clock.jd > eventWindowStart + 365.25 * EVENT_WINDOW_YEARS;
+  if (!behind && !ahead) return;
+
+  eventCache = null;
+  eventList.reload();
+}
+
 // Готовые виды стоят первыми в колонке: человеку, открывшему сцену впервые,
 // нужен не список тел, а ответ на вопрос «куда тут смотреть».
-const scenarioList = new ScenarioList(bodyList.column, SCENARIOS, showScenario);
+const scenarioList = new ScenarioList(bodyList.column, SCENARIOS, showScenario, () =>
+  eventList.setOpen(false),
+);
+
+// Открытие одной панели закрывает другую: обе стоят над кнопками колонки и
+// раздвигают её, а раскрытые разом отодвинули бы нижние кнопки за край экрана.
+eventList.onOpen(() => scenarioList.setOpen(false));
 
 if (hintElement) hintElement.textContent = HINT;
 
@@ -721,6 +788,7 @@ const loop = new RenderLoop((dt, elapsed) => {
 
   updateAddress(dt);
 
+  refreshEventsIfOutOfWindow();
   datePanel?.update();
   timeSlider?.update();
   hud.update({
@@ -771,6 +839,7 @@ bindSceneInput({
   cycleSizePreset,
   takeSnapshot: requestSnapshot,
   scenarios: scenarioList,
+  events: eventList,
   hint: hintElement,
 });
 
