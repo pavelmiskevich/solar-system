@@ -40,14 +40,14 @@ describe('AdaptiveExposure', () => {
   });
 
   it('освещённый кадр ничего не меняет: поправка остаётся единицей', () => {
-    // Диск планеты даёт около половины единицы яркости — середина диапазона.
+    // Диск планеты даёт около половины единицы яркости - середина диапазона.
     const withFrame = settle(new AdaptiveExposure(), 1, 0.5);
     const withoutFrame = settle(new AdaptiveExposure(), 1, null);
 
     expect(withFrame).toBeCloseTo(withoutFrame, 2);
   });
 
-  it('тёмный кадр раскрывает экспозицию — так виден пепельный свет', () => {
+  it('тёмный кадр раскрывает экспозицию - так виден пепельный свет', () => {
     // Ночная сторона Луны: яркость на четыре порядка ниже дневной.
     const night = settle(new AdaptiveExposure(), 1, 2.5e-5, 60);
     const day = settle(new AdaptiveExposure(), 1, 0.5);
@@ -57,7 +57,7 @@ describe('AdaptiveExposure', () => {
 
   it('раскрытие ограничено: ночь не превращается в день', () => {
     // Абсолютно тёмный, но не пустой кадр не должен уводить экспозицию в ноль
-    // знаменателя. Предел — три порядка от базовой.
+    // знаменателя. Предел - три порядка от базовой.
     const value = settle(new AdaptiveExposure(), 1, 1e-6, 120);
 
     expect(value).toBeLessThanOrEqual(1500);

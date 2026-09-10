@@ -6,7 +6,7 @@ import { DEG, JD_J2000, centuriesSinceJ2000 } from '../core/units';
  * Формат соответствует таблице JPL «Keplerian Elements for Approximate
  * Positions of the Major Planets» (Standish), вариант для интервала
  * 1800–2050 гг. Углы в градусах, большая полуось в астрономических единицах,
- * скорости — за юлианское столетие.
+ * скорости - за юлианское столетие.
  */
 export interface OrbitalElements {
   /** Большая полуось, а.е. */
@@ -43,7 +43,7 @@ export interface EclipticVector {
  *
  * Начальное приближение E₀ = M + e·sin M сходится за 3–4 итерации при
  * эксцентриситетах Солнечной системы (максимум 0.249 у Плутона). Ограничение
- * в 12 итераций — страховка от зацикливания, а не рабочий режим.
+ * в 12 итераций - страховка от зацикливания, а не рабочий режим.
  */
 export function solveKepler(meanAnomaly: number, e: number, tolerance = 1e-12): number {
   const M = normalizeRadians(meanAnomaly);
@@ -153,7 +153,7 @@ export function sampleOrbit(
   return points;
 }
 
-/** Орбитальный период в сутках — из скорости изменения средней долготы. */
+/** Орбитальный период в сутках - из скорости изменения средней долготы. */
 export function orbitalPeriodDays(elements: OrbitalElements): number {
   return (360 / elements.LDot) * 36525;
 }
@@ -171,7 +171,7 @@ export function normalizeRadians(angle: number): number {
  * Нормаль к плоскости орбиты в эклиптических координатах, единичный вектор.
  *
  * Наклон оси вращения принято отсчитывать не от эклиптики, а от плоскости
- * орбиты самого тела: справочные 26.7° у Сатурна — это угол именно к ней.
+ * орбиты самого тела: справочные 26.7° у Сатурна - это угол именно к ней.
  * Разница набегает на наклонение орбиты, у Сатурна это полтора градуса.
  */
 export function orbitNormal(elements: OrbitalElements, jd = JD_J2000): EclipticVector {

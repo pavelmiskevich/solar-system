@@ -38,7 +38,7 @@ describe('bodyFacts', () => {
     expect(Math.abs(facts('venus').rotationPeriodDays)).toBeCloseTo(243.02, 1);
   });
 
-  it('сутки Юпитера — девять часов пятьдесят пять минут', () => {
+  it('сутки Юпитера - девять часов пятьдесят пять минут', () => {
     expect(facts('jupiter').rotationPeriodDays * 24).toBeCloseTo(9.925, 2);
   });
 });
@@ -53,7 +53,7 @@ describe('форматирование карточки', () => {
     expect(formatOrbitalPeriod(27.321661)).toBe('27.3 сут');
     expect(formatOrbitalPeriod(365.25)).toBe('1.00 года');
     expect(formatOrbitalPeriod(60195)).toBe('164.8 года');
-    expect(formatOrbitalPeriod(null)).toBe('—');
+    expect(formatOrbitalPeriod(null)).toBe('-');
   });
 
   it('короткие сутки пишутся в часах и минутах', () => {

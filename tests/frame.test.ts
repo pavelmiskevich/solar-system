@@ -23,7 +23,7 @@ describe('ReferenceFrame', () => {
 
     frame.lockTo(body);
 
-    // Тело прошло по орбите шестьсот тысяч километров — столько Уран проходит
+    // Тело прошло по орбите шестьсот тысяч километров - столько Уран проходит
     // за секунду реального времени при масштабе «сутки в секунду».
     body.worldPosition.set(1e9 + 590000, 12000, 0);
     frame.apply(camera);
@@ -39,7 +39,7 @@ describe('ReferenceFrame', () => {
     frame.lockTo(body);
     expect(frame.apply(camera)).toBe(true);
 
-    // Тысяча радиусов — граница, за которой держаться за планету бессмысленно.
+    // Тысяча радиусов - граница, за которой держаться за планету бессмысленно.
     camera.set(1e9 + 25559 * 1001, 0, 0);
     expect(frame.apply(camera)).toBe(false);
     expect(frame.targetId).toBeNull();

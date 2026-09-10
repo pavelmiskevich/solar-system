@@ -2,7 +2,7 @@
 /**
  * Переносит план работ из ROADMAP.md в задачи GitHub.
  *
- * Разбор идёт по заголовкам вида `### N. Название — Размер`; телом задачи
+ * Разбор идёт по заголовкам вида `### N. Название - Размер`; телом задачи
  * становится всё до следующего заголовка. Метки берутся из раздела, в котором
  * пункт стоит, и из оценки трудоёмкости.
  *
@@ -35,7 +35,7 @@ const SECTION_LABELS = new Map([
 
 /**
  * Пункты, которые заводятся сразу закрытыми: работа сделана, но след в списке
- * задач нужен — иначе непонятно, куда делись номера.
+ * задач нужен - иначе непонятно, куда делись номера.
  */
 const ALREADY_DONE = new Map([
   [24, 'README написан, снимки для него делает scripts/shots.mjs.'],
@@ -69,9 +69,9 @@ function parseRoadmap(markdown) {
     }
 
     // Заголовок делится по последнему тире, а не по первому: в названии тире
-    // тоже встречается («Смотреть на» — захват цели), а оценка всегда одно
+    // тоже встречается («Смотреть на» - захват цели), а оценка всегда одно
     // слово без пробелов.
-    const itemMatch = /^### (\d+)\.\s+(.+)\s+—\s+(\S+)$/.exec(line);
+    const itemMatch = /^### (\d+)\.\s+(.+)\s+-\s+(\S+)$/.exec(line);
     if (itemMatch && !SKIP_SECTIONS.has(section)) {
       flush();
       current = {
@@ -124,7 +124,7 @@ function existingTitles() {
 
 const items = parseRoadmap(readFileSync(ROADMAP, 'utf8'));
 if (items.length === 0) {
-  console.error(`В ${ROADMAP} не нашлось ни одного пункта — разбор сломан, ничего не делаю.`);
+  console.error(`В ${ROADMAP} не нашлось ни одного пункта - разбор сломан, ничего не делаю.`);
   process.exit(1);
 }
 
@@ -138,7 +138,7 @@ for (const item of items) {
   const labels = labelsFor(item);
 
   if (existing.has(item.title)) {
-    console.log(`= ${item.number}. ${item.title} — уже есть, пропускаю`);
+    console.log(`= ${item.number}. ${item.title} - уже есть, пропускаю`);
     skipped += 1;
     continue;
   }

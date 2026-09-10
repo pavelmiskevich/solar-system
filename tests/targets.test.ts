@@ -77,7 +77,7 @@ describe('род тела', () => {
     expect(kindOf('titan')).toBe('спутник Сатурна');
   });
 
-  it('для остальных — планета', () => {
+  it('для остальных - планета', () => {
     expect(kindOf('earth')).toBe('планета');
     expect(kindOf('neptune')).toBe('планета');
   });

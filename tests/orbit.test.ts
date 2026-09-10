@@ -47,7 +47,7 @@ describe('вращение протаскиванием', () => {
     orbit.drag(300, 0, 900);
     const after = settle(orbit, BODY, RADIUS);
 
-    // Расстояние сохраняется — это главное свойство орбитального режима.
+    // Расстояние сохраняется - это главное свойство орбитального режима.
     expect(after.distanceTo(BODY)).toBeCloseTo(before.distanceTo(BODY), 0);
     // А ракурс изменился.
     expect(after.distanceTo(before)).toBeGreaterThan(RADIUS);
@@ -68,7 +68,7 @@ describe('вращение протаскиванием', () => {
   it('не заваливается через полюс', () => {
     const orbit = engaged(4);
 
-    // Тянем далеко вверх — гораздо дальше, чем нужно для подъёма к полюсу.
+    // Тянем далеко вверх - гораздо дальше, чем нужно для подъёма к полюсу.
     orbit.drag(0, -5000, 900);
     const out = settle(orbit, BODY, RADIUS);
 
@@ -101,7 +101,7 @@ describe('приближение колесом', () => {
 
     expect(after.distanceTo(BODY)).toBeLessThan(before.distanceTo(BODY));
 
-    // Направление от тела на камеру не изменилось — двигались строго по лучу.
+    // Направление от тела на камеру не изменилось - двигались строго по лучу.
     const dirBefore = before.clone().sub(BODY).normalize();
     const dirAfter = after.clone().sub(BODY).normalize();
     expect(dirBefore.dot(dirAfter)).toBeCloseTo(1, 6);
@@ -123,7 +123,7 @@ describe('приближение колесом', () => {
     const out = new Vector3();
     const alive = orbit.update(1 / 60, BODY, RADIUS, out);
 
-    // Вращать вокруг того, что стало точкой, нечего — режим выключается сам.
+    // Вращать вокруг того, что стало точкой, нечего - режим выключается сам.
     expect(alive).toBe(false);
     expect(orbit.isActive).toBe(false);
   });

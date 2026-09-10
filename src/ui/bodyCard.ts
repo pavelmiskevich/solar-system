@@ -25,7 +25,7 @@ export function formatMass(kg: number): string {
 
 /** Период обращения: сутки, если их немного, иначе годы. */
 export function formatOrbitalPeriod(days: number | null): string {
-  if (days === null) return '—';
+  if (days === null) return '-';
   if (days < 300) return `${days.toFixed(days < 100 ? 1 : 0)} сут`;
 
   const years = days / 365.25;
@@ -33,7 +33,7 @@ export function formatOrbitalPeriod(days: number | null): string {
 }
 
 /**
- * Период вращения. Меньше двух суток — в часах и минутах: сутки Юпитера
+ * Период вращения. Меньше двух суток - в часах и минутах: сутки Юпитера
  * длятся девять часов пятьдесят пять минут, и округлять их до «0.4 суток»
  * значит выбрасывать самое интересное.
  */
@@ -80,7 +80,7 @@ export interface CardSource {
   /** Расстояние тела от Солнца, км. */
   distanceToSun(): number;
   /**
-   * Угол между плоскостью колец и направлением на Солнце, °; null — колец нет.
+   * Угол между плоскостью колец и направлением на Солнце, °; null - колец нет.
    *
    * Строка живая, как и расстояния: у Сатурна этот угол пробегает от нуля в
    * равноденствие до двадцати семи градусов за четырнадцать лет.
@@ -106,7 +106,7 @@ type RowLabel = (typeof ROWS)[number];
 
 /**
  * Строки с расстоянием: щелчок по ним меняет единицы во всём интерфейсе.
- * Радиус сюда не входит — это размер тела, а не расстояние до него, и мерить
+ * Радиус сюда не входит - это размер тела, а не расстояние до него, и мерить
  * поперечник Юпитера в световых секундах незачем.
  */
 const DISTANCE_ROWS: ReadonlySet<string> = new Set(['от Солнца', 'до камеры']);
@@ -116,7 +116,7 @@ export class BodyCard {
   private readonly title: HTMLElement;
   private readonly kind: HTMLElement;
   private readonly note: HTMLElement;
-  /** Строка целиком — её приходится прятать там, где величины не существует. */
+  /** Строка целиком - её приходится прятать там, где величины не существует. */
   private readonly lines = new Map<RowLabel, HTMLElement>();
   private readonly rows = new Map<RowLabel, HTMLElement>();
 
@@ -144,7 +144,7 @@ export class BodyCard {
 
       const value = document.createElement('span');
       value.className = 'value';
-      value.textContent = '—';
+      value.textContent = '-';
 
       if (DISTANCE_ROWS.has(label)) makeUnitToggle(value);
 
@@ -161,7 +161,7 @@ export class BodyCard {
     container.appendChild(this.root);
   }
 
-  /** Показать карточку тела; null — спрятать. */
+  /** Показать карточку тела; null - спрятать. */
   show(source: CardSource | null): void {
     if (source?.id === this.source?.id) return;
 
@@ -183,11 +183,11 @@ export class BodyCard {
     this.set('оборот', formatOrbitalPeriod(facts.orbitalPeriodDays));
 
     const lore = bodyLore(source.id);
-    this.set('температура', lore ? formatTemperature(lore.temperatureC) : '—');
-    this.set('атмосфера', lore?.atmosphere ?? '—');
+    this.set('температура', lore ? formatTemperature(lore.temperatureC) : '-');
+    this.set('атмосфера', lore?.atmosphere ?? '-');
 
     // У Солнца и у спутников своих спутников нет, и прочерк здесь читался бы
-    // как «ноль» — утверждение, которого никто не делал. Строка убирается.
+    // как «ноль» - утверждение, которого никто не делал. Строка убирается.
     const moons = lore?.moons ?? null;
     this.showRow('спутников', moons !== null);
     if (moons !== null) this.set('спутников', String(moons));
@@ -200,7 +200,7 @@ export class BodyCard {
     this.update(0);
   }
 
-  /** Обновить меняющиеся строки — расстояния. */
+  /** Обновить меняющиеся строки - расстояния. */
   update(dt: number): void {
     if (!this.source) return;
 
@@ -230,7 +230,7 @@ export class BodyCard {
   }
 }
 
-/** Разделение тысяч неразрывным пробелом — как в остальном интерфейсе. */
+/** Разделение тысяч неразрывным пробелом - как в остальном интерфейсе. */
 function format(value: number): string {
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
 }

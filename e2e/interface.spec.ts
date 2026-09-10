@@ -108,7 +108,7 @@ test.describe('интерфейс', () => {
 
     // Шестнадцать тел: Солнце, восемь планет, Плутон, Луна и пять спутников.
     await expect(page.locator('.bodies-row')).toHaveCount(16);
-    await expect(page.locator('.bodies-row .distance').first()).not.toHaveText('—');
+    await expect(page.locator('.bodies-row .distance').first()).not.toHaveText('-');
 
     await page.keyboard.press('KeyB');
     await expect(panel).toHaveClass(/closed/);
@@ -127,10 +127,10 @@ test.describe('интерфейс', () => {
     await expect(card.locator('.body-card-header b')).toHaveText('Сатурн');
 
     const rows = await card.locator('.body-card-row').allTextContents();
-    // Разряды разделены неразрывным пробелом — для сравнения приводим к обычному.
+    // Разряды разделены неразрывным пробелом - для сравнения приводим к обычному.
     const text = rows.join(' | ').replace(/ /g, ' ');
 
-    // Радиус и масса — справочные, сутки короче земных, год — двадцать девять с
+    // Радиус и масса - справочные, сутки короче земных, год - двадцать девять с
     // половиной лет. Это и есть Сатурн, а не «какая-то планета».
     expect(text).toContain('60 268 км');
     expect(text).toMatch(/5\.68·10²⁶ кг/);
@@ -143,7 +143,7 @@ test.describe('интерфейс', () => {
     expect(text).toMatch(/спутников\s*\d+/);
     await expect(card.locator('.body-card-note')).toContainText('плотность');
 
-    // Раскрытие колец к Солнцу — величина живая, она меняется с датой, поэтому
+    // Раскрытие колец к Солнцу - величина живая, она меняется с датой, поэтому
     // проверяется вид, а не число. Без неё тусклые кольца у равноденствия
     // читаются как поломка: узнать, что света им досталось на порядок меньше
     // обычного, было бы неоткуда.
@@ -156,7 +156,7 @@ test.describe('интерфейс', () => {
     await openScene(page);
 
     // У Луны своих спутников не бывает, и прочерк на этом месте читался бы как
-    // «ноль» — утверждение, которого никто не делал. Строка убирается целиком.
+    // «ноль» - утверждение, которого никто не делал. Строка убирается целиком.
     await page.evaluate(() => window.sim.travelTo('moon'));
     await waitForArrival(page, 'moon');
 
@@ -180,7 +180,7 @@ test.describe('интерфейс', () => {
     const cardDistance = page.locator('.body-card-row', { hasText: 'от Солнца' }).locator('.value');
     const listDistance = page.locator('#bodies .bodies-row .distance').first();
 
-    // Состояние по умолчанию — единица по величине: до Сатурна это а.е.
+    // Состояние по умолчанию - единица по величине: до Сатурна это а.е.
     await expect(hudDistance).toContainText('а.е.');
 
     // Километры. Проверяются все три места сразу: смысл переключателя в том,
@@ -194,7 +194,7 @@ test.describe('интерфейс', () => {
     await expect(hudDistance).toContainText('а.е.');
     await expect(cardDistance).toContainText('а.е.');
 
-    // Световые минуты — ради них задача и заведена: «восемь световых минут до
+    // Световые минуты - ради них задача и заведена: «восемь световых минут до
     // Солнца» говорит о масштабе больше, чем сто сорок девять миллионов км.
     await hudDistance.click();
     await expect(hudDistance).toContainText('св.');
@@ -210,7 +210,7 @@ test.describe('интерфейс', () => {
     await openScene(page);
 
     const hud = page.locator('#hud');
-    // Стартовая ступень — сутки в секунду: система сразу движется.
+    // Стартовая ступень - сутки в секунду: система сразу движется.
     await expect(hud).toContainText('1 сут/с');
 
     await page.keyboard.press('Comma');
@@ -340,7 +340,7 @@ test.describe('интерфейс', () => {
 
     // Размер картинки о её содержимом не говорит ничего. Буфер WebGL живёт
     // до вывода кадра и очищается сразу после: снимок, снятый мимо кадрового
-    // цикла, выходит правильных 900×600 и при этом прозрачным. Измерено — 13 КБ
+    // цикла, выходит правильных 900×600 и при этом прозрачным. Измерено - 13 КБ
     // пустоты против 307 КБ настоящего кадра, и обе картинки одного размера.
     const lit = await page.evaluate(async (base64) => {
       const image = new Image();

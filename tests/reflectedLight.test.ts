@@ -14,7 +14,7 @@ const EARTH_ALBEDO = 0.306;
 const MOON_DISTANCE = 384400;
 
 describe('reflectedIrradianceFraction', () => {
-  it('пепельный свет от Земли — около 8·10⁻⁵ солнечного', () => {
+  it('пепельный свет от Земли - около 8·10⁻⁵ солнечного', () => {
     // Полная Земля с Луны имеет −16.5ᵐ против −26.7ᵐ у Солнца: разница в
     // 10.2 звёздной величины, то есть 8.3·10⁻⁵.
     const fraction = reflectedIrradianceFraction(EARTH_ALBEDO, EARTH_RADIUS, MOON_DISTANCE, 1);
@@ -84,7 +84,7 @@ describe('spotDirection', () => {
     const direction = spotDirection(jupiter);
 
     expect(direction.length()).toBeCloseTo(1, 9);
-    // Большое Красное пятно — южное, значит проекция на ось вращения отрицательна.
+    // Большое Красное пятно - южное, значит проекция на ось вращения отрицательна.
     expect(direction.y).toBeCloseTo(Math.sin(jupiter.latitude * DEG), 9);
   });
 
@@ -103,7 +103,7 @@ describe('spotDirection', () => {
     expect(direction.z).toBeCloseTo(0, 9);
   });
 
-  it('долгота 90° уходит на ось z — так же, как её читает шейдер', () => {
+  it('долгота 90° уходит на ось z - так же, как её читает шейдер', () => {
     const direction = spotDirection({
       latitude: 0,
       longitude: 90,

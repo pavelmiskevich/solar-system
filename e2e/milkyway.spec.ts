@@ -9,7 +9,7 @@ import { expectNoErrors, frameLight, openScene, waitForFrames } from './helpers'
  *
  * Полоса рисуется в шейдере и наружу ничем не выходит: ни объекта, ни числа,
  * по которому можно спросить «а есть ли она». Поэтому проверяется яркость
- * кадра — там, где полоса должна быть, и там, где её быть не должно.
+ * кадра - там, где полоса должна быть, и там, где её быть не должно.
  */
 
 const basis = galacticBasis();
@@ -33,7 +33,7 @@ async function lookTowards(page: Page, direction: Vector3): Promise<void> {
 }
 
 test.describe('Млечный Путь', () => {
-  test('в стороне центра Галактики небо светится, у полюса — нет', async ({ page }) => {
+  test('в стороне центра Галактики небо светится, у полюса - нет', async ({ page }) => {
     const errors = await openScene(page);
 
     await lookTowards(page, basis.centre.clone());
@@ -45,7 +45,7 @@ test.describe('Млечный Путь', () => {
     // У полюса Галактики небо пустое: там только звёзды каталога, и медиана
     // по клеткам держится у нуля.
     expect(pole.median).toBeLessThan(4);
-    // В Стрельце мы смотрим сквозь весь диск и в балдж — там ярче всего.
+    // В Стрельце мы смотрим сквозь весь диск и в балдж - там ярче всего.
     expect(centre.median).toBeGreaterThan(pole.median + 8);
     expect(centre.median).toBeGreaterThan(12);
 
@@ -68,7 +68,7 @@ test.describe('Млечный Путь', () => {
     await lookTowards(page, basis.pole.clone());
     const pole = await frameLight(page, NARROW);
 
-    // В Возничем полоса видна — мы смотрим вдоль диска, только наружу.
+    // В Возничем полоса видна - мы смотрим вдоль диска, только наружу.
     expect(anticentre.median).toBeGreaterThan(pole.median + 3);
     // Но заметно слабее, чем в сторону центра: там за спиной весь диск.
     expect(anticentre.median).toBeLessThan(centre.median * 0.75);

@@ -15,8 +15,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ExposureShader } from '../shaders/exposure.pass';
 
 /**
- * Ближняя плоскость — один метр: с ней можно подлететь к поверхности вплотную.
- * Дальняя — 1e13 км, дальше звёздной сферы. Такой диапазон возможен только
+ * Ближняя плоскость - один метр: с ней можно подлететь к поверхности вплотную.
+ * Дальняя - 1e13 км, дальше звёздной сферы. Такой диапазон возможен только
  * благодаря логарифмическому буферу глубины; с обычным буфером кольца Сатурна
  * начали бы резаться о фон уже на подлёте.
  */
@@ -56,7 +56,7 @@ export class Viewport {
     this.renderer.outputColorSpace = SRGBColorSpace;
     this.renderer.toneMapping = ACESFilmicToneMapping;
     // Экспозиция применяется отдельным проходом до bloom, поэтому здесь она
-    // остаётся единицей — иначе она подействовала бы дважды.
+    // остаётся единицей - иначе она подействовала бы дважды.
     this.renderer.toneMappingExposure = 1;
     this.renderer.setClearColor(0x000000, 1);
     container.appendChild(this.renderer.domElement);
@@ -73,7 +73,7 @@ export class Viewport {
     /*
      * strength / radius / threshold.
      *
-     * Порог заметно выше единицы, а радиус мал. Причина — адаптация экспозиции
+     * Порог заметно выше единицы, а радиус мал. Причина - адаптация экспозиции
      * к темноте: раскрывшись на пепельный свет, она поднимает над «белым»
      * тысячи мелких деталей вроде освещённых валов кратеров, и широкий мягкий
      * bloom с низким порогом заливал ими весь кадр. С этими числами светится
@@ -90,7 +90,7 @@ export class Viewport {
     window.addEventListener('resize', this.resize);
   }
 
-  /** Плотность пикселей: 2 — потолок, выше неё разницы не видно, а цена квадратичная. */
+  /** Плотность пикселей: 2 - потолок, выше неё разницы не видно, а цена квадратичная. */
   private get pixelRatio(): number {
     return Math.min(window.devicePixelRatio, 2) * this.resolutionScale;
   }
@@ -124,7 +124,7 @@ export class Viewport {
     this.bloom.enabled = enabled;
   }
 
-  /** Понизить внутреннее разрешение композитора — первая ступень после отключения bloom. */
+  /** Понизить внутреннее разрешение композитора - первая ступень после отключения bloom. */
   setResolutionScale(scale: number): void {
     if (Math.abs(scale - this.resolutionScale) < 0.01) return;
     this.resolutionScale = scale;
