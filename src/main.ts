@@ -30,7 +30,8 @@ import { AimLock } from './camera/aimLock';
 import { TourController } from './camera/tour';
 import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
-import { HINT, HelpPanel } from './ui/help';
+import { HINT, TOUCH_HINT, HelpPanel } from './ui/help';
+import { isTouchPrimary } from './ui/pointerKind';
 import { SupportPanel } from './ui/support';
 import { DatePanel } from './ui/datePanel';
 import { ScenarioList } from './ui/scenarioList';
@@ -571,7 +572,7 @@ const scenarioList = new ScenarioList(bodyList.column, SCENARIOS, showScenario, 
 // раздвигают её, а раскрытые разом отодвинули бы нижние кнопки за край экрана.
 eventList.onOpen(() => scenarioList.setOpen(false));
 
-if (hintElement) hintElement.textContent = HINT;
+if (hintElement) hintElement.textContent = isTouchPrimary() ? TOUCH_HINT : HINT;
 
 /** Линии орбит перестраиваются раз в модельный год: вековой дрейф медленный. */
 const ORBIT_REBUILD_INTERVAL_DAYS = 365;

@@ -68,6 +68,12 @@
       .label {
         pointer-events: auto;
         cursor: pointer;
+        /*
+         * И она же часть сцены для пальца: жест, начатый на подписи, поворачивает
+         * сцену и приближает её. Без запрета браузер забирает такой жест себе -
+         * щипок на подписи масштабировал бы страницу целиком.
+         */
+        touch-action: none;
       }
 
       /*
@@ -867,6 +873,64 @@
         white-space: nowrap;
       }
       /* Конец ползунка */
+
+      /*
+       * Узкий экран.
+       *
+       * Разметка сцены рассчитана на настольный монитор: панель в 268 пикселей
+       * и карточка тела в 300 на телефоне шириной 360 упираются в оба края
+       * сразу, а плашка показаний в левом нижнем углу оказывается под
+       * подсказкой, которая на узком экране идёт от края до края.
+       *
+       * Поэтому ширины становятся предельными, а не постоянными, и показания
+       * уходят наверх: низ экрана отдан подсказке целиком, потому что там же
+       * держат телефон и там же её читают.
+       */
+      @media (max-width: 560px) {
+        #panel { padding: 10px 10px 56px; }
+
+        .panel-list { width: min(268px, calc(100vw - 20px)); }
+        .body-card { width: min(300px, calc(100vw - 20px)); }
+
+        /* Кнопок в колонке семь, и на невысоком экране им нужно место:
+           запас тот же, что в правиле выше, но от меньшей доли высоты. */
+        .views-list { max-height: min(50vh, calc(100vh - 320px)); }
+        .bodies-list { max-height: 50vh; }
+
+        #hud {
+          top: 10px;
+          bottom: auto;
+          left: 10px;
+          padding: 8px 10px;
+          font-size: 11px;
+          line-height: 1.5;
+        }
+
+        #hint {
+          bottom: 12px;
+          padding: 8px 12px;
+          font-size: 12px;
+          max-width: calc(100vw - 20px);
+        }
+
+        .overlay { padding: 10px; }
+        .overlay-card { padding: 16px 14px 14px; }
+        .help-row { grid-template-columns: 104px 1fr; font-size: 12px; }
+        .help-columns { grid-template-columns: 1fr; }
+      }
+
+      /*
+       * Палец толще курсора, и целится он хуже. Рекомендуемая цель касания -
+       * около сорока четырёх пикселей; строки списка и кнопки в свёрнутой
+       * колонке до неё не дотягивают, и промах по соседней планете читается
+       * как «нажал, а улетело не туда».
+       */
+      @media (pointer: coarse) {
+        .bodies-toggle { padding: 11px 14px; }
+        .panel-row { padding: 11px 10px; }
+        .date-step { padding: 8px 0; }
+        .overlay-close { width: 34px; height: 34px; }
+      }
     </style>
   </head>
   <body>
