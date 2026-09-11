@@ -8,7 +8,7 @@
 [![CI](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml/badge.svg)](https://github.com/pavelmiskevich/solar-system/actions/workflows/ci.yml)
 [![Лицензия MIT](https://img.shields.io/badge/%D0%9B%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-MIT-3DA639)](LICENSE)
 [![three.js](https://img.shields.io/badge/three.js-r185-000000?logo=threedotjs&logoColor=white)](https://threejs.org/)
-[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-330%20%2B%2079-729B1B?logo=vitest&logoColor=white)](#проверка)
+[![Тесты](https://img.shields.io/badge/%D1%82%D0%B5%D1%81%D1%82%D1%8B-330%20%2B%2080-729B1B?logo=vitest&logoColor=white)](#проверка)
 [![Поддержать](https://img.shields.io/badge/%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-9B6BFF?logo=buymeacoffee&logoColor=white)](https://pay.cloudtips.ru/p/86c3292c)
 
 ![Сатурн с кольцами](docs/shots/saturn.png)
@@ -422,7 +422,7 @@ UTC ось лунной тени проходит в 5 780 км от центр�
 ```bash
 npm run typecheck   # tsc --noEmit
 npm test            # 330 юнит-тестов
-npm run e2e         # 79 сквозных тестов, Playwright + Chromium
+npm run e2e         # 80 сквозных тестов, Playwright + Chromium
 ```
 
 Юнит-тесты проверяют то, что имеет правильный ответ: положения планет
