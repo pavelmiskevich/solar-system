@@ -220,6 +220,37 @@ test.describe('сенсорное управление', () => {
     expectNoErrors(errors);
   });
 
+  test('крестик справки нажимается пальцем', async ({ page }) => {
+    // Справка показана при первом заходе и накрывает кадр целиком, так что
+    // закрыть её - первое, что человек делает с телефона. Клавиши `Esc` у него
+    // нет, и остаётся крестик.
+    const errors = await openScene(page, { keepHelp: true });
+
+    const close = page.locator('#help .overlay-close');
+    await expect(close).toBeVisible();
+    const box = (await close.boundingBox())!;
+    const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+    // Проверяется не «видно», а «достанет ли палец»: колонка кнопок лежит выше
+    // карточки, и на узком экране правый верхний угол карточки приходится ровно
+    // на эти кнопки. Крестик, который видно и нельзя нажать, читается как
+    // поломка, а узнавать об этом по таймауту ожидания незачем.
+    const cover = await page.evaluate((point) => {
+      const target = document.querySelector('#help .overlay-close');
+      const top = document.elementFromPoint(point.x, point.y);
+      if (top === target || target?.contains(top)) return null;
+      return `${top?.tagName.toLowerCase()}.${top?.className ?? ''} «${(
+        top?.textContent ?? ''
+      ).trim()}»`;
+    }, centre);
+    expect(cover, 'крестик справки перекрыт').toBeNull();
+
+    await page.touchscreen.tap(centre.x, centre.y);
+    await expect(page.locator('#help')).toHaveClass(/closed/);
+
+    expectNoErrors(errors);
+  });
+
   test('интерфейс умещается по ширине телефонного экрана', async ({ page }) => {
     const errors = await openScene(page);
 
