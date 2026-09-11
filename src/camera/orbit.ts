@@ -125,8 +125,23 @@ export class OrbitControls {
 
   /** Колесо: приближение и отдаление. Знак как у прокрутки - от себя ближе. */
   zoom(deltaY: number): void {
+    this.zoomBy(deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP);
+  }
+
+  /**
+   * Приближение непрерывным множителем - щипком двумя пальцами.
+   *
+   * Колесу хватает готового шага: щелчок у него один и тот же. У щипка шага
+   * нет вовсе - пальцы расходятся плавно, и расстояние должно идти за ними
+   * ровно во столько же раз, иначе приближение то забегает вперёд пальцев, то
+   * отстаёт от них.
+   *
+   * @param factor во сколько раз умножить расстояние до тела
+   */
+  zoomBy(factor: number): void {
     if (!this.active) return;
-    this.targetDistance *= deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+    if (!(factor > 0)) return;
+    this.targetDistance *= factor;
   }
 
   /**

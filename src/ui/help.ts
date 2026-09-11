@@ -6,6 +6,8 @@
  * отсутствия - человек пробует то, чего нет, и решает, что сломано.
  */
 
+import { isTouchPrimary } from './pointerKind';
+
 export interface HelpBinding {
   /** Клавиши или действия мыши. Несколько вариантов - через запятую в массиве. */
   keys: string[];
@@ -78,10 +80,43 @@ export const CONTROLS: HelpSection[] = [
 ];
 
 /**
+ * Управление пальцами.
+ *
+ * Отдельным разделом, а не правкой существующих: на сенсорном экране
+ * бесполезна половина таблицы выше - ни WASD, ни колеса, ни захвата мыши там
+ * нет. Раздел встаёт первым и только там, где указывают пальцем, - подсказка
+ * про щипок на настольном экране сбивала бы с толку.
+ */
+export const TOUCH_CONTROLS: HelpSection = {
+  title: 'Пальцем',
+  bindings: [
+    { keys: ['Касание по телу'], what: 'перелёт к нему' },
+    { keys: ['Касание по подписи'], what: 'то же, но попасть проще' },
+    { keys: ['Протащить'], what: 'осмотреться, а у тела - повернуть его перед камерой' },
+    { keys: ['Щипок'], what: 'ближе и дальше - пока камера у тела' },
+    { keys: ['Свайп'], what: 'во время экскурсии - предыдущая и следующая остановка' },
+    { keys: ['Кнопки справа'], what: 'тела, виды, события, справка' },
+  ],
+};
+
+/** Разделы справки для текущего устройства. */
+export function controlSections(touch: boolean): HelpSection[] {
+  return touch ? [TOUCH_CONTROLS, ...CONTROLS] : CONTROLS;
+}
+
+/**
  * Короткая строка-подсказка для новичка: три главных действия из таблицы выше.
  * Всё остальное - в справке, и незачем занимать ею экран.
  */
 export const HINT = 'Клик по телу - перелёт · Клик по небу - осмотреться · H - справка';
+
+/**
+ * То же для пальца. Клик заменён касанием, а захват мыши - щипком: из трёх
+ * действий на сенсорном экране невыполнимо ровно одно, и подменять его нужно
+ * тем, которого там больше всего не хватает.
+ */
+export const TOUCH_HINT =
+  'Касание по телу - перелёт · Протащить - осмотреться · Щипок - ближе и дальше';
 
 export class HelpPanel {
   private readonly root: HTMLElement;
@@ -137,7 +172,7 @@ export class HelpPanel {
     const columns = document.createElement('div');
     columns.className = 'help-columns';
 
-    for (const section of CONTROLS) {
+    for (const section of controlSections(isTouchPrimary())) {
       const block = document.createElement('section');
 
       const heading = document.createElement('h2');

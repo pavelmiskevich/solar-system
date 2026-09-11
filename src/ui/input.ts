@@ -9,6 +9,7 @@ import type { BodyList } from './bodyList';
 import type { HelpPanel } from './help';
 import type { LabelLayer } from './labels';
 import { pickBody, type PickCandidate } from './picking';
+import { TouchGestures } from './touchGestures';
 import type { SupportPanel } from './support';
 
 /**
@@ -250,6 +251,36 @@ function bindPointer(options: SceneInputOptions): void {
    */
   let swipeFrom: { x: number; y: number } | null = null;
 
+  /*
+   * Пальцем управляют иначе, чем мышью, и различает их не устройство, а само
+   * событие: `pointerType` у каждого свой, и ноутбук с сенсорным экраном
+   * слушается обоих.
+   *
+   * Разница в двух вещах. Осмотр: мышь для него захватывается, а палец
+   * захватить нельзя - значит, протаскивание делает то, что в свободном полёте
+   * делает захваченная мышь. И приближение: колеса на телефоне нет, вместо
+   * него щипок.
+   */
+  const gestures = new TouchGestures({
+    onDrag(dx, dy) {
+      moved += Math.abs(dx) + Math.abs(dy);
+      // У тела протаскивание поворачивает его перед камерой, в пустоте -
+      // поворачивает взгляд. Жест один и тот же, и выбор между ними тот же,
+      // что у колеса: есть тело, вокруг которого ходит камера, или нет.
+      if (orbit.isActive) orbit.drag(dx, dy, canvas.clientHeight);
+      else flight.lookBy(dx, dy);
+    },
+    onPinch(factor) {
+      // Развели пальцы - приблизились: расстояние до тела уменьшается во
+      // столько же раз, во сколько разошлись пальцы.
+      moved += Math.abs(1 - factor) * canvas.clientHeight;
+      orbit.zoomBy(1 / factor);
+    },
+  });
+
+  /** Чем начат текущий жест: у касания и у мыши разные последствия щелчка. */
+  let touchGesture = false;
+
   /**
    * Подсветка тела под курсором.
    *
@@ -258,7 +289,9 @@ function bindPointer(options: SceneInputOptions): void {
    * в центре кадра: подсвечивать там нечего, это делает сам прицел.
    */
   canvas.addEventListener('pointermove', (event) => {
-    if (flight.isLocked) {
+    // Наведение пальцем не существует: палец или касается, или его нет. Будь
+    // иначе, подсветка оставалась бы висеть на теле после касания по нему.
+    if (flight.isLocked || event.pointerType === 'touch') {
       labels.setHighlighted(null);
       canvas.style.cursor = '';
       return;
@@ -287,6 +320,8 @@ function bindPointer(options: SceneInputOptions): void {
   });
 
   canvas.addEventListener('pointerdown', (event) => {
+    touchGesture = event.pointerType === 'touch';
+
     if (tour.isActive) {
       // Пока экскурсия идёт, судьба жеста решается по движению. Свайп нужен и
       // на перелёте между остановками, где орбитального режима ещё нет, -
@@ -298,6 +333,10 @@ function bindPointer(options: SceneInputOptions): void {
       }
       tour.cancel();
     }
+
+    // Касания разбираются отдельно, ниже: у пальца своя цель - не только
+    // холст, но и подписи над ним.
+    if (event.pointerType === 'touch') return;
 
     // Захваченная мышь - это свободный полёт: там осмотр идёт движением мыши,
     // а не протаскиванием, и перехватывать его нечего.
@@ -358,6 +397,7 @@ function bindPointer(options: SceneInputOptions): void {
   const endDrag = (event: PointerEvent): void => {
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
 
+
     // Жест кончился, так и не став свайпом, - значит это был щелчок по
     // холсту, а он экскурсию обрывает, как обрывал всегда.
     if (swipeFrom) {
@@ -390,14 +430,6 @@ function bindPointer(options: SceneInputOptions): void {
    * Попали в тело - летим к нему; попали в пустоту - берём мышь и смотрим сами.
    */
   canvas.addEventListener('click', (event) => {
-    // Клик, оказавшийся концом протаскивания, не считается кликом. Проверка
-    // стоит раньше экскурсии нарочно: свайп кончается щелчком по холсту, и
-    // если обрывать её здесь, переход по остановке сразу же отменялся бы.
-    if (moved >= DRAG_THRESHOLD_PX) {
-      moved = 0;
-      return;
-    }
-
     if (tour.isActive) tour.cancel();
 
     const width = canvas.clientWidth;
@@ -423,8 +455,80 @@ function bindPointer(options: SceneInputOptions): void {
       return;
     }
 
-    flight.requestLook();
+    // Захват мыши на сенсорном экране и невозможен, и вреден: захватывать
+    // нечего, а захваченным полёт считал бы себя всерьёз - и перестал бы
+    // слушаться пальца. Касание по пустому небу там не делает ничего: осмотр
+    // и без него идёт протаскиванием.
+    if (!touchGesture) flight.requestLook();
   });
+
+  /*
+   * Жесты пальцем слушает окно, а не холст.
+   *
+   * Палец попадает не только в холст: подписи тел лежат поверх него и ловят
+   * касания сами - подпись это кнопка перелёта. На телефоне их в кадре
+   * десяток, и жест, начавшийся на подписи, пропадал бы целиком; щипку хватило
+   * бы и одного пальца на подписи, чтобы приближение не случилось вовсе.
+   *
+   * Поэтому сценой считается холст вместе с подписями над ним, а всё
+   * остальное - кнопки, списки, карточки - сценой не считается: там палец
+   * листает список, а не поворачивает камеру.
+   */
+  const isScene = (target: EventTarget | null): boolean =>
+    target === canvas || (target instanceof Element && target.closest('.label') !== null);
+
+  window.addEventListener(
+    'pointerdown',
+    (event) => {
+      // Экскурсия разбирает касание сама: по его движению она решает,
+      // перемотать себя или оборваться, и осмотру это касание не отдаётся.
+      if (event.pointerType !== 'touch' || tour.isActive || !isScene(event.target)) return;
+
+      touchGesture = true;
+      // Новый жест начинается с чистого пути: им потом отличат касание от
+      // протаскивания. Второй палец щипка путь уже накопил - его не сбрасываем.
+      if (gestures.fingers === 0) moved = 0;
+      gestures.down(event.pointerId, event.clientX, event.clientY);
+    },
+    true,
+  );
+
+  window.addEventListener(
+    'pointermove',
+    (event) => {
+      if (event.pointerType === 'touch')
+        gestures.move(event.pointerId, event.clientX, event.clientY);
+    },
+    true,
+  );
+
+  const endTouch = (event: PointerEvent): void => {
+    if (event.pointerType === 'touch') gestures.up(event.pointerId);
+  };
+
+  window.addEventListener('pointerup', endTouch, true);
+  window.addEventListener('pointercancel', endTouch, true);
+
+  /*
+   * Щелчок, оказавшийся концом жеста, щелчком не считается.
+   *
+   * Гасится он на перехвате, раньше всех остальных обработчиков, и тому две
+   * причины. Протаскивание кончается над чем попало - над подписью в том числе,
+   * а у подписи свой обработчик, и проверка внутри чужого до него не доходит:
+   * палец, повернувший сцену, уводил бы к случайному телу. И экскурсия: свайп
+   * по остановкам кончается щелчком по холсту, и обрывать её этим щелчком
+   * значило бы отменять только что сделанный переход.
+   */
+  window.addEventListener(
+    'click',
+    (event) => {
+      if (!isScene(event.target) || moved < DRAG_THRESHOLD_PX) return;
+      moved = 0;
+      event.stopPropagation();
+      event.preventDefault();
+    },
+    true,
+  );
 
   // Прицел показывается только когда мышь захвачена: без захвата целятся курсором.
   document.addEventListener('pointerlockchange', () => {

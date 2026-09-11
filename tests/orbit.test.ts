@@ -129,6 +129,63 @@ describe('приближение колесом', () => {
   });
 });
 
+describe('приближение щипком', () => {
+  it('расстояние меняется во столько же раз, во сколько разошлись пальцы', () => {
+    // Шага у щипка нет: пальцы расходятся плавно, и расстояние должно идти
+    // за ними - иначе приближение то забегает вперёд, то отстаёт.
+    const orbit = engaged(8);
+
+    orbit.zoomBy(0.5);
+    const after = settle(orbit, BODY, RADIUS);
+
+    expect(after.distanceTo(BODY)).toBeCloseTo(RADIUS * 4, 0);
+  });
+
+  it('множители складываются один за другим, как складываются шаги пальцев', () => {
+    const orbit = engaged(8);
+
+    orbit.zoomBy(0.5);
+    orbit.zoomBy(0.5);
+    const after = settle(orbit, BODY, RADIUS);
+
+    expect(after.distanceTo(BODY)).toBeCloseTo(RADIUS * 2, 0);
+  });
+
+  it('не пускает внутрь тела, как ни своди пальцы', () => {
+    const orbit = engaged(4);
+    for (let i = 0; i < 50; i += 1) orbit.zoomBy(0.5);
+
+    const out = settle(orbit, BODY, RADIUS, 20);
+
+    expect(out.distanceTo(BODY)).toBeGreaterThan(RADIUS);
+  });
+
+  it('бессмысленный множитель расстояние не трогает', () => {
+    // Ноль обратил бы расстояние в ноль, а отрицательное вывернуло бы камеру
+    // на другую сторону тела. И то и другое приходит из деления на почти
+    // сошедшиеся пальцы, и лучше не двигаться вовсе.
+    const orbit = engaged(4);
+    const before = settle(orbit, BODY, RADIUS);
+
+    orbit.zoomBy(0);
+    orbit.zoomBy(-2);
+    orbit.zoomBy(Number.NaN);
+    const after = settle(orbit, BODY, RADIUS);
+
+    expect(after.distanceTo(BODY)).toBeCloseTo(before.distanceTo(BODY), 3);
+  });
+
+  it('выключенный режим щипок не слушает', () => {
+    const orbit = engaged(4);
+    orbit.release();
+
+    orbit.zoomBy(0.5);
+
+    expect(orbit.isActive).toBe(false);
+    expect(orbit.radius).toBeCloseTo(RADIUS * 4, 3);
+  });
+});
+
 describe('выключение', () => {
   it('после release режим ничего не считает', () => {
     const orbit = engaged(4);
