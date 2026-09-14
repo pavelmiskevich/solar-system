@@ -106,6 +106,18 @@ const LORE: Readonly<Record<string, BodyLore>> = {
     moons: null,
     note: 'Обращена к Земле одной стороной: вращение синхронно с обращением.',
   },
+  phobos: {
+    temperatureC: -40,
+    atmosphere: 'нет',
+    moons: null,
+    note: 'Обходит Марс втрое быстрее, чем тот поворачивается, и восходит на западе.',
+  },
+  deimos: {
+    temperatureC: -40,
+    atmosphere: 'нет',
+    moons: null,
+    note: 'С поверхности Марса выглядит звездой: диск различим только в телескоп.',
+  },
   io: {
     temperatureC: -143,
     atmosphere: 'диоксид серы, разрежённая',
@@ -130,11 +142,47 @@ const LORE: Readonly<Record<string, BodyLore>> = {
     moons: null,
     note: 'Древнейшая поверхность в системе: кратер на кратере, без следов обновления.',
   },
+  mimas: {
+    temperatureC: -200,
+    atmosphere: 'нет',
+    moons: null,
+    note: 'Кратер Гершель занимает треть поперечника: удар был на пределе прочности.',
+  },
+  enceladus: {
+    temperatureC: -198,
+    atmosphere: 'водяной пар над гейзерами, крайне разрежённая',
+    moons: null,
+    note: 'Гейзеры южного полюса бьют в космос и питают кольцо E Сатурна.',
+  },
   titan: {
     temperatureC: -179,
     atmosphere: 'азот 95 %, метан 5 %',
     moons: null,
     note: 'Единственный спутник с плотной атмосферой; в озёрах на нём - метан.',
+  },
+  titania: {
+    temperatureC: -203,
+    atmosphere: 'нет',
+    moons: null,
+    note: 'Каньоны длиной в полторы тысячи километров: кора трескалась, остывая.',
+  },
+  oberon: {
+    temperatureC: -198,
+    atmosphere: 'нет',
+    moons: null,
+    note: 'На лимбе Вояджер снял гору высотой одиннадцать километров.',
+  },
+  triton: {
+    temperatureC: -235,
+    atmosphere: 'азот, разрежённая до сотых долей миллибара',
+    moons: null,
+    note: 'Обращается вспять: пойманное тело пояса Койпера, а не выросшее рядом.',
+  },
+  charon: {
+    temperatureC: -220,
+    atmosphere: 'нет',
+    moons: null,
+    note: 'Половина Плутона по поперечнику: они повёрнуты друг к другу одной стороной.',
   },
 };
 

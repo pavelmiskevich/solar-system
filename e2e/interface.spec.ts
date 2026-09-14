@@ -106,8 +106,10 @@ test.describe('интерфейс', () => {
     await page.keyboard.press('KeyB');
     await expect(panel).not.toHaveClass(/closed/);
 
-    // Шестнадцать тел: Солнце, восемь планет, Плутон, Луна и пять спутников.
-    await expect(page.locator('.bodies-row')).toHaveCount(16);
+    // Двадцать четыре тела: Солнце, восемь планет, Плутон и четырнадцать
+    // спутников - Луна и по одному-четыре у Марса, Юпитера, Сатурна, Урана,
+    // Нептуна и Плутона.
+    await expect(page.locator('.bodies-row')).toHaveCount(24);
     await expect(page.locator('.bodies-row .distance').first()).not.toHaveText('-');
 
     await page.keyboard.press('KeyB');

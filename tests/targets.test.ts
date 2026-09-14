@@ -15,16 +15,24 @@ describe('порядок тел в списке', () => {
       'earth',
       'moon',
       'mars',
+      'phobos',
+      'deimos',
       'jupiter',
       'io',
       'europa',
       'ganymede',
       'callisto',
       'saturn',
+      'mimas',
+      'enceladus',
       'titan',
       'uranus',
+      'titania',
+      'oberon',
       'neptune',
+      'triton',
       'pluto',
+      'charon',
     ]);
   });
 
@@ -75,6 +83,17 @@ describe('род тела', () => {
     expect(kindOf('pluto')).toBe('карликовая планета');
     expect(kindOf('ganymede')).toBe('спутник Юпитера');
     expect(kindOf('titan')).toBe('спутник Сатурна');
+  });
+
+  it('у каждого спутника назван его хозяин', () => {
+    // Род по умолчанию - «планета». Спутник, которому забыли дописать строку,
+    // молча встаёт в список планетой, и выглядит это совершенно правдоподобно:
+    // в колонке просто одной планетой больше.
+    for (const body of ALL_BODIES) {
+      if (!body.parent) continue;
+
+      expect(kindOf(body.id), `${body.id}: род не задан`).toMatch(/^спутник /);
+    }
   });
 
   it('для остальных - планета', () => {

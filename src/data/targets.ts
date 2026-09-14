@@ -16,11 +16,19 @@ const KINDS: Readonly<Record<string, string>> = {
   sun: 'звезда',
   moon: 'спутник Земли',
   pluto: 'карликовая планета',
+  phobos: 'спутник Марса',
+  deimos: 'спутник Марса',
   io: 'спутник Юпитера',
   europa: 'спутник Юпитера',
   ganymede: 'спутник Юпитера',
   callisto: 'спутник Юпитера',
+  mimas: 'спутник Сатурна',
+  enceladus: 'спутник Сатурна',
   titan: 'спутник Сатурна',
+  titania: 'спутник Урана',
+  oberon: 'спутник Урана',
+  triton: 'спутник Нептуна',
+  charon: 'спутник Плутона',
 };
 
 const DEFAULT_KIND = 'планета';
