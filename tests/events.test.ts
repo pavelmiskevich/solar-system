@@ -7,6 +7,11 @@ import {
   findRoots,
   lunarEclipses,
   oppositions,
+  PARADE_LIMITS,
+  arcSpan,
+  elongationFromSun,
+  geocentricLongitude,
+  planetParades,
   ringMaximumOpening,
   ringOpeningToEarth,
   ringPlaneCrossings,
@@ -254,5 +259,85 @@ describe('кольца Сатурна', () => {
     expect(found[0]!.value).toBeGreaterThan(26);
     expect(found[0]!.value).toBeLessThan(27.5);
     expect(iso(found[0]!.jd).slice(0, 4)).toBe('2032');
+  });
+});
+
+/**
+ * Парады планет.
+ *
+ * У «парада» нет канонического определения, поэтому оно назначено здесь и в
+ * `planetParades`: k ярких планет в одной дуге геоцентрической долготы, каждая
+ * дальше 15° от Солнца. Пределы дуги - 20° для трёх, 45° для четырёх, 60° для
+ * пяти.
+ *
+ * Проверять такое определение на себе бессмысленно, поэтому главная проверка
+ * здесь одна: сентябрь 2040 года. Это известное соединение всех пяти ярких
+ * планет в дуге меньше десяти градусов, и оно нигде в коде не записано -
+ * поиск обязан прийти к нему сам, из элементов орбит.
+ */
+describe('парады планет', () => {
+  it('находит редчайшее соединение пяти планет в сентябре 2040 года', () => {
+    const found = planetParades(jd('2040-01-01T00:00:00Z'), jd('2041-01-01T00:00:00Z'));
+    const five = found.filter((event) => event.bodies.length === 5);
+
+    expect(five).toHaveLength(1);
+    expect(iso(five[0]!.jd).slice(0, 7)).toBe('2040-09');
+    // Дуга меньше десяти градусов: пять планет умещаются в кулак вытянутой руки.
+    expect(five[0]!.value).toBeLessThan(10);
+    expect([...five[0]!.bodies].sort()).toEqual([
+      'jupiter',
+      'mars',
+      'mercury',
+      'saturn',
+      'venus',
+    ]);
+  });
+
+  it('за тридцать лет пятёрок всего две, и это не недоработка поиска', () => {
+    // Пять ярких планет действительно собираются редко. Число сторожит
+    // пределы: расширение дуги сделает парадом то, что им не является, и
+    // тогда их станет вдесятеро больше.
+    const found = planetParades(jd('2020-01-01T00:00:00Z'), jd('2050-01-01T00:00:00Z'));
+
+    expect(found.filter((event) => event.bodies.length === 5)).toHaveLength(2);
+  });
+
+  it('планета вплотную к Солнцу в парад не идёт', () => {
+    const found = planetParades(jd('2020-01-01T00:00:00Z'), jd('2050-01-01T00:00:00Z'));
+
+    for (const event of found) {
+      for (const id of event.bodies) {
+        // Ближе 15° к Солнцу планета тонет в заре, и собрание, которого никто
+        // не увидит, парадом называть нечестно.
+        expect(elongationFromSun(id, event.jd), `${id} ${iso(event.jd)}`).toBeGreaterThan(15);
+      }
+    }
+  });
+
+  it('из двух наложившихся эпизодов остаётся богатейший', () => {
+    // Четвёрка почти всегда содержит в себе тройку, и без схлопывания список
+    // показывал бы одно и то же событие дважды подряд.
+    const found = planetParades(jd('2026-09-01T00:00:00Z'), jd('2031-09-01T00:00:00Z'));
+
+    for (let i = 1; i < found.length; i += 1) {
+      const days = found[i]!.jd - found[i - 1]!.jd;
+      expect(days, `${iso(found[i - 1]!.jd)} и ${iso(found[i]!.jd)}`).toBeGreaterThan(15);
+    }
+  });
+
+  it('мера события - настоящая дуга, вмещающая всех участников', () => {
+    const found = planetParades(jd('2026-09-01T00:00:00Z'), jd('2031-09-01T00:00:00Z'));
+
+    expect(found.length).toBeGreaterThan(0);
+
+    for (const event of found) {
+      const longitudes = event.bodies.map((id) => geocentricLongitude(id, event.jd));
+      const span = arcSpan(longitudes);
+
+      // Пересчёт по долготам участников - тот же ответ, что в мере события.
+      expect(span, iso(event.jd)).toBeCloseTo(event.value, 6);
+      // И он укладывается в предел, назначенный для такого числа планет.
+      expect(event.value).toBeLessThan(PARADE_LIMITS[event.bodies.length]!);
+    }
   });
 });

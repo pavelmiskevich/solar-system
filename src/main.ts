@@ -369,9 +369,36 @@ function showScenario(id: string): void {
  * числа: у вида они записаны в коде, у события посчитаны по эфемеридам.
  */
 function showEvent(row: EventRow): void {
-  if (!showView(row.body, row.state)) return;
+  if (row.state.view.kind === 'free') {
+    showFreeView(row.state);
+  } else if (!showView(row.body, { ...row.state, view: row.state.view })) {
+    return;
+  }
+
   scenarioList.setActive(null);
   eventList.setActive(row.id);
+}
+
+/**
+ * Показать событие, у которого нет тела-цели.
+ *
+ * Такой один - парад планет: смотреть на него надо с Земли наружу, и лететь
+ * при этом некуда. Камера просто встаёт в точку и разворачивается, тем же
+ * способом, каким сцена восстанавливается по ссылке.
+ */
+function showFreeView(state: SceneState): void {
+  if (state.jd !== undefined) clock.jd = state.jd;
+  if (state.timeScale !== undefined) clock.timeScale = state.timeScale;
+  clock.paused = state.paused ?? false;
+
+  travel.cancel();
+  frame.release();
+  orbit.release();
+  aim.release();
+  applySceneState(state);
+
+  bodyList.setActive(null);
+  hintElement?.classList.add('hidden');
 }
 
 /**

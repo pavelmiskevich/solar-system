@@ -37,7 +37,8 @@ export type EventKind =
   | 'conjunction'
   | 'transit'
   | 'ring-plane-crossing'
-  | 'ring-opening';
+  | 'ring-opening'
+  | 'planet-parade';
 
 /**
  * Насколько глубоко зашло затмение.
@@ -525,6 +526,142 @@ export function ringMaximumOpening(from: number, to: number): AstronomicalEvent[
   }));
 }
 
+/* ── Парады планет ────────────────────────────────────────────────────────── */
+
+/**
+ * Парад планет.
+ *
+ * Канонического определения у него нет: в газетах парадом называют и пять
+ * планет в кулаке вытянутой руки, и четыре, размазанные по полнеба. Поэтому
+ * определение назначено здесь, и назначено проверяемым: k ярких планет в одной
+ * дуге эклиптической долготы, считая с Земли, и каждая дальше пятнадцати
+ * градусов от Солнца.
+ *
+ * Обе половины важны. Дуга отвечает за то, что планеты видны разом, а не
+ * порознь за полночи. Удаление от Солнца - за то, что они видны вообще:
+ * собрание, тонущее в заре, парадом называть нечестно, а по долготе оно
+ * выглядит теснее любого настоящего.
+ *
+ * Планет ровно пять: Уран и Нептун глазу недоступны, и их присутствие в дуге
+ * ничего не прибавляет к тому, что человек увидит.
+ */
+const BRIGHT_PLANETS = ['mercury', 'venus', 'mars', 'jupiter', 'saturn'];
+
+/** Ближе этого к Солнцу планета тонет в заре, град. */
+const PARADE_MIN_ELONGATION = 15;
+
+/**
+ * Предел дуги по числу планет, град.
+ *
+ * Чем больше планет, тем шире позволено: пятеро в двадцати градусах сходятся
+ * раз в несколько веков, и требовать от них тесноты тройки значило бы не найти
+ * ничего. Верхний предел задан полем зрения: дуга шире шестидесяти градусов не
+ * умещается в кадр, и парад пришлось бы разглядывать, вертя головой.
+ */
+export const PARADE_LIMITS: Readonly<Record<number, number>> = { 3: 20, 4: 45, 5: 60 };
+
+/**
+ * Насколько эпизоды считаются одним, сут.
+ *
+ * Четвёрка почти всегда содержит в себе тройку, и без схлопывания список
+ * показывал бы одно и то же собрание дважды подряд, отличая их только числом
+ * участников.
+ */
+const PARADE_MERGE_DAYS = 15;
+
+/** Эклиптическая долгота тела, каким его видно с Земли, град. */
+export function geocentricLongitude(id: string, jd: number): number {
+  const v = geocentric(id, jd);
+  return (((Math.atan2(v.y, v.x) * RAD) % 360) + 360) % 360;
+}
+
+/** Угловое расстояние тела от Солнца на земном небе, град. */
+export function elongationFromSun(id: string, jd: number): number {
+  return angle(geocentric(id, jd), geocentric(SUN.id, jd));
+}
+
+/**
+ * Наименьшая дуга, вмещающая все долготы, град.
+ *
+ * Считается не перебором пар, а от противного: самая широкая щель между
+ * соседними долготами - это то, что в дугу не вошло. Остальное и есть ответ.
+ */
+export function arcSpan(longitudes: readonly number[]): number {
+  if (longitudes.length < 2) return 0;
+
+  const sorted = [...longitudes].map((l) => ((l % 360) + 360) % 360).sort((a, b) => a - b);
+  let widestGap = 0;
+
+  for (let i = 0; i < sorted.length; i += 1) {
+    const next = i + 1 < sorted.length ? sorted[i + 1]! : sorted[0]! + 360;
+    widestGap = Math.max(widestGap, next - sorted[i]!);
+  }
+
+  return 360 - widestGap;
+}
+
+/** Самая тесная группа из заданного числа видимых планет на этот момент. */
+function tightestGroup(jd: number, count: number): { span: number; ids: string[] } {
+  const visible = BRIGHT_PLANETS.filter(
+    (id) => elongationFromSun(id, jd) > PARADE_MIN_ELONGATION,
+  )
+    .map((id) => ({ id, longitude: geocentricLongitude(id, jd) }))
+    .sort((a, b) => a.longitude - b.longitude);
+
+  // Меньше планет, чем требуется, - дуги нет вовсе. Полный круг здесь не
+  // «очень плохо», а «никак»: поиск минимумов не примет ровное плато за
+  // событие, и такие отрезки времени просто пропадают из рассмотрения.
+  if (visible.length < count) return { span: 360, ids: [] };
+
+  // Круг разрезается дважды, чтобы окно могло переходить через нулевую
+  // долготу: без этого группа, стоящая по обе стороны от нуля, разрывалась бы.
+  const doubled = [...visible, ...visible.map((p) => ({ ...p, longitude: p.longitude + 360 }))];
+
+  let best = 360;
+  let ids: string[] = [];
+
+  for (let i = 0; i < visible.length; i += 1) {
+    const span = doubled[i + count - 1]!.longitude - doubled[i]!.longitude;
+    if (span < best) {
+      best = span;
+      ids = doubled.slice(i, i + count).map((p) => p.id);
+    }
+  }
+
+  return { span: best, ids };
+}
+
+/**
+ * Парады на отрезке времени.
+ *
+ * Перебор идёт от пятёрки к тройке, и найденное занимает место: если тройка
+ * легла на уже найденную четвёрку, остаётся четвёрка. Иначе одно и то же
+ * собрание попадало бы в список трижды.
+ */
+export function planetParades(from: number, to: number): AstronomicalEvent[] {
+  const found: AstronomicalEvent[] = [];
+
+  for (const count of [5, 4, 3]) {
+    const span = (jd: number) => tightestGroup(jd, count).span;
+
+    for (const jd of findMinima(span, from, to, 1)) {
+      const group = tightestGroup(jd, count);
+
+      if (group.span >= PARADE_LIMITS[count]!) continue;
+      if (found.some((event) => Math.abs(event.jd - jd) <= PARADE_MERGE_DAYS)) continue;
+
+      found.push({
+        kind: 'planet-parade',
+        jd,
+        bodies: group.ids,
+        value: group.span,
+      });
+    }
+  }
+
+  return found.sort((a, b) => a.jd - b.jd);
+}
+
 /* ── Всё вместе ───────────────────────────────────────────────────────────── */
 
 /** Планеты, у которых противостояния имеют смысл: те, что дальше Земли. */
@@ -557,6 +694,7 @@ export function findEvents(from: number, to: number): AstronomicalEvent[] {
     ...lunarEclipses(from, to),
     ...ringPlaneCrossings(from, to),
     ...ringMaximumOpening(from, to),
+    ...planetParades(from, to),
   ];
 
   for (const id of OUTER) events.push(...oppositions(id, from, to));
