@@ -1,8 +1,8 @@
 import { RAD, dateFromJulianDay } from '../core/units';
-import type { BodyView, SceneState } from '../core/sceneState';
+import type { BodyView, FreeView, SceneState } from '../core/sceneState';
 import { bodyById } from './bodies';
 import type { AstronomicalEvent } from '../physics/events';
-import { findEvents, heliocentric } from '../physics/events';
+import { findEvents, geocentricLongitude, heliocentric } from '../physics/events';
 
 /**
  * События списком: как их назвать и куда за ними лететь.
@@ -32,9 +32,9 @@ export interface EventRow {
   hint: string;
   jd: number;
   date: Date;
-  /** Тело, к которому летит камера. */
+  /** Тело, к которому летит камера. У парада его нет: камера смотрит с Земли. */
   body: string;
-  state: SceneState & { view: BodyView };
+  state: SceneState & { view: BodyView | FreeView };
 }
 
 const PHASE_NAMES: Record<string, string> = {
@@ -103,9 +103,109 @@ function viewpointOf(event: AstronomicalEvent): { body: string; from: string; ra
     case 'conjunction':
       // Сближение - явление земного неба: с другой точки тела разойдутся.
       return { body: event.bodies[0] ?? 'jupiter', from: 'earth', radii: 6 };
+    case 'planet-parade':
+      // Земля названа здесь не как цель, а как место наблюдателя: вид у парада
+      // свободный, и ни расстояние, ни сторона в нём не участвуют.
+      return { body: 'earth', from: 'sun', radii: 3 };
     default:
       return { body: 'saturn', from: 'earth', radii: 4.2 };
   }
+}
+
+/* ── Парад планет ─────────────────────────────────────────────────────────── */
+
+/** Сколько планет собралось - словом, потому что цифра в названии читается хуже. */
+const PARADE_COUNTS: Record<number, string> = {
+  3: 'три в одной дуге',
+  4: 'четыре в одной дуге',
+  5: 'все пять',
+};
+
+/** Перечисление через запятую и «и» перед последним. */
+function listNames(ids: readonly string[]): string {
+  const names = ids.map(nameOf);
+  if (names.length < 2) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}`;
+}
+
+/**
+ * Вечернее небо или утреннее.
+ *
+ * Долгота растёт к востоку, а восточнее Солнца тело заходит позже него - и
+ * значит, видно вечером. Если Солнце попало внутрь дуги, планеты стоят по обе
+ * стороны от него, и ни одно из двух слов не будет правдой: тогда так и
+ * сказано, потому что разом такой парад не увидеть.
+ *
+ * Величина проверяемая, поэтому и сказана: без неё строка сообщала бы, что
+ * парад будет, но не когда на него смотреть.
+ */
+function skyOf(event: AstronomicalEvent): string {
+  const sun = geocentricLongitude('sun', event.jd);
+  const sides = event.bodies.map(
+    (id) => (((geocentricLongitude(id, event.jd) - sun + 540) % 360) - 180),
+  );
+
+  if (sides.every((side) => side > 0)) return 'вечернего неба';
+  if (sides.every((side) => side < 0)) return 'утреннего неба';
+  return 'по обе стороны от Солнца';
+}
+
+/**
+ * Откуда смотреть на парад.
+ *
+ * Единственное событие, на которое нельзя смотреть «на тело»: парад - явление
+ * земного неба, и наблюдать его надо не на Землю, а с Земли наружу. Камера
+ * встаёт рядом с Землёй, сдвинувшись в сторону дуги, и смотрит вдоль неё:
+ * Земля остаётся за спиной, а планеты - в кадре, каждая со своей подписью.
+ *
+ * Сдвиг - двадцать земных радиусов. Против ста миллионов километров до ближней
+ * планеты это ничто, и направление от такого сдвига не меняется; нужен он
+ * только затем, чтобы Земля не закрывала половину кадра.
+ */
+const PARADE_STANDOFF_RADII = 20;
+const EARTH_RADIUS_KM = 6378.137;
+
+function paradeView(event: AstronomicalEvent): FreeView {
+  const earth = heliocentric('earth', event.jd);
+
+  // Середина дуги: сумма единичных направлений на участников. У тесной группы
+  // она и есть её середина, а считать биссектрису по краям дуги значило бы
+  // выбирать, какой край первый.
+  const middle = { x: 0, y: 0, z: 0 };
+  for (const id of event.bodies) {
+    const v = towards('earth', id, event.jd);
+    const length = Math.hypot(v.x, v.y, v.z) || 1;
+    middle.x += v.x / length;
+    middle.y += v.y / length;
+    middle.z += v.z / length;
+  }
+
+  const length = Math.hypot(middle.x, middle.y, middle.z) || 1;
+  const direction = { x: middle.x / length, y: middle.y / length, z: middle.z / length };
+  const standoff = PARADE_STANDOFF_RADII * EARTH_RADIUS_KM;
+
+  // Оси сцены из эклиптических - тот же перевод, что у всей сцены.
+  const forward = { x: direction.x, y: direction.z, z: -direction.y };
+  const position: [number, number, number] = [
+    earth.x + forward.x * standoff,
+    earth.z + forward.y * standoff,
+    -earth.y + forward.z * standoff,
+  ];
+
+  /*
+   * Углы взгляда из направления.
+   *
+   * Сцена читает их порядком YXZ и смотрит вдоль −z, то есть направление
+   * получается как (−sin yaw · cos pitch, sin pitch, −cos yaw · cos pitch).
+   * Здесь эти три равенства просто обращены. Проверка на совпадение с тем, как
+   * их читает main.ts, живёт в тестах и разворачивает углы обратно.
+   */
+  return {
+    kind: 'free',
+    position,
+    yaw: Math.atan2(-forward.x, -forward.z) * RAD,
+    pitch: Math.asin(Math.max(-1, Math.min(1, forward.y))) * RAD,
+  };
 }
 
 /** Скорость времени: у затмения реальная, у медленных явлений - сутки в секунду. */
@@ -113,6 +213,18 @@ function timeScaleOf(kind: AstronomicalEvent['kind']): number {
   return kind === 'solar-eclipse' || kind === 'lunar-eclipse' || kind === 'transit'
     ? 1 / 86_400
     : 1;
+}
+
+/**
+ * Остановить ли время на событии.
+ *
+ * Затмение - процесс, и смотреть на него надо идущим. Парад - положение: за
+ * те же секунды, что тень пробегает Землю, он не меняется вовсе, зато при
+ * сутках в секунду расходится на глазах, и человек видит уже не то, что было
+ * обещано в строке.
+ */
+function pausedOn(kind: AstronomicalEvent['kind']): boolean {
+  return kind === 'planet-parade';
 }
 
 function titleOf(event: AstronomicalEvent): string {
@@ -129,6 +241,8 @@ function titleOf(event: AstronomicalEvent): string {
       return `${nameOf(event.bodies[0] ?? '')} проходит по диску Солнца`;
     case 'conjunction':
       return `Сближение: ${nameOf(event.bodies[0] ?? '')} и ${nameOf(event.bodies[1] ?? '')}`;
+    case 'planet-parade':
+      return `Парад планет: ${PARADE_COUNTS[event.bodies.length] ?? 'несколько сразу'}`;
     case 'ring-plane-crossing':
       return 'Кольца Сатурна с ребра';
     default:
@@ -175,6 +289,8 @@ function hintOf(event: AstronomicalEvent): string {
       return 'Планета видна на солнечном диске чёрной точкой';
     case 'conjunction':
       return `Между ними ${event.value < 1 ? `${(event.value * 60).toFixed(0)}′` : `${event.value.toFixed(1)}°`}`;
+    case 'planet-parade':
+      return `${listNames(event.bodies)} в дуге ${event.value.toFixed(0)}° ${skyOf(event)}`;
     case 'ring-plane-crossing':
       return 'Земля переходит на другую сторону колец, и они пропадают из виду';
     default:
@@ -185,7 +301,11 @@ function hintOf(event: AstronomicalEvent): string {
 /** Событие как строка списка и как готовое состояние сцены. */
 export function describeEvent(event: AstronomicalEvent): EventRow {
   const { body, from, radii } = viewpointOf(event);
-  const angles = anglesFromEcliptic(towards(body, from, event.jd));
+  // У парада вид свободный: камера смотрит с Земли наружу, а не на тело.
+  const view: BodyView | FreeView =
+    event.kind === 'planet-parade'
+      ? paradeView(event)
+      : { kind: 'body', body, radii, ...anglesFromEcliptic(towards(body, from, event.jd)) };
 
   return {
     id: `${event.kind}-${dateFromJulianDay(event.jd).toISOString().slice(0, 13)}`,
@@ -197,8 +317,8 @@ export function describeEvent(event: AstronomicalEvent): EventRow {
     state: {
       jd: event.jd,
       timeScale: timeScaleOf(event.kind),
-      paused: false,
-      view: { kind: 'body', body, radii, ...angles },
+      paused: pausedOn(event.kind),
+      view,
     },
   };
 }
