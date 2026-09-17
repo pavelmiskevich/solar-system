@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoErrors, openScene, pauseAt, waitForFrames } from './helpers';
+import { expectNoErrors, openScene, pauseAt, recordCaptions, waitForFrames } from './helpers';
 
 interface Point {
   x: number;
@@ -64,28 +64,7 @@ test.describe('экскурсия', () => {
     // Запоминаем все подписи, какие успеют показаться. По ним и видно, что
     // остановки пропущены: у брошенной остановки подписи не бывает вовсе -
     // она появляется только по прибытии.
-    //
-    // Считать это секундомером не годится: экскурсия идёт по модельному
-    // времени, шаг которого ограничен сверху, и на машине без видеокарты те
-    // же три перелёта занимают вдвое больше настенных секунд. Проверка,
-    // отмерявшая двадцать секунд, проходила локально и падала в CI.
-    await page.evaluate(() => {
-      const hint = document.getElementById('hint')!;
-      const seen: string[] = [];
-      (window as unknown as { captions: string[] }).captions = seen;
-
-      const record = () => {
-        const text = (hint.textContent ?? '').trim();
-        if (text && seen.at(-1) !== text) seen.push(text);
-      };
-
-      record();
-      new MutationObserver(record).observe(hint, {
-        childList: true,
-        characterData: true,
-        subtree: true,
-      });
-    });
+    const captionsSeen = await recordCaptions(page);
 
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
@@ -94,10 +73,7 @@ test.describe('экскурсия', () => {
     await expect(caption(page)).toContainText('Земля', { timeout: 60_000 });
     expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
 
-    const captions = await page.evaluate(
-      () => (window as unknown as { captions: string[] }).captions,
-    );
-    const shown = captions.join(' | ');
+    const shown = (await captionsSeen()).join(' | ');
     // Сначала - что список вообще собрался: пустой прошёл бы любые проверки
     // на отсутствие, ничего не проверив.
     expect(shown).toContain('Солнце');
@@ -146,18 +122,36 @@ test.describe('экскурсия на сенсорном экране', () => {
     await cdp.detach();
   }
 
-  test('горизонтальный свайп переводит на следующую остановку', async ({ page }) => {
+  test('горизонтальные свайпы переводят по остановкам, не досматривая их', async ({ page }) => {
     const errors = await openScene(page);
 
     await page.keyboard.press('KeyT');
     await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
 
-    const started = Date.now();
-    await drag(page, { x: 320, y: 380 }, { x: 80, y: 386 });
+    const captionsSeen = await recordCaptions(page);
 
-    await expect(caption(page)).toContainText('Меркурий', { timeout: 60_000 });
-    expect(Date.now() - started).toBeLessThan(20_000);
+    // Одного свайпа для проверки мало: к Меркурию экскурсия придёт и сама,
+    // досмотрев Солнце, и по подписям эти два случая не различить. Три свайпа
+    // подряд различаются: своим чередом за это время не пройти и одной
+    // остановки.
+    //
+    // Свайп срабатывает на первом же сдвиге сверх порога и на этом тратится,
+    // так что каждый перевод - отдельное касание, отдельный вызов drag.
+    for (let i = 0; i < 3; i += 1) {
+      await drag(page, { x: 320, y: 380 }, { x: 80, y: 386 });
+    }
+
+    await expect(caption(page)).toContainText('Земля', { timeout: 60_000 });
     expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
+
+    const shown = (await captionsSeen()).join(' | ');
+    // Сначала - что список вообще собрался: пустой прошёл бы любые проверки
+    // на отсутствие, ничего не проверив.
+    expect(shown).toContain('Солнце');
+    expect(shown).toContain('Земля');
+    // И главное: Меркурий и Венера перемотаны, а не досмотрены.
+    expect(shown).not.toContain('Меркурий');
+    expect(shown).not.toContain('Венера');
 
     expectNoErrors(errors);
   });

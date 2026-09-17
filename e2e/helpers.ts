@@ -360,3 +360,42 @@ export async function frameLight(
     [shot, radiusFraction, block] as const,
   );
 }
+
+/**
+ * Записывать подписи остановок экскурсии, пока идёт тест.
+ *
+ * Пропуск остановки нельзя поймать секундомером. Экскурсия идёт по модельному
+ * времени, а его шаг ограничен сверху (`MAX_DT` в `src/core/loop.ts`): на
+ * машине без видеокарты кадры редки, и те же восемь секунд выдержки занимают
+ * втрое больше настенных. Проверка, отмерявшая двадцать секунд, проходила
+ * локально и падала в CI.
+ *
+ * Зато у брошенной остановки не бывает подписи: она появляется только по
+ * прибытии. Поэтому смотрим не на часы, а на список показанного - остановка,
+ * которую перемотали, в нём отсутствует.
+ *
+ * Возвращает чтение списка: наблюдатель живёт в странице и копится с момента
+ * вызова.
+ */
+export async function recordCaptions(page: Page): Promise<() => Promise<string[]>> {
+  await page.evaluate(() => {
+    const hint = document.getElementById('hint')!;
+    const seen: string[] = [];
+    (window as unknown as { captions: string[] }).captions = seen;
+
+    const record = () => {
+      const text = (hint.textContent ?? '').trim();
+      if (text && seen.at(-1) !== text) seen.push(text);
+    };
+
+    record();
+    new MutationObserver(record).observe(hint, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+  });
+
+  return () =>
+    page.evaluate(() => (window as unknown as { captions: string[] }).captions);
+}
