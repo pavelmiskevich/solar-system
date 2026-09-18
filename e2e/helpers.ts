@@ -61,13 +61,62 @@ export async function openScene(page: Page, options: OpenOptions = {}): Promise<
   return errors;
 }
 
-/** Дождаться, пока сцена отрисует несколько кадров подряд. */
-export async function waitForFrames(page: Page, count = 2): Promise<void> {
-  await page.evaluate(async (frames) => {
-    for (let i = 0; i < frames; i += 1) {
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    }
-  }, count);
+/**
+ * Сколько ждём одного кадра, прежде чем считать, что они встали, миллисекунды.
+ *
+ * Срок отмеряется на кадр, а не на всё ожидание: `waitForFrames(page, 30)` на
+ * runner без видеокарты занимает секунды совершенно законно, и общий предел
+ * пришлось бы ставить такой, что заминку он бы и не поймал. Заминка выглядит
+ * иначе - кадры перестают идти совсем.
+ */
+const FRAME_STALL_MS = 10_000;
+
+/**
+ * Дождаться, пока сцена отрисует несколько кадров подряд.
+ *
+ * Со сторожем: если кадры встали, ожидание падает само и говорит, на каком
+ * кадре это случилось. Раньше срока у него не было, и любая заминка выедала
+ * весь двухминутный предел теста, после чего Playwright показывал таймаут на
+ * той строке, где его застал секундомер, - то есть прятал причину вместо того,
+ * чтобы её назвать.
+ */
+export async function waitForFrames(
+  page: Page,
+  count = 2,
+  stallMs = FRAME_STALL_MS,
+): Promise<void> {
+  const seen = await page.evaluate(
+    ([frames, limit]) =>
+      new Promise<number>((resolve) => {
+        let done = 0;
+        let watchdog = 0;
+
+        const arm = () => {
+          watchdog = window.setTimeout(() => resolve(done), limit);
+        };
+
+        const step = () => {
+          window.clearTimeout(watchdog);
+          done += 1;
+          if (done >= frames) {
+            resolve(done);
+            return;
+          }
+          arm();
+          requestAnimationFrame(step);
+        };
+
+        arm();
+        requestAnimationFrame(step);
+      }),
+    [count, stallMs] as const,
+  );
+
+  if (seen < count) {
+    throw new Error(
+      `кадры не идут: получено ${seen} из ${count}, следующего нет уже ${stallMs / 1000} с`,
+    );
+  }
 }
 
 /** Остановить время: без паузы тела уезжают между проверками. */
