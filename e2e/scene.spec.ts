@@ -128,3 +128,95 @@ test.describe('запуск сцены', () => {
     expect(au.neptune).toBeLessThan(30.4);
   });
 });
+
+/**
+ * Пояс астероидов.
+ *
+ * Юнит-тесты стерегут каталог: люки Кирквуда, облака троянцев, совпадение
+ * быстрой схемы положений с общей. Здесь проверяется другое - что рой
+ * действительно доехал до сцены и встал там, где ему положено. Разобранный
+ * каталог, из которого ничего не нарисовано, юнит-тесты прошёл бы весь.
+ */
+test.describe('малые тела', () => {
+  test('рой лежит кольцом между Марсом и Юпитером и жмётся к эклиптике', async ({ page }) => {
+    await openScene(page);
+    await pauseAt(page, '2026-08-14T12:00:00Z');
+
+    const swarm = await page.evaluate(() => {
+      const AU = 149597870.7;
+      const position = window.sim.asteroids.points.geometry.getAttribute('position');
+
+      const radii: number[] = [];
+      const flatness: number[] = [];
+      for (let i = 0; i < position.count; i += 3) {
+        const x = position.getX(i);
+        const y = position.getY(i);
+        const z = position.getZ(i);
+        const r = Math.hypot(x, y, z);
+        radii.push(r / AU);
+        // Ось Y сцены - это z эклиптики, то есть высота над её плоскостью.
+        flatness.push(Math.abs(y) / r);
+      }
+
+      radii.sort((a, b) => a - b);
+      flatness.sort((a, b) => a - b);
+
+      return {
+        count: position.count,
+        median: radii[radii.length >> 1]!,
+        ninetieth: radii[Math.floor(radii.length * 0.9)]!,
+        inner: radii.filter((r) => r < 1.7).length,
+        medianFlatness: flatness[flatness.length >> 1]!,
+      };
+    });
+
+    expect(swarm.count).toBe(4952);
+
+    // Середина роя - главный пояс: их три с половиной тысячи из пяти.
+    expect(swarm.median).toBeGreaterThan(2.2);
+    expect(swarm.median).toBeLessThan(3.2);
+    // Девяносто процентов внутри орбиты Юпитера: дальше только троянцы, и те
+    // стоят на ней самой.
+    expect(swarm.ninetieth).toBeLessThan(5.5);
+    // Околоземные заходят внутрь марсианской орбиты - без них рой был бы
+    // одним кольцом.
+    expect(swarm.inner).toBeGreaterThan(20);
+    // Пояс - диск, а не шар: половина тел не поднимается над эклиптикой выше
+    // чем на девятую долю расстояния до Солнца, это около шести градусов.
+    expect(swarm.medianFlatness).toBeLessThan(0.15);
+  });
+
+  test('рой идёт по орбитам вместе со временем сцены', async ({ page }) => {
+    await openScene(page);
+    await pauseAt(page, '2026-08-14T12:00:00Z');
+
+    const sample = () =>
+      page.evaluate(() => {
+        const position = window.sim.asteroids.points.geometry.getAttribute('position');
+        const taken: number[] = [];
+        for (let i = 0; i < 600; i += 60) {
+          taken.push(position.getX(i), position.getY(i), position.getZ(i));
+        }
+        return taken;
+      });
+
+    const before = await sample();
+    await pauseAt(page, '2027-08-14T12:00:00Z');
+    const after = await sample();
+
+    const AU = 149_597_870.7;
+    let moved = 0;
+    for (let i = 0; i < before.length; i += 3) {
+      const shift = Math.hypot(
+        after[i]! - before[i]!,
+        after[i + 1]! - before[i + 1]!,
+        after[i + 2]! - before[i + 2]!,
+      );
+      // За год тело главного пояса проходит около трети оборота: сдвиг
+      // измеряется астрономическими единицами, а не километрами.
+      if (shift > 0.5 * AU) moved += 1;
+    }
+
+    expect(moved).toBe(before.length / 3);
+  });
+});

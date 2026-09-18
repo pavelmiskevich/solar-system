@@ -12,6 +12,7 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "stars": "node scripts/fetch-stars.mjs",
+    "asteroids": "node scripts/fetch-asteroids.mjs",
     "shots": "node scripts/shots.mjs",
     "roadmap:issues": "node scripts/roadmap-to-issues.mjs"
   },

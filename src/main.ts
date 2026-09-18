@@ -17,6 +17,7 @@ import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
 import { SceneLuminance } from './lighting/sceneLuminance';
 import { OrbitLines } from './scene/orbits';
+import { AsteroidBelt } from './scene/asteroids';
 import { SatelliteOrbits } from './scene/satelliteOrbits';
 import { ConstellationLines } from './scene/constellations';
 import { MilkyWay } from './scene/milkyWay';
@@ -99,6 +100,12 @@ viewport.scene.add(satelliteOrbits.group);
 for (const { group, worldPosition } of satelliteOrbits.groups) {
   origin.track(group, worldPosition);
 }
+
+// Малые тела: пояс, троянцы Юпитера и околоземные. Группа привязана к
+// Солнцу, как и линии гелиоцентрических орбит.
+const asteroids = new AsteroidBelt();
+viewport.scene.add(asteroids.group);
+origin.track(asteroids.group, asteroids.worldPosition);
 
 // Млечный Путь добавляется раньше звёзд: он позади них и всего остального.
 const milkyWay = new MilkyWay();
@@ -755,6 +762,7 @@ const loop = new RenderLoop((dt, elapsed) => {
     system.pointLayer,
     orbits.group,
     satelliteOrbits.group,
+    asteroids.group,
   ]);
   viewport.exposure = exposure.update(dt, distanceToSun, frameLuminance);
 
@@ -770,6 +778,8 @@ const loop = new RenderLoop((dt, elapsed) => {
   milkyWay.compensateExposure(viewport.exposure);
   starfield.followCamera(viewport.camera.position);
   starfield.compensateExposure(viewport.exposure);
+  asteroids.update(clock.jd, flight.worldPosition);
+  asteroids.compensateExposure(viewport.exposure);
   constellations.followCamera(viewport.camera.position);
   constellations.compensateExposure(viewport.exposure);
   orbits.update(distanceToSun, distanceToSurface, viewport.exposure);
@@ -891,6 +901,7 @@ if (import.meta.env.DEV) {
     quality,
     tour,
     starfield,
+    asteroids,
     milkyWay,
     constellations,
     skyLabels,
