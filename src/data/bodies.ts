@@ -697,8 +697,19 @@ export const COMETS: BodyDefinition[] = [
 
 export const ALL_BODIES: BodyDefinition[] = [SUN, ...PLANETS, MOON, ...MOONS, ...COMETS];
 
+/**
+ * Тела по идентификатору.
+ *
+ * Таблица, а не перебор списка: `bodyById` сидит в самой горячей петле поиска
+ * событий - `heliocentric` зовёт его на каждое положение каждого тела на
+ * каждом шаге по времени, а шагов там десятки тысяч. Перебор двух десятков
+ * записей на каждый такой вызов стоил трети времени поиска парадов, и
+ * появление в списке двадцать пятого тела это сразу показало.
+ */
+const BY_ID = new Map(ALL_BODIES.map((body) => [body.id, body]));
+
 export function bodyById(id: string): BodyDefinition | undefined {
-  return ALL_BODIES.find((b) => b.id === id);
+  return BY_ID.get(id);
 }
 
 /**
