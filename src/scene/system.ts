@@ -13,6 +13,7 @@ import type { PerspectiveCamera } from 'three';
 
 import {
   MOON,
+  COMETS,
   MOONS,
   MOON_MASS_FRACTION,
   PLANETS,
@@ -115,7 +116,7 @@ export class SolarSystem {
   private readonly byId = new Map<string, Body>();
 
   constructor() {
-    for (const definition of [...PLANETS, MOON, ...MOONS]) {
+    for (const definition of [...PLANETS, MOON, ...MOONS, ...COMETS]) {
       const body = this.createBody(definition);
       this.bodies.push(body);
       this.byId.set(definition.id, body);

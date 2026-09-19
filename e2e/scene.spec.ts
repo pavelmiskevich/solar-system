@@ -253,3 +253,75 @@ test.describe('ожидание кадров', () => {
     expect(error!.message).toContain('получено 0 из 3');
   });
 });
+
+/**
+ * Комета Галлея.
+ *
+ * Юнит-тесты стерегут механику: период, перигелий, направление хвостов.
+ * Здесь проверяется, что всё это доехало до сцены и что хвост виден там, где
+ * ему положено, - и пропадает там, где его быть не должно.
+ */
+test.describe('комета', () => {
+  test('в перигелии у неё есть хвост, направленный от Солнца', async ({ page }) => {
+    await openScene(page);
+    await pauseAt(page, '1986-02-08T00:00:00Z');
+
+    const tails = await page.evaluate(() => {
+      const sim = window.sim;
+      const comet = sim.system.find('halley');
+      const groups = sim.cometTails.group.children;
+
+      const nucleus = comet.worldPosition;
+      const sunward = {
+        x: -nucleus.x,
+        y: -nucleus.y,
+        z: -nucleus.z,
+      };
+      const sunLength = Math.hypot(sunward.x, sunward.y, sunward.z);
+
+      return groups.map((mesh: any) => {
+        const position = mesh.geometry.getAttribute('position');
+        const last = position.count - 2;
+        // Вершины ленты заданы относительно ядра: конец хвоста - это и есть
+        // вектор от ядра наружу.
+        const tip = { x: position.getX(last), y: position.getY(last), z: position.getZ(last) };
+        const tipLength = Math.hypot(tip.x, tip.y, tip.z);
+        const cos =
+          (tip.x * sunward.x + tip.y * sunward.y + tip.z * sunward.z) / (tipLength * sunLength);
+
+        return { visible: mesh.visible, lengthKm: tipLength, towardsSun: cos };
+      });
+    });
+
+    expect(tails).toHaveLength(2);
+
+    for (const tail of tails) {
+      expect(tail.visible).toBe(true);
+      // Десятки миллионов километров: хвост длиннее, чем расстояние от Солнца
+      // до Меркурия.
+      expect(tail.lengthKm).toBeGreaterThan(1e7);
+      // Косинус с направлением на Солнце отрицателен - значит хвост смотрит
+      // прочь от него. У пылевого он не строго минус единица: тот изогнут.
+      expect(tail.towardsSun).toBeLessThan(-0.5);
+    }
+  });
+
+  test('у афелия хвоста нет вовсе', async ({ page }) => {
+    await openScene(page);
+    await pauseAt(page, '2026-09-19T00:00:00Z');
+
+    const state = await page.evaluate(() => {
+      const sim = window.sim;
+      const comet = sim.system.find('halley');
+      return {
+        sunAu: comet.worldPosition.length() / 149_597_870.7,
+        visible: sim.cometTails.group.children.map((mesh: any) => mesh.visible),
+      };
+    });
+
+    // Сейчас комета за орбитой Нептуна: тепла на испарение не хватает, и
+    // светиться нечему.
+    expect(state.sunAu).toBeGreaterThan(30);
+    expect(state.visible).toEqual([false, false]);
+  });
+});
