@@ -18,6 +18,7 @@ import { AdaptiveExposure } from './lighting/exposure';
 import { SceneLuminance } from './lighting/sceneLuminance';
 import { OrbitLines } from './scene/orbits';
 import { AsteroidBelt } from './scene/asteroids';
+import { CometTails } from './scene/comet';
 import { SatelliteOrbits } from './scene/satelliteOrbits';
 import { ConstellationLines } from './scene/constellations';
 import { MilkyWay } from './scene/milkyWay';
@@ -106,6 +107,17 @@ for (const { group, worldPosition } of satelliteOrbits.groups) {
 const asteroids = new AsteroidBelt();
 viewport.scene.add(asteroids.group);
 origin.track(asteroids.group, asteroids.worldPosition);
+
+// Хвосты кометы. Геометрия у них относительно ядра, поэтому плавающее начало
+// ведёт группу по мировому положению самой кометы, а не Солнца.
+const halley = system.find('halley');
+/** Положение камеры относительно ядра - ленты поворачиваются по нему. */
+const cometCamera = new Vector3();
+const cometTails = halley?.definition.orbit ? new CometTails(halley.definition.orbit) : null;
+if (cometTails && halley) {
+  viewport.scene.add(cometTails.group);
+  origin.track(cometTails.group, halley.worldPosition);
+}
 
 // Млечный Путь добавляется раньше звёзд: он позади них и всего остального.
 const milkyWay = new MilkyWay();
@@ -763,6 +775,7 @@ const loop = new RenderLoop((dt, elapsed) => {
     orbits.group,
     satelliteOrbits.group,
     asteroids.group,
+    ...(cometTails ? [cometTails.group] : []),
   ]);
   viewport.exposure = exposure.update(dt, distanceToSun, frameLuminance);
 
@@ -780,6 +793,11 @@ const loop = new RenderLoop((dt, elapsed) => {
   starfield.compensateExposure(viewport.exposure);
   asteroids.update(clock.jd, flight.worldPosition);
   asteroids.compensateExposure(viewport.exposure);
+
+  if (cometTails && halley) {
+    cometTails.update(clock.jd, cometCamera.subVectors(flight.worldPosition, halley.worldPosition));
+    cometTails.compensateExposure(viewport.exposure);
+  }
   constellations.followCamera(viewport.camera.position);
   constellations.compensateExposure(viewport.exposure);
   orbits.update(distanceToSun, distanceToSurface, viewport.exposure);
@@ -902,6 +920,7 @@ if (import.meta.env.DEV) {
     tour,
     starfield,
     asteroids,
+    cometTails,
     milkyWay,
     constellations,
     skyLabels,

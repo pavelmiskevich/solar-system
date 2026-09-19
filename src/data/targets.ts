@@ -1,4 +1,4 @@
-import { ALL_BODIES, PLANETS, SUN } from './bodies';
+import { ALL_BODIES, COMETS, PLANETS, SUN } from './bodies';
 
 /**
  * Справочные сведения о телах для интерфейса: как называть их род и в каком
@@ -29,6 +29,7 @@ const KINDS: Readonly<Record<string, string>> = {
   oberon: 'спутник Урана',
   triton: 'спутник Нептуна',
   charon: 'спутник Плутона',
+  halley: 'комета',
 };
 
 const DEFAULT_KIND = 'планета';
@@ -55,6 +56,11 @@ export function listOrder(): string[] {
       if (satellite.parent === planet.id) order.push(satellite.id);
     }
   }
+
+  // Кометы - в конце списка, за Плутоном: порядок в нём по удалению от
+  // Солнца, а у кометы расстояние меняется в шестьдесят раз, и место среди
+  // планет у неё было бы разное в разные годы.
+  for (const comet of COMETS) order.push(comet.id);
 
   return order;
 }

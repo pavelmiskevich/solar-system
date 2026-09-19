@@ -9,12 +9,21 @@ import {
   Vector3,
 } from 'three';
 
-import { PLANETS } from '../data/bodies';
+import { COMETS, PLANETS } from '../data/bodies';
 import { AU } from '../core/units';
 import { sampleOrbit } from '../physics/kepler';
 import { eclipticToScene } from './system';
 
 const SEGMENTS = 720;
+
+/**
+ * Чьи гелиоцентрические орбиты рисуются.
+ *
+ * Комета идёт наравне с планетами: линия орбиты - навигационная разметка, и
+ * ей всё равно, что показывать. Разница видна сразу - вытянутый эллипс
+ * поперёк всей системы рядом с почти круглыми планетными.
+ */
+const ORBITING = [...PLANETS, ...COMETS];
 
 /** Насыщенность линии орбиты в самом видном её положении. */
 export const ORBIT_OPACITY = 0.22;
@@ -107,7 +116,7 @@ export class OrbitLines {
   private readonly lines: { line: Line<BufferGeometry, ShaderMaterial>; semiMajorKm: number }[] = [];
 
   constructor(jd: number) {
-    for (const planet of PLANETS) {
+    for (const planet of ORBITING) {
       if (!planet.orbit) continue;
 
       const points = sampleOrbit(planet.orbit, jd, SEGMENTS);
@@ -155,7 +164,7 @@ export class OrbitLines {
     let index = 0;
     const scratch = new Vector3();
 
-    for (const planet of PLANETS) {
+    for (const planet of ORBITING) {
       if (!planet.orbit) continue;
       const entry = this.lines[index++];
       if (!entry) break;

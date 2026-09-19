@@ -23,7 +23,7 @@ test.describe('перелёты', () => {
     const errors = await openScene(page);
 
     await page.getByRole('button', { name: /Тела/ }).click();
-    await expect(page.locator('.bodies-row')).toHaveCount(24);
+    await expect(page.locator('.bodies-row')).toHaveCount(25);
 
     // Точное совпадение имени: «Юпитер» встречается ещё и в подписи спутников.
     await page.locator('.bodies-row .name').filter({ hasText: /^Юпитер$/ }).click();
