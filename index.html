@@ -692,7 +692,44 @@
        * месте числа спутников у Луны читался бы как «ноль».
        */
       .body-card-row.hidden,
+      .body-card-views.hidden,
       .body-card-note.hidden { display: none; }
+
+      /*
+       * Приглашение в готовые виды у кометы без хвоста. Кнопки выглядят
+       * ссылками, а не строками списка: это подсказка внутри справки, и
+       * тяжёлые плашки перетянули бы внимание с самих величин.
+       */
+      .body-card-views {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid rgba(150, 180, 255, 0.12);
+        font-size: 11px;
+        line-height: 1.45;
+        color: var(--ui-dim);
+      }
+
+      .body-card-views button {
+        display: block;
+        margin-top: 3px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--ui-fg);
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        text-decoration: underline rgba(150, 180, 255, 0.45);
+        text-underline-offset: 3px;
+      }
+
+      .body-card-views button:hover,
+      .body-card-views button:focus-visible {
+        color: #cfe0ff;
+        text-decoration-color: rgba(150, 180, 255, 0.9);
+      }
+
+      .body-card-views button:focus-visible { outline: 1px solid rgba(150, 180, 255, 0.6); outline-offset: 2px; }
 
       .body-card-note {
         margin-top: 8px;

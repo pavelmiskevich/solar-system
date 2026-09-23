@@ -1,6 +1,10 @@
+import { AU } from '../core/units';
 import { bodyFacts } from '../data/bodyFacts';
 import { bodyLore } from '../data/bodyLore';
-import { bodyById } from '../data/bodies';
+import { COMETS, bodyById } from '../data/bodies';
+import { scenarioById, type Scenario } from '../data/scenarios';
+import { TAIL_CUTOFF_AU, activityAt } from '../physics/cometTail';
+import { ZERO_CELSIUS_K, equilibriumTemperatureK } from '../physics/temperature';
 import { formatDistance } from './distanceUnits';
 import { makeUnitToggle } from './hud';
 import { superscript } from './superscript';
@@ -71,6 +75,73 @@ export function formatRelative(value: number, unit: string): string {
   return `${value.toFixed(2)} ${unit}`;
 }
 
+/**
+ * Готовые виды, где у кометы виден хвост.
+ *
+ * Вдали от Солнца комета - голое тёмное ядро, и зритель, прилетевший к ней в
+ * сегодняшнюю дату, хвоста не увидит. Объяснить это мало: карточка должна
+ * ещё сказать, куда смотреть. Виды перечислены здесь, а не выводятся из
+ * списка: летят они к Солнцу, а не к комете, и связь с ней есть только в
+ * замысле вида.
+ */
+const COMET_VIEWS: Readonly<Record<string, readonly string[]>> = {
+  halley: ['halley-1986', 'halley-1910'],
+};
+
+/** Строки карточки, которые у кометы зависят от расстояния до Солнца. */
+export interface CometRows {
+  temperature: string;
+  atmosphere: string;
+  tail: string;
+  /** Куда позвать за хвостом; пусто, когда хвост и так на экране. */
+  views: readonly Scenario[];
+}
+
+/**
+ * Строки кометы на данном расстоянии от Солнца; null - тело не комета.
+ *
+ * Хвост, кома и температура у кометы живые: у афелия она тёмная глыба при
+ * минус двухстах двадцати, у перигелия - горячее ядро в облаке пара. Одно
+ * справочное число на весь оборот было бы верно в одной точке орбиты, и
+ * карточка, показавшая кому рядом с голым ядром, читалась как поломка сцены.
+ *
+ * Деятельность берётся из `activityAt` - той же, по которой сцена строит
+ * хвост, - чтобы карточка объясняла ровно тот кадр, что на экране.
+ */
+export function cometRows(id: string, sunDistanceKm: number): CometRows | null {
+  const comet = COMETS.find((body) => body.id === id);
+  if (!comet?.orbit) return null;
+
+  const distanceAu = sunDistanceKm / AU;
+  const activity = activityAt(distanceAu, comet.orbit.a * (1 - comet.orbit.e));
+  const temperature = formatTemperature(
+    equilibriumTemperatureK(distanceAu, comet.albedo) - ZERO_CELSIUS_K,
+  );
+
+  if (activity === 0) {
+    return {
+      temperature,
+      atmosphere: 'нет: без испарения нет и комы',
+      tail: `нет: дальше ${TAIL_CUTOFF_AU} а.е. лёд не испаряется`,
+      views: (COMET_VIEWS[id] ?? [])
+        .map((view) => scenarioById(view))
+        .filter((view): view is Scenario => view !== undefined),
+    };
+  }
+
+  // Доля от перигелия, а не просто «есть»: у самого порога испаряется так
+  // мало, что хвоста на экране почти не видно, и голое «есть» спорило бы с
+  // кадром так же, как прежнее молчание. Меньше процента не округляется до
+  // нуля - «есть: 0 %» читалось бы как противоречие.
+  const share = Math.round(activity * 100);
+  return {
+    temperature,
+    atmosphere: bodyLore(id)?.atmosphere ?? '-',
+    tail: `есть: ${share < 1 ? 'меньше 1' : share} % от силы в перигелии`,
+    views: [],
+  };
+}
+
 export interface CardSource {
   readonly id: string;
   readonly name: string;
@@ -93,6 +164,7 @@ const ROWS = [
   'масса',
   'температура',
   'атмосфера',
+  'хвост',
   'спутников',
   'наклон оси',
   'кольца к Солнцу',
@@ -116,6 +188,10 @@ export class BodyCard {
   private readonly title: HTMLElement;
   private readonly kind: HTMLElement;
   private readonly note: HTMLElement;
+  private readonly views: HTMLElement;
+  private readonly viewList: HTMLElement;
+  /** Какие виды сейчас в приглашении: перестраивать его трижды в секунду незачем. */
+  private shownViews = '';
   /** Строка целиком - её приходится прятать там, где величины не существует. */
   private readonly lines = new Map<RowLabel, HTMLElement>();
   private readonly rows = new Map<RowLabel, HTMLElement>();
@@ -123,7 +199,14 @@ export class BodyCard {
   private source: CardSource | null = null;
   private age = 0;
 
-  constructor(container: HTMLElement) {
+  /**
+   * @param showView открыть готовый вид по его id - карточка кометы зовёт
+   *   туда, где у неё виден хвост
+   */
+  constructor(
+    container: HTMLElement,
+    private readonly showView: (id: string) => void,
+  ) {
     this.root = document.createElement('div');
     this.root.className = 'body-card hidden';
 
@@ -154,6 +237,16 @@ export class BodyCard {
       this.lines.set(label, row);
     }
 
+    // Ссылка на вид, а не только его название: найти «Комету Галлея в
+    // перигелии» в списке из дюжины видов человек сможет и сам, но не
+    // догадается, что искать её надо именно там.
+    this.views = document.createElement('div');
+    this.views.className = 'body-card-views hidden';
+    this.views.textContent = 'Хвост во всю длину - в готовых видах:';
+    this.viewList = document.createElement('div');
+    this.views.appendChild(this.viewList);
+    this.root.appendChild(this.views);
+
     this.note = document.createElement('div');
     this.note.className = 'body-card-note';
     this.root.appendChild(this.note);
@@ -183,7 +276,10 @@ export class BodyCard {
     this.set('оборот', formatOrbitalPeriod(facts.orbitalPeriodDays));
 
     const lore = bodyLore(source.id);
-    this.set('температура', lore ? formatTemperature(lore.temperatureC) : '-');
+    // У кометы справочной температуры нет, и обе строки заполнит update():
+    // там они считаются от расстояния до Солнца.
+    const temperature = lore?.temperatureC ?? null;
+    this.set('температура', temperature === null ? '-' : formatTemperature(temperature));
     this.set('атмосфера', lore?.atmosphere ?? '-');
 
     // У Солнца и у спутников своих спутников нет, и прочерк здесь читался бы
@@ -218,6 +314,37 @@ export class BodyCard {
     const rings = this.source.ringSunElevationDeg();
     this.showRow('кольца к Солнцу', rings !== null);
     if (rings !== null) this.set('кольца к Солнцу', `${rings.toFixed(1)}°`);
+
+    // Комета вдали от Солнца - тёмная глыба без хвоста, и сцена в этом права.
+    // Та же беда, что с кольцами: без объяснения верный кадр читается как
+    // непрорисованная планета.
+    const comet = cometRows(this.source.id, Math.max(this.source.distanceToSun(), 0));
+    this.showRow('хвост', comet !== null);
+    this.showViews(comet?.views ?? []);
+    if (!comet) return;
+
+    this.set('температура', comet.temperature);
+    this.set('атмосфера', comet.atmosphere);
+    this.set('хвост', comet.tail);
+  }
+
+  private showViews(views: readonly Scenario[]): void {
+    const ids = views.map((view) => view.id).join(' ');
+    this.views.classList.toggle('hidden', views.length === 0);
+    if (ids === this.shownViews) return;
+
+    this.shownViews = ids;
+    this.viewList.replaceChildren(
+      ...views.map((view) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.view = view.id;
+        button.textContent = view.name;
+        button.title = view.hint;
+        button.addEventListener('click', () => this.showView(view.id));
+        return button;
+      }),
+    );
   }
 
   private set(label: RowLabel, text: string): void {
