@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoErrors, openScene, pauseAt, recordCaptions, waitForFrames } from './helpers';
+import {
+  expectNoErrors,
+  openScene,
+  pauseAt,
+  recordCaptions,
+  waitForArrival,
+  waitForFrames,
+} from './helpers';
 
 interface Point {
   x: number;
@@ -87,6 +94,126 @@ test.describe('экскурсия', () => {
     await page.keyboard.press('ArrowLeft');
     await expect(caption(page)).toContainText('Венера', { timeout: 60_000 });
 
+    expectNoErrors(errors);
+  });
+});
+
+/**
+ * Выбор зрителя кончает экскурсию.
+ *
+ * Всё начинается с первой остановки: там экскурсия уже рассказывает и
+ * поворачивает тело сама, и именно оттуда она потом уводит камеру к
+ * следующей, если её не остановить.
+ */
+test.describe('экскурсия уступает зрителю', () => {
+  async function startAtSun(page: Page): Promise<void> {
+    await page.keyboard.press('KeyT');
+    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
+  }
+
+  /** Экскурсия кончилась вся: и в сцене, и на экране. */
+  async function expectTourOver(page: Page): Promise<void> {
+    await expect
+      .poll(() => page.evaluate(() => window.sim.tour.isActive))
+      .toBe(false);
+    await expect(page.locator('#hint')).toHaveClass(/hidden/);
+    await expect(page.getByRole('button', { name: 'Экскурсия ▶' })).toBeVisible();
+  }
+
+  /**
+   * Камера стоит у выбранного тела и никуда не собирается.
+   *
+   * Одного прибытия мало: экскурсия, оставшись жить, дала бы долететь и
+   * увела бы камеру позже, досмотрев свою остановку. Поэтому после прибытия
+   * ещё три десятка кадров, и за них никто не должен начать новый перелёт.
+   */
+  async function expectStaysAt(page: Page, id: string): Promise<void> {
+    await waitForArrival(page, id);
+    await waitForFrames(page, 30);
+    expect(
+      await page.evaluate(() => ({
+        travel: window.sim.travel.isActive,
+        frame: window.sim.frame.targetId,
+      })),
+    ).toEqual({ travel: false, frame: id });
+  }
+
+  test('выбор тела в списке', async ({ page }) => {
+    const errors = await openScene(page);
+    await startAtSun(page);
+
+    await page.getByRole('button', { name: 'Тела ☰' }).click();
+    await page
+      .locator('.bodies-row')
+      .filter({ has: page.locator('.name', { hasText: /^Нептун$/ }) })
+      .click();
+
+    await expectTourOver(page);
+    await expectStaysAt(page, 'neptune');
+    expectNoErrors(errors);
+  });
+
+  test('выбор тела на перелёте к остановке', async ({ page }) => {
+    const errors = await openScene(page);
+
+    // Список открыт заранее: перелёт к Солнцу длится секунды, и тратить их
+    // на кнопку незачем.
+    await page.getByRole('button', { name: 'Тела ☰' }).click();
+
+    // Сразу после запуска экскурсия летит к Солнцу. Её отмена обрывает
+    // перелёт - и не должна оборвать тот, что заказал зритель.
+    await page.keyboard.press('KeyT');
+    await page.waitForFunction(() => window.sim.travel.targetId === 'sun');
+
+    await page
+      .locator('.bodies-row')
+      .filter({ has: page.locator('.name', { hasText: /^Марс$/ }) })
+      .click();
+
+    await expectTourOver(page);
+    await expectStaysAt(page, 'mars');
+    expectNoErrors(errors);
+  });
+
+  test('выбор готового вида', async ({ page }) => {
+    const errors = await openScene(page);
+    await startAtSun(page);
+
+    await page.getByRole('button', { name: /Виды/ }).click();
+    await page.locator('[data-scenario="uranus-tilt"]').click();
+
+    await expectTourOver(page);
+    await expectStaysAt(page, 'uranus');
+    expectNoErrors(errors);
+  });
+
+  test('выбор события', async ({ page }) => {
+    const errors = await openScene(page);
+    await startAtSun(page);
+
+    await page.keyboard.press('KeyE');
+    const eclipse = page.locator('[data-event^="solar-eclipse"]').first();
+    await expect(eclipse).toBeVisible({ timeout: 20_000 });
+    await eclipse.click();
+
+    await expectTourOver(page);
+    await expectStaysAt(page, 'earth');
+    expectNoErrors(errors);
+  });
+
+  test('протаскивание мышью поворачивает тело, а не переводит остановку', async ({ page }) => {
+    const errors = await openScene(page);
+    await startAtSun(page);
+
+    // Движение горизонтальное и далеко за порогом свайпа: пальцем такое
+    // перевело бы экскурсию к Меркурию. Мышью это осмотр.
+    await page.mouse.move(450, 300);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i += 1) await page.mouse.move(450 - i * 25, 302);
+    await page.mouse.up();
+
+    await expectTourOver(page);
+    await expectStaysAt(page, 'sun');
     expectNoErrors(errors);
   });
 });
