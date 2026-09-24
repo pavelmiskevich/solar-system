@@ -126,12 +126,17 @@ test.describe('интерфейс', () => {
    *
    * Пороги - сколько строк влезает под восемь кнопок колонки: на 657 это
    * четыре с лишним, и больше не выйдет, пока кнопок столько же.
+   *
+   * На 900 места хватает обоим, и карточка обязана влезть целиком, без
+   * прокрутки: список уступает первым. Однажды он уступал не первым, а
+   * наравне, и карточка теряла последние строки вместе с приметой тела.
    */
   const expected = [
-    { height: 768, alone: 7, withCard: 3 },
-    { height: 657, alone: 4, withCard: 2 },
+    { height: 900, alone: 9, withCard: 3, cardWhole: true },
+    { height: 768, alone: 7, withCard: 3, cardWhole: false },
+    { height: 657, alone: 4, withCard: 2, cardWhole: false },
   ];
-  for (const { height, alone, withCard } of expected) {
+  for (const { height, alone, withCard, cardWhole } of expected) {
     test(`список тел на экране 1366x${height} показывает несколько строк`, async ({ page }) => {
       await page.setViewportSize({ width: 1366, height });
       const errors = await openScene(page);
@@ -159,6 +164,15 @@ test.describe('интерфейс', () => {
       expect(after.rows, `тело выбрано, видно ${after.px} px`).toBeGreaterThanOrEqual(withCard);
       const box = (await card.boundingBox())!;
       expect(box.y + box.height, 'карточка должна быть в кадре').toBeLessThanOrEqual(height);
+      if (cardWhole) {
+        const { scroll, client } = await card.evaluate((element) => ({
+          scroll: element.scrollHeight,
+          client: element.clientHeight,
+        }));
+        expect(scroll, `карточка прокручивается: ${scroll} px в окне ${client}`).toBeLessThanOrEqual(
+          client,
+        );
+      }
 
       expectNoErrors(errors);
     });
