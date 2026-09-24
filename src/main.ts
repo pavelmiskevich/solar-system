@@ -203,7 +203,7 @@ const travel = new TravelController();
 const frame = new ReferenceFrame();
 const aim = new AimLock();
 const orbit = new OrbitControls();
-const tour = new TourController(travel, orbit, travelTo, (text) => {
+const tour = new TourController(travel, orbit, flyTo, (text) => {
   if (hintElement) {
     if (text) {
       hintElement.textContent = text;
@@ -214,7 +214,25 @@ const tour = new TourController(travel, orbit, travelTo, (text) => {
   }
 });
 
+/**
+ * Перелёт к телу, выбранному зрителем.
+ *
+ * Выбор - это зритель взял управление на себя, и экскурсия на этом кончается:
+ * иначе она досмотрела бы свою остановку и увела камеру от того, что он
+ * выбрал. Кончается она раньше, чем начнётся перелёт: так её отмена гасит
+ * только её собственный перелёт, а не тот, что заказан сейчас.
+ *
+ * Сама экскурсия летает через `flyTo`, а не сюда, - иначе она обрывала бы
+ * себя на первой же остановке. Всем остальным, кто ведёт камеру к телу по
+ * щелчку человека, нужна именно эта функция, и поэтому у неё короткое имя.
+ */
 function travelTo(id: string): void {
+  tour.cancel();
+  flyTo(id);
+}
+
+/** Перелёт к телу, ничего не знающий о том, кто его заказал. */
+function flyTo(id: string): void {
   const target = findTarget(id);
   if (!target) return;
 
@@ -375,6 +393,8 @@ function showScenario(id: string): void {
   const scenario = scenarioById(id);
   if (!scenario) return;
 
+  // Вид выбирает зритель - как и тело, см. travelTo.
+  tour.cancel();
   if (!showView(scenario.body, scenario.state)) return;
   scenarioList.setActive(id);
   eventList.setActive(null);
@@ -388,6 +408,8 @@ function showScenario(id: string): void {
  * числа: у вида они записаны в коде, у события посчитаны по эфемеридам.
  */
 function showEvent(row: EventRow): void {
+  // Событие выбирает зритель - как и тело, см. travelTo.
+  tour.cancel();
   if (row.state.view.kind === 'free') {
     showFreeView(row.state);
   } else if (!showView(row.body, { ...row.state, view: row.state.view })) {
