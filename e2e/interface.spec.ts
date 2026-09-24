@@ -169,7 +169,62 @@ test.describe('интерфейс', () => {
     expect(shown.join(' | ')).not.toContain('спутников');
     // По той же причине убрана и строка о кольцах: их у Луны нет.
     expect(shown.join(' | ')).not.toContain('кольца');
+    // И строка о хвосте: она только у комет.
+    expect(shown.join(' | ')).not.toContain('хвост');
+    await expect(card.locator('.body-card-views')).toBeHidden();
     await expect(card.locator('.body-card-note')).toContainText('одной стороной');
+  });
+
+  test('карточка кометы вдали от Солнца объясняет, почему нет хвоста', async ({ page }) => {
+    await openScene(page);
+    // Сентябрь 2026 года: Галлея за афелием, в 35 а.е. от Солнца. Хвоста в
+    // сцене нет, и это верно - но без слова в карточке голое тёмное ядро
+    // читается как непрорисованная планета.
+    await pauseAt(page, '2026-09-19T00:00:00Z');
+    // Долететь не нужно: карточка показывает тело, к которому летим, а строки
+    // кометы зависят от её расстояния до Солнца, не до камеры. Перелёт на
+    // 35 а.е. в программном растеризаторе съел бы почти весь срок теста.
+    await page.evaluate(() => window.sim.travelTo('halley'));
+
+    const card = page.locator('.body-card');
+    await expect(card.locator('.body-card-header b')).toHaveText('Комета Галлея');
+
+    const value = (label: string) =>
+      card.locator('.body-card-row:not(.hidden)', { hasText: label }).locator('.value');
+    await expect(value('хвост')).toHaveText(/^нет: дальше 3 а\.е\./);
+    // Кома и перигелийная жара здесь были бы неправдой: испаряться нечему.
+    await expect(value('атмосфера')).toHaveText(/^нет/);
+    await expect(value('температура')).toHaveText(/^−22\d °C$/);
+
+    // Карточка зовёт туда, где хвост есть, и зовёт делом, а не словом.
+    const views = card.locator('.body-card-views');
+    await expect(views).toBeVisible();
+    await expect(views.locator('button')).toHaveText([
+      'Комета Галлея в перигелии',
+      'Комета Галлея: приход 1910 года',
+    ]);
+
+    await views.locator('[data-view="halley-1986"]').click();
+    await expect(page.locator('[data-scenario="halley-1986"]')).toHaveClass(/active/);
+    const year = await page.evaluate(() => window.sim.clock.date.getUTCFullYear());
+    expect(year).toBe(1986);
+  });
+
+  test('карточка кометы в перигелии показывает хвост и кому', async ({ page }) => {
+    await openScene(page);
+    await pauseAt(page, '1986-02-08T00:00:00Z');
+    await page.evaluate(() => window.sim.travelTo('halley'));
+
+    const card = page.locator('.body-card');
+    await expect(card.locator('.body-card-header b')).toHaveText('Комета Галлея');
+
+    const value = (label: string) =>
+      card.locator('.body-card-row:not(.hidden)', { hasText: label }).locator('.value');
+    await expect(value('хвост')).toHaveText(/^есть/);
+    await expect(value('атмосфера')).toContainText('кома');
+    await expect(value('температура')).toHaveText(/^\+\d+ °C$/);
+    // Хвост и так на экране - звать за ним некуда.
+    await expect(card.locator('.body-card-views')).toBeHidden();
   });
 
   test('щелчок по расстоянию меняет единицы во всех местах сразу', async ({ page }) => {

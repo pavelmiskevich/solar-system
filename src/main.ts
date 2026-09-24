@@ -523,7 +523,7 @@ const bodyList = new BodyList(
  * Карточка тела живёт в той же колонке, что и список, и показывает то тело,
  * к которому летим или рядом с которым стоим.
  */
-const bodyCard = new BodyCard(bodyList.column);
+const bodyCard = new BodyCard(bodyList.column, showScenario);
 
 function cardSourceFor(id: string | null): CardSource | null {
   const target = id ? findTarget(id) : undefined;

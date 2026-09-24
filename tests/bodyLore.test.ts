@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ALL_BODIES } from '../src/data/bodies';
+import { ALL_BODIES, COMETS } from '../src/data/bodies';
 import { bodiesWithoutLore, bodyLore } from '../src/data/bodyLore';
 import { formatTemperature } from '../src/ui/bodyCard';
 
@@ -12,10 +12,18 @@ describe('bodyLore', () => {
   });
 
   it('у каждого тела заполнены все поля карточки', () => {
+    const comets = new Set(COMETS.map((comet) => comet.id));
+
     for (const body of ALL_BODIES) {
       const lore = bodyLore(body.id)!;
 
-      expect(Number.isFinite(lore.temperatureC), body.id).toBe(true);
+      // У кометы справочной температуры нет: она меняется с расстоянием до
+      // Солнца, и карточка считает её сама. У остальных число обязано быть.
+      if (comets.has(body.id)) {
+        expect(lore.temperatureC, body.id).toBeNull();
+      } else {
+        expect(Number.isFinite(lore.temperatureC), body.id).toBe(true);
+      }
       expect(lore.atmosphere.length, body.id).toBeGreaterThan(0);
       expect(lore.note.length, body.id).toBeGreaterThan(0);
       // Примета - предложение, а не ярлык: с большой буквы и с точкой.
@@ -38,14 +46,14 @@ describe('bodyLore', () => {
 
   it('температуры не спорят со здравым смыслом', () => {
     // Венера горячее Меркурия, хотя дальше от Солнца: парниковый эффект.
-    expect(bodyLore('venus')!.temperatureC).toBeGreaterThan(bodyLore('mercury')!.temperatureC);
+    expect(bodyLore('venus')!.temperatureC).toBeGreaterThan(bodyLore('mercury')!.temperatureC!);
     // Дальше от Солнца - холоднее, у планет это выдерживается подряд.
     const order = ['earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
     for (let i = 1; i < order.length; i += 1) {
       expect(
         bodyLore(order[i]!)!.temperatureC,
         `${order[i]} холоднее ${order[i - 1]}`,
-      ).toBeLessThan(bodyLore(order[i - 1]!)!.temperatureC);
+      ).toBeLessThan(bodyLore(order[i - 1]!)!.temperatureC!);
     }
   });
 });
