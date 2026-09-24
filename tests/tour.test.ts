@@ -12,9 +12,15 @@ import type { TravelController } from '../src/camera/travel';
 class FakeTravel {
   active = false;
   cancelled = 0;
+  /** К чему летим: экскурсии важно, свой это перелёт или заказанный зрителем. */
+  target: string | null = null;
 
   get isActive() {
     return this.active;
+  }
+
+  get targetId() {
+    return this.active ? this.target : null;
   }
 
   cancel() {
@@ -56,6 +62,7 @@ function rig(): Rig {
     (id) => {
       visited.push(id);
       travel.active = true;
+      travel.target = id;
       orbit.active = false;
     },
     (text) => captions.push(text),
@@ -115,6 +122,22 @@ describe('экскурсия', () => {
     expect(r.tour.isActive).toBe(false);
     expect(r.travel.cancelled).toBe(1);
     expect(r.captions.at(-1)).toBeNull();
+  });
+
+  it('прерванная выбором зрителя, не обрывает его перелёт', () => {
+    const r = rig();
+    r.tour.start();
+    wait(r);
+    expect(r.travel.targetId).toBe('sun');
+
+    // Зритель выбрал Нептун, пока экскурсия летела к Солнцу: перелёт уже
+    // его, и отмена экскурсии, пришедшая следом, трогать его не вправе.
+    r.travel.target = 'neptune';
+    r.tour.cancel();
+
+    expect(r.tour.isActive).toBe(false);
+    expect(r.travel.cancelled).toBe(0);
+    expect(r.travel.targetId).toBe('neptune');
   });
 
   it('не зависает, если перелёт так и не кончился', () => {
