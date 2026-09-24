@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { openScene, pauseAt, waitForArrival, waitForFrames } from './helpers';
+import { expectNoErrors, openScene, pauseAt, waitForArrival, waitForFrames } from './helpers';
 
 /**
  * Интерфейс: справка, список тел, карточка, время, размеры, подписи.
@@ -115,6 +115,54 @@ test.describe('интерфейс', () => {
     await page.keyboard.press('KeyB');
     await expect(panel).toHaveClass(/closed/);
   });
+
+  /*
+   * Ноутбучный экран: 1366x768, а за вычетом вкладок и адресной строки около
+   * 657. Колонка кнопок на таком экране не влезает целиком, и всё лишнее
+   * флекс вычитает из единственного, что умеет сжиматься, - из списка тел.
+   * Однажды список сжался так до одной строки: спрятанная карточка тела
+   * держала под ним 269 пикселей пустоты, а видимая, не умея сжиматься,
+   * оставляла ему меньше строки.
+   *
+   * Пороги - сколько строк влезает под восемь кнопок колонки: на 657 это
+   * четыре с лишним, и больше не выйдет, пока кнопок столько же.
+   */
+  const expected = [
+    { height: 768, alone: 7, withCard: 3 },
+    { height: 657, alone: 4, withCard: 2 },
+  ];
+  for (const { height, alone, withCard } of expected) {
+    test(`список тел на экране 1366x${height} показывает несколько строк`, async ({ page }) => {
+      await page.setViewportSize({ width: 1366, height });
+      const errors = await openScene(page);
+
+      await page.keyboard.press('KeyB');
+      const list = page.locator('.bodies-list');
+      await expect(list).toBeVisible();
+
+      const visibleRows = () =>
+        list.evaluate((element) => {
+          const row = element.querySelector('.bodies-row')!.getBoundingClientRect().height;
+          return { px: element.clientHeight, rows: Math.floor(element.clientHeight / row) };
+        });
+
+      const before = await visibleRows();
+      expect(before.rows, `тело не выбрано, видно ${before.px} px`).toBeGreaterThanOrEqual(alone);
+
+      // Выбранное тело выводит под списком карточку, и список обязан остаться
+      // списком: следующее тело выбирают из него же.
+      await list.locator('.bodies-row').nth(1).click();
+      const card = page.locator('.body-card');
+      await expect(card.locator('.body-card-header b')).toHaveText('Меркурий');
+
+      const after = await visibleRows();
+      expect(after.rows, `тело выбрано, видно ${after.px} px`).toBeGreaterThanOrEqual(withCard);
+      const box = (await card.boundingBox())!;
+      expect(box.y + box.height, 'карточка должна быть в кадре').toBeLessThanOrEqual(height);
+
+      expectNoErrors(errors);
+    });
+  }
 
   test('карточка тела показывает справочные величины', async ({ page }) => {
     await openScene(page);
