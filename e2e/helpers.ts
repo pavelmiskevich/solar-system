@@ -72,6 +72,12 @@ export async function openScene(page: Page, options: OpenOptions = {}): Promise<
 const FRAME_STALL_MS = 10_000;
 
 /**
+ * Сколько сверх самого долгого законного ожидания кадров даём странице на
+ * ответ, миллисекунды.
+ */
+const PAGE_REPLY_MARGIN_MS = 5_000;
+
+/**
  * Дождаться, пока сцена отрисует несколько кадров подряд.
  *
  * Со сторожем: если кадры встали, ожидание падает само и говорит, на каком
@@ -79,13 +85,20 @@ const FRAME_STALL_MS = 10_000;
  * весь двухминутный предел теста, после чего Playwright показывал таймаут на
  * той строке, где его застал секундомер, - то есть прятал причину вместо того,
  * чтобы её назвать.
+ *
+ * Сторожей два. Первый живёт в странице и ловит кадры, которые перестали
+ * идти. Но в задаче #100 его таймер не сработал ни разу: встали не одни кадры,
+ * а весь главный поток страницы, и `setTimeout` там ждал так же, как
+ * `requestAnimationFrame`. Поэтому второй сторож стоит на стороне теста, и
+ * падая, он говорит, на сколько опоздал его собственный таймер. Опоздание в
+ * секунды значит, что задыхается уже вся машина, а не одна страница.
  */
 export async function waitForFrames(
   page: Page,
   count = 2,
   stallMs = FRAME_STALL_MS,
 ): Promise<void> {
-  const seen = await page.evaluate(
+  const reply = page.evaluate(
     ([frames, limit]) =>
       new Promise<number>((resolve) => {
         let done = 0;
@@ -111,6 +124,32 @@ export async function waitForFrames(
       }),
     [count, stallMs] as const,
   );
+  // Брошенный ответ всё равно придёт - отказом, когда страницу закроют после
+  // упавшей проверки. Необработанным он быть не должен.
+  reply.catch(() => undefined);
+
+  const deadlineMs = count * stallMs + PAGE_REPLY_MARGIN_MS;
+  const started = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const silence = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const lateMs = Date.now() - started - deadlineMs;
+      reject(
+        new Error(
+          `страница не отвечает: ожидание ${count} кадров не вернулось за ` +
+            `${deadlineMs / 1000} с, и сторож внутри неё тоже молчит; ` +
+            `таймер теста опоздал на ${(lateMs / 1000).toFixed(1)} с`,
+        ),
+      );
+    }, deadlineMs);
+  });
+
+  let seen: number;
+  try {
+    seen = await Promise.race([reply, silence]);
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (seen < count) {
     throw new Error(
