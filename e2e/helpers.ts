@@ -487,3 +487,53 @@ export async function recordCaptions(page: Page): Promise<() => Promise<string[]
   return () =>
     page.evaluate(() => (window as unknown as { captions: string[] }).captions);
 }
+
+/**
+ * Три окна выбора в колонке - виды, события и тела - одного размера, и ни
+ * одно, открывшись, не выталкивает кнопки колонки за край экрана.
+ *
+ * Однажды виды и события держались за предел, посчитанный руками под семь
+ * кнопок: кнопок стало восемь, нижняя уходила за край, а список тел,
+ * сжимавшийся по месту, выходил на том же экране меньше двух других.
+ */
+export async function expectEqualPickers(page: Page): Promise<void> {
+  const panels = [
+    { name: 'виды', key: 'KeyV', list: '.views:not(.closed) .views-list' },
+    { name: 'события', key: 'KeyE', list: '.views:not(.closed) .views-list' },
+    { name: 'тела', key: 'KeyB', list: '#bodies:not(.closed) .bodies-list' },
+  ];
+  const heights: Record<string, number> = {};
+
+  for (const { name, key, list } of panels) {
+    await page.keyboard.press(key);
+    const locator = page.locator(list);
+    // Раскрытие идёт переходом по max-height: высоту берём, когда она
+    // перестала меняться.
+    let previous = -1;
+    await expect
+      .poll(async () => {
+        const height = await locator.evaluate((element) => element.getBoundingClientRect().height);
+        const settled = height === previous;
+        previous = height;
+        return settled;
+      })
+      .toBe(true);
+    heights[name] = previous;
+
+    const overflow = await page.evaluate(() => {
+      const bottom = Math.max(
+        ...[...document.querySelectorAll('#bodies .bodies-toggle')].map(
+          (button) => button.getBoundingClientRect().bottom,
+        ),
+      );
+      return bottom - window.innerHeight;
+    });
+    expect(overflow, `открыты ${name}: нижняя кнопка за краем экрана`).toBeLessThanOrEqual(0);
+
+    await page.keyboard.press(key);
+    await expect(locator).toHaveCount(0);
+  }
+
+  const spread = Math.max(...Object.values(heights)) - Math.min(...Object.values(heights));
+  expect(spread, `высоты окон выбора: ${JSON.stringify(heights)}`).toBeLessThanOrEqual(2);
+}
