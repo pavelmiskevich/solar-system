@@ -1,6 +1,7 @@
 import { TIME_SCALES } from './clock';
 import { dateFromJulianDay, julianDayFromDate } from './units';
 import { bodyById } from '../data/bodies';
+import { isLanguage, type Language } from '../i18n/language';
 
 /**
  * Состояние сцены: тот кадр, которым делятся.
@@ -46,6 +47,14 @@ export interface SceneState {
   timeScale?: number;
   paused?: boolean;
   view?: BodyView | FreeView;
+  /**
+   * Язык интерфейса.
+   *
+   * Он тоже часть кадра, которым делятся: человек, приславший ссылку с
+   * английскими подписями, показывал именно их. Отсутствие в ссылке значит
+   * «на усмотрение того, кто открыл», и тогда язык выбирается как обычно.
+   */
+  language?: Language;
 }
 
 /** Ближе этого к центру тела камера не ставится: внутри планеты смотреть нечего. */
@@ -95,6 +104,8 @@ export function encodeSceneState(state: SceneState): string {
     search.set('pitch', round(view.pitch, 2));
   }
 
+  if (state.language) search.set('lang', state.language);
+
   // Двоеточия в дате возвращаются на место: `URLSearchParams` заменяет их
   // на `%3A`, и ссылка перестаёт читаться глазами, ради чего всё и затеяно.
   // В строке запроса двоеточие законно, и адрес остаётся правильным.
@@ -119,6 +130,11 @@ export function decodeSceneState(search: string): SceneState {
 
   const view = decodeView(query);
   if (view) state.view = view;
+
+  // Регистр прощается - «EN» в ссылке набирают руками, - а незнакомый язык
+  // выбрасывается, как и всё прочее, чему нельзя верить.
+  const language = query.get('lang')?.trim().toLowerCase();
+  if (isLanguage(language)) state.language = language;
 
   return state;
 }

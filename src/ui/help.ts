@@ -4,9 +4,16 @@
  * Единственный источник правды о клавишах: и подсказка внизу экрана, и сама
  * карточка собираются из одной таблицы. Разъехавшаяся справка хуже её
  * отсутствия - человек пробует то, чего нет, и решает, что сломано.
+ *
+ * Таблица знает только клавиши и то, какое действие к ним привязано; слова -
+ * название раздела, клавиша, которую приходится называть словом, и само
+ * действие - берутся из словаря интерфейса на текущем языке.
  */
 
+import { onLanguageChange, strings, type Dictionary } from '../i18n';
 import { isTouchPrimary } from './pointerKind';
+
+type Words = Dictionary['help'];
 
 export interface HelpBinding {
   /** Клавиши или действия мыши. Несколько вариантов - через запятую в массиве. */
@@ -14,70 +21,75 @@ export interface HelpBinding {
   what: string;
 }
 
+export type HelpSectionId = keyof Words['sections'];
+
 export interface HelpSection {
+  id: HelpSectionId;
   title: string;
   bindings: HelpBinding[];
 }
 
-export const CONTROLS: HelpSection[] = [
-  {
-    title: 'Полёт',
-    bindings: [
-      { keys: ['Клик по небу'], what: 'взять мышь и осмотреться' },
-      { keys: ['W', 'A', 'S', 'D'], what: 'вперёд, влево, назад, вправо' },
-      { keys: ['Space', 'C'], what: 'вверх и вниз' },
-      { keys: ['Shift'], what: 'ускорение в десять раз' },
-      { keys: ['Колесо'], what: 'подстроить скорость' },
-      { keys: ['Esc'], what: 'отпустить мышь' },
-    ],
-  },
-  {
-    title: 'Перелёт',
-    bindings: [
-      { keys: ['Клик по телу'], what: 'перелёт к нему' },
-      { keys: ['Клик по подписи'], what: 'то же, но попасть проще' },
-      { keys: ['B'], what: 'список тел' },
-      { keys: ['V'], what: 'готовые виды' },
-      // Список считается по эфемеридам на пять лет вперёд, и подпись говорит
-      // об этом прямо: иначе «события» читаются как ещё один набор готовых
-      // видов, записанных в коде.
-      { keys: ['E'], what: 'ближайшие события: затмения, противостояния, сближения' },
-      { keys: ['W', 'Esc'], what: 'прервать перелёт' },
-    ],
-  },
-  {
-    title: 'Осмотр',
-    bindings: [
-      { keys: ['Тянуть мышью'], what: 'повернуть тело перед камерой' },
-      { keys: ['Колесо'], what: 'ближе и дальше' },
-      { keys: ['F'], what: 'захват цели: тело держится в центре кадра' },
-      { keys: ['W', 'A', 'S', 'D'], what: 'выйти в свободный полёт' },
-    ],
-  },
-  {
-    title: 'Время',
-    bindings: [
-      { keys: ['P'], what: 'пауза' },
-      // Голая запятая в рамке клавиши нечитаема: точка и запятая слишком
-      // мелкие и сидят у самого края строки.
-      { keys: [', запятая'], what: 'медленнее - вплоть до реального времени' },
-      { keys: ['. точка'], what: 'быстрее - до двадцати лет в секунду' },
-    ],
-  },
-  {
-    title: 'Вид',
-    bindings: [
-      { keys: ['L'], what: 'подписи тел' },
-      { keys: ['N'], what: 'созвездия и имена ярких звёзд' },
-      { keys: ['M'], what: 'размеры тел: настоящие, ×10, ×100, ×1000' },
-      { keys: ['T'], what: 'автоматическая экскурсия' },
-      // Стрелки работают только на ходу экскурсии, и подпись говорит об
-      // этом прямо: вне её они ничего не делают.
-      { keys: ['←', '→'], what: 'во время экскурсии - предыдущая и следующая остановка' },
-      { keys: ['H'], what: 'эта справка' },
-    ],
-  },
-];
+export function controls(words: Words = strings().help): HelpSection[] {
+  const { keys, actions, sections } = words;
+
+  return [
+    {
+      id: 'flight',
+      title: sections.flight,
+      bindings: [
+        { keys: [keys.clickSky], what: actions.look },
+        { keys: ['W', 'A', 'S', 'D'], what: actions.move },
+        { keys: ['Space', 'C'], what: actions.upDown },
+        { keys: ['Shift'], what: actions.boost },
+        { keys: [keys.wheel], what: actions.adjustSpeed },
+        { keys: ['Esc'], what: actions.releaseMouse },
+      ],
+    },
+    {
+      id: 'travel',
+      title: sections.travel,
+      bindings: [
+        { keys: [keys.clickBody], what: actions.travel },
+        { keys: [keys.clickLabel], what: actions.travelEasier },
+        { keys: ['B'], what: actions.bodyList },
+        { keys: ['V'], what: actions.views },
+        { keys: ['E'], what: actions.events },
+        { keys: ['W', 'Esc'], what: actions.abortTravel },
+      ],
+    },
+    {
+      id: 'inspect',
+      title: sections.inspect,
+      bindings: [
+        { keys: [keys.drag], what: actions.rotate },
+        { keys: [keys.wheel], what: actions.zoom },
+        { keys: ['F'], what: actions.aimLock },
+        { keys: ['W', 'A', 'S', 'D'], what: actions.freeFlight },
+      ],
+    },
+    {
+      id: 'time',
+      title: sections.time,
+      bindings: [
+        { keys: ['P'], what: actions.pause },
+        { keys: [keys.comma], what: actions.slower },
+        { keys: [keys.period], what: actions.faster },
+      ],
+    },
+    {
+      id: 'view',
+      title: sections.view,
+      bindings: [
+        { keys: ['L'], what: actions.labels },
+        { keys: ['N'], what: actions.sky },
+        { keys: ['M'], what: actions.sizes },
+        { keys: ['T'], what: actions.tour },
+        { keys: ['←', '→'], what: actions.tourSteps },
+        { keys: ['H'], what: actions.help },
+      ],
+    },
+  ];
+}
 
 /**
  * Управление пальцами.
@@ -87,40 +99,58 @@ export const CONTROLS: HelpSection[] = [
  * нет. Раздел встаёт первым и только там, где указывают пальцем, - подсказка
  * про щипок на настольном экране сбивала бы с толку.
  */
-export const TOUCH_CONTROLS: HelpSection = {
-  title: 'Пальцем',
-  bindings: [
-    { keys: ['Касание по телу'], what: 'перелёт к нему' },
-    { keys: ['Касание по подписи'], what: 'то же, но попасть проще' },
-    { keys: ['Протащить'], what: 'осмотреться, а у тела - повернуть его перед камерой' },
-    { keys: ['Щипок'], what: 'ближе и дальше - пока камера у тела' },
-    { keys: ['Свайп'], what: 'во время экскурсии - предыдущая и следующая остановка' },
-    { keys: ['Кнопки справа'], what: 'тела, виды, события, справка' },
-  ],
-};
+export function touchControls(words: Words = strings().help): HelpSection {
+  const { keys, actions } = words;
 
-/** Разделы справки для текущего устройства. */
-export function controlSections(touch: boolean): HelpSection[] {
-  return touch ? [TOUCH_CONTROLS, ...CONTROLS] : CONTROLS;
+  return {
+    id: 'touch',
+    title: words.sections.touch,
+    bindings: [
+      { keys: [keys.tapBody], what: actions.travel },
+      { keys: [keys.tapLabel], what: actions.travelEasier },
+      { keys: [keys.dragFinger], what: actions.touchLook },
+      { keys: [keys.pinch], what: actions.touchZoom },
+      { keys: [keys.swipe], what: actions.tourSteps },
+      { keys: [keys.buttons], what: actions.buttons },
+    ],
+  };
 }
 
-/**
- * Короткая строка-подсказка для новичка: три главных действия из таблицы выше.
- * Всё остальное - в справке, и незачем занимать ею экран.
- */
-export const HINT = 'Клик по телу - перелёт · Клик по небу - осмотреться · H - справка';
+/** Разделы справки для текущего устройства. */
+export function controlSections(touch: boolean, words: Words = strings().help): HelpSection[] {
+  return touch ? [touchControls(words), ...controls(words)] : controls(words);
+}
 
-/**
- * То же для пальца. Клик заменён касанием, а захват мыши - щипком: из трёх
- * действий на сенсорном экране невыполнимо ровно одно, и подменять его нужно
- * тем, которого там больше всего не хватает.
+/*
+ * Короткая строка-подсказка для новичка - `hint` в словаре: три главных
+ * действия из таблицы выше. Всё остальное - в справке, и незачем занимать
+ * ею экран.
+ *
+ * Для пальца строка своя, `touchHint`. Клик заменён касанием, а захват мыши -
+ * щипком: из трёх действий на сенсорном экране невыполнимо ровно одно, и
+ * подменять его нужно тем, которого там больше всего не хватает.
  */
-export const TOUCH_HINT =
-  'Касание по телу - перелёт · Протащить - осмотреться · Щипок - ближе и дальше';
+export function hintText(touch: boolean): string {
+  const words = strings().help;
+  return touch ? words.touchHint : words.hint;
+}
 
 export class HelpPanel {
   private readonly root: HTMLElement;
   private readonly button: HTMLButtonElement;
+  private readonly title: HTMLElement;
+  private readonly close: HTMLButtonElement;
+  private readonly columns: HTMLElement;
+  private readonly footer: HTMLElement;
+  /**
+   * Места под ввод даты и ползунок скорости.
+   *
+   * Их заполняют другие модули, и заполняют один раз. Разделы справки при
+   * смене языка собираются заново, а эти два узла переезжают в новый раздел
+   * «Время» целиком, вместе с тем, что в них уже стоит.
+   */
+  private readonly dateRow: HTMLElement;
+  private readonly sliderRow: HTMLElement;
   private open = false;
 
   /**
@@ -140,8 +170,6 @@ export class HelpPanel {
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.className = 'bodies-toggle help-toggle';
-    this.button.title = 'Управление (H)';
-    this.updateLabel();
     this.button.addEventListener('click', () => this.toggle());
     buttonHost.prepend(this.button);
 
@@ -156,23 +184,63 @@ export class HelpPanel {
     const header = document.createElement('div');
     header.className = 'overlay-header';
 
-    const title = document.createElement('h1');
-    title.textContent = 'Управление';
+    this.title = document.createElement('h1');
 
-    const close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'overlay-close';
-    close.textContent = '✕';
-    close.title = 'Закрыть (H или Esc)';
-    close.addEventListener('click', () => this.setOpen(false));
+    this.close = document.createElement('button');
+    this.close.type = 'button';
+    this.close.className = 'overlay-close';
+    this.close.textContent = '✕';
+    this.close.addEventListener('click', () => this.setOpen(false));
 
-    header.append(title, close);
+    header.append(this.title, this.close);
     card.appendChild(header);
 
-    const columns = document.createElement('div');
-    columns.className = 'help-columns';
+    this.columns = document.createElement('div');
+    this.columns.className = 'help-columns';
+    card.appendChild(this.columns);
 
-    for (const section of controlSections(isTouchPrimary())) {
+    // Управление временем собрано в одном месте: сперва дата, под ней
+    // скорость её течения. Порядок тот же, что в вопросе зрителя:
+    // сначала «когда», потом «как быстро».
+    this.dateRow = document.createElement('div');
+    this.dateRow.className = 'help-row';
+    this.dateRow.id = 'date-panel-container';
+
+    this.sliderRow = document.createElement('div');
+    this.sliderRow.className = 'help-row';
+    this.sliderRow.id = 'time-slider-container';
+
+    // Две вещи, которые невозможно вывести из клавиш, но без которых сцена
+    // кажется сломанной: почему далёкие планеты тусклые и почему камера
+    // «висит» рядом с планетой, пока та летит по орбите.
+    this.footer = document.createElement('p');
+    this.footer.className = 'help-footer';
+    card.appendChild(this.footer);
+
+    this.root.appendChild(card);
+    container.appendChild(this.root);
+
+    this.write();
+    onLanguageChange(() => this.write());
+
+    // Клик мимо карточки закрывает справку - привычное поведение для окна,
+    // занимающего середину экрана.
+    this.root.addEventListener('click', (event) => {
+      if (event.target === this.root) this.setOpen(false);
+    });
+  }
+
+  /** Написать справку на текущем языке - при создании и при смене языка. */
+  private write(): void {
+    const words = strings().help;
+
+    this.button.title = words.buttonTitle;
+    this.title.textContent = words.title;
+    this.close.title = words.closeTitle;
+    this.footer.textContent = words.footer;
+    this.updateLabel();
+
+    const blocks = controlSections(isTouchPrimary(), words).map((section) => {
       const block = document.createElement('section');
 
       const heading = document.createElement('h2');
@@ -200,45 +268,11 @@ export class HelpPanel {
         block.appendChild(row);
       }
 
-      columns.appendChild(block);
-      
-      if (section.title === 'Время') {
-        // Управление временем собрано в одном месте: сперва дата, под ней
-        // скорость её течения. Порядок тот же, что в вопросе зрителя:
-        // сначала «когда», потом «как быстро».
-        const dateRow = document.createElement('div');
-        dateRow.className = 'help-row';
-        dateRow.id = 'date-panel-container';
-        block.appendChild(dateRow);
-
-        const sliderRow = document.createElement('div');
-        sliderRow.className = 'help-row';
-        sliderRow.id = 'time-slider-container';
-        block.appendChild(sliderRow);
-      }
-    }
-
-    card.appendChild(columns);
-
-    const footer = document.createElement('p');
-    footer.className = 'help-footer';
-    // Две вещи, которые невозможно вывести из клавиш, но без которых сцена
-    // кажется сломанной: почему далёкие планеты тусклые и почему камера
-    // «висит» рядом с планетой, пока та летит по орбите.
-    footer.textContent =
-      'Расстояния настоящие, размеры тел тоже. Чем дальше от Солнца, тем темнее - ' +
-      'так и есть на самом деле. После перелёта камера остаётся в системе отсчёта тела ' +
-      'и движется вместе с ним.';
-    card.appendChild(footer);
-
-    this.root.appendChild(card);
-    container.appendChild(this.root);
-
-    // Клик мимо карточки закрывает справку - привычное поведение для окна,
-    // занимающего середину экрана.
-    this.root.addEventListener('click', (event) => {
-      if (event.target === this.root) this.setOpen(false);
+      if (section.id === 'time') block.append(this.dateRow, this.sliderRow);
+      return block;
     });
+
+    this.columns.replaceChildren(...blocks);
   }
 
   get isOpen(): boolean {
@@ -262,6 +296,7 @@ export class HelpPanel {
 
   /** Подпись кнопки - по образцу списка тел: слово и знак состояния. */
   private updateLabel(): void {
-    this.button.textContent = this.open ? 'Справка ✕' : 'Справка ?';
+    const words = strings().help;
+    this.button.textContent = this.open ? words.close : words.open;
   }
 }

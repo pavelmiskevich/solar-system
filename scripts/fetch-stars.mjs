@@ -217,23 +217,25 @@ function writeSky(all) {
       const length = angleDeg(a, b);
       if (length > MAX_SEGMENT_DEG) {
         throw new Error(
-          `${figure.name}: отрезок ${from}-${to} длиной ${length.toFixed(1)}° - похоже на опечатку`,
+          `${figure.names.ru}: отрезок ${from}-${to} длиной ${length.toFixed(1)}° - похоже на опечатку`,
         );
       }
 
       return [a.rarad, a.decrad, b.rarad, b.decrad];
     });
 
-    return { name: figure.name, segments };
+    return { names: figure.names, segments };
   });
 
   const segmentCount = figures.reduce((sum, figure) => sum + figure.segments.length, 0);
 
+  // Имя на обоих языках интерфейса: русское из таблицы, английское - то
+  // собственное имя, под которым звезда записана в самом каталоге.
   const names = named
     .map(
       (star) =>
-        `  { name: '${RU_NAMES[star.proper]}', ra: ${star.rarad.toFixed(7)}, ` +
-        `dec: ${star.decrad.toFixed(7)}, magnitude: ${star.mag} },`,
+        `  { names: ${localized({ ru: RU_NAMES[star.proper], en: star.proper })}, ` +
+        `ra: ${star.rarad.toFixed(7)}, dec: ${star.decrad.toFixed(7)}, magnitude: ${star.mag} },`,
     )
     .join('\n');
 
@@ -246,7 +248,10 @@ function writeSky(all) {
             `${s[2].toFixed(7)}, ${s[3].toFixed(7)}],`,
         )
         .join('\n');
-      return `  {\n    name: '${figure.name}',\n    segments: [\n${segments}\n    ],\n  },`;
+      return (
+        `  {\n    names: ${localized(figure.names)},\n` +
+        `    segments: [\n${segments}\n    ],\n  },`
+      );
     })
     .join('\n');
 
@@ -256,7 +261,8 @@ function writeSky(all) {
  * Имена ярких звёзд и фигуры созвездий.
  *
  * Файл сгенерирован scripts/fetch-stars.mjs из каталога HYG, править руками
- * нечего. Список фигур и русские имена задаются в scripts/sky-figures.mjs.
+ * нечего. Список фигур, названия созвездий и русские имена звёзд задаются в
+ * scripts/sky-figures.mjs; английские имена звёзд - собственные имена HYG.
  *
  * Координаты экваториальные, эпоха J2000, радианы.
  */
@@ -279,11 +285,22 @@ ${figureText}
   );
 }
 
+/**
+ * Имя на двух языках - литералом для сгенерированного файла.
+ *
+ * Кавычки экранируются: у звезды в каталоге может оказаться апостроф в имени,
+ * и строка в одинарных кавычках без этого сломала бы модуль целиком.
+ */
+function localized({ ru, en }) {
+  const quote = (text) => `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+  return `{ ru: ${quote(ru)}, en: ${quote(en)} }`;
+}
+
 /** Вершина фигуры: «Alp» своего созвездия или «Bet@Tau» - чужого. */
 function vertex(byBayer, figure, token) {
   const [letter, con] = token.includes('@') ? token.split('@') : [token, figure.con];
   const star = byBayer.get(`${letter} ${con}`);
-  if (!star) throw new Error(`${figure.name}: в каталоге нет звезды ${letter} ${con}`);
+  if (!star) throw new Error(`${figure.names.ru}: в каталоге нет звезды ${letter} ${con}`);
   return star;
 }
 

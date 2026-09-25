@@ -1,4 +1,5 @@
 import type { Scenario } from '../data/scenarios';
+import { onLanguageChange, strings } from '../i18n';
 
 /**
  * Список готовых видов.
@@ -14,7 +15,13 @@ import type { Scenario } from '../data/scenarios';
 export class ScenarioList {
   private readonly root: HTMLElement;
   private readonly toggleButton: HTMLButtonElement;
-  private readonly rows: { id: string; element: HTMLButtonElement }[] = [];
+  private readonly rows: {
+    id: string;
+    element: HTMLButtonElement;
+    scenario: Scenario;
+    name: HTMLElement;
+    hint: HTMLElement;
+  }[] = [];
   private open = false;
 
   constructor(
@@ -34,7 +41,6 @@ export class ScenarioList {
     this.toggleButton = document.createElement('button');
     this.toggleButton.type = 'button';
     this.toggleButton.className = 'bodies-toggle';
-    this.toggleButton.title = 'Готовые виды (V)';
     this.toggleButton.addEventListener('click', () => this.setOpen(!this.open));
 
     const list = document.createElement('div');
@@ -48,11 +54,9 @@ export class ScenarioList {
 
       const name = document.createElement('span');
       name.className = 'name';
-      name.textContent = scenario.name;
 
       const hint = document.createElement('span');
       hint.className = 'views-hint';
-      hint.textContent = scenario.hint;
 
       element.append(name, hint);
       element.addEventListener('click', () => {
@@ -63,12 +67,23 @@ export class ScenarioList {
       });
 
       list.appendChild(element);
-      this.rows.push({ id: scenario.id, element });
+      this.rows.push({ id: scenario.id, element, scenario, name, hint });
     }
 
     this.root.append(this.toggleButton, list);
     container.prepend(this.root);
+    this.writeWords();
+    onLanguageChange(() => this.writeWords());
+  }
+
+  /** Имена и подсказки видов - на текущем языке. */
+  private writeWords(): void {
+    this.toggleButton.title = strings().panels.views.title;
     this.updateLabel();
+    for (const row of this.rows) {
+      row.name.textContent = row.scenario.name;
+      row.hint.textContent = row.scenario.hint;
+    }
   }
 
   get isOpen(): boolean {
@@ -98,6 +113,7 @@ export class ScenarioList {
   }
 
   private updateLabel(): void {
-    this.toggleButton.textContent = this.open ? 'Виды ✕' : 'Виды ▦';
+    const words = strings().panels.views;
+    this.toggleButton.textContent = this.open ? words.close : words.open;
   }
 }

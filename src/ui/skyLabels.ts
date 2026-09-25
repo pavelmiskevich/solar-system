@@ -3,6 +3,7 @@ import { Vector3, type PerspectiveCamera } from 'three';
 import { CONSTELLATIONS, NAMED_STARS, figureVertices } from '../data/sky';
 import { sphericalEquatorialToScene } from '../physics/frames';
 import { SKY_RADIUS } from '../scene/starfield';
+import { localized, onLanguageChange, type Localized } from '../i18n';
 import { projectToScreen, type ScreenPoint } from './projection';
 
 /**
@@ -24,6 +25,8 @@ const MARGIN_PX = 24;
 
 interface Entry {
   readonly element: HTMLElement;
+  /** Имя на обоих языках: подпись переписывается при смене языка. */
+  readonly names: Localized;
   /** Точка сцены, в которой стоит подпись: направление на сфере неба. */
   readonly position: Vector3;
   /** Куда подпись отведена от своей точки - см. OFFSETS. */
@@ -55,7 +58,7 @@ export class SkyLabels {
 
     for (const star of NAMED_STARS) {
       sphericalEquatorialToScene(star.ra, star.dec, direction);
-      this.entries.push(this.create(container, 'sky-label', star.name, direction, OFFSETS.star));
+      this.entries.push(this.create(container, 'sky-label', star.names, direction, OFFSETS.star));
     }
 
     for (const figure of CONSTELLATIONS) {
@@ -69,9 +72,13 @@ export class SkyLabels {
       centre.normalize();
 
       this.entries.push(
-        this.create(container, 'sky-label figure', figure.name, centre, OFFSETS.figure),
+        this.create(container, 'sky-label figure', figure.names, centre, OFFSETS.figure),
       );
     }
+
+    onLanguageChange(() => {
+      for (const entry of this.entries) entry.element.textContent = localized(entry.names);
+    });
   }
 
   setEnabled(enabled: boolean): void {
@@ -104,19 +111,20 @@ export class SkyLabels {
   private create(
     container: HTMLElement,
     className: string,
-    text: string,
+    names: Localized,
     direction: Vector3,
     offset: string,
   ): Entry {
     const element = document.createElement('div');
     element.className = className;
-    element.textContent = text;
+    element.textContent = localized(names);
     element.style.opacity = '0';
     element.style.visibility = 'hidden';
     container.appendChild(element);
 
     return {
       element,
+      names,
       // Звёзды на сфере неба: направление, растянутое до её радиуса. Сама
       // сфера ездит вместе с камерой, а камера всегда в начале координат
       // сцены - поэтому точка постоянна и считается один раз.

@@ -11,6 +11,8 @@
  * уже в руке, а переносить ссылку руками неудобно.
  */
 
+import { onLanguageChange, strings, type Dictionary } from '../i18n';
+
 /**
  * Страница приёма чаевых. Тот же адрес закодирован в `public/donate-qr.svg`;
  * чем сгенерирован и как перепроверить - в `docs/donate-qr.md`.
@@ -20,12 +22,22 @@ export const DONATION_URL = 'https://pay.cloudtips.ru/p/86c3292c';
 /** Сколько держать подпись «Скопировано» перед возвратом к исходной. */
 const COPIED_FEEDBACK_MS = 2000;
 
+type Words = Dictionary['support'];
+
 export class SupportPanel {
   private readonly root: HTMLElement;
   private readonly button: HTMLButtonElement;
   private readonly copyButton: HTMLButtonElement;
   private copiedTimer = 0;
   private open = false;
+
+  /**
+   * Что написать в каждый узел с текстом.
+   *
+   * Карточка собирается один раз, а слова в ней переписывает смена языка:
+   * каждый узел запоминается вместе с тем, какую строку словаря он показывает.
+   */
+  private readonly writers: ((words: Words) => void)[] = [];
 
   /**
    * @param container слой, в котором лежит затемнение с карточкой
@@ -40,8 +52,10 @@ export class SupportPanel {
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.className = 'bodies-toggle support-toggle';
-    this.button.title = 'Поддержать проект';
-    this.updateLabel();
+    this.writers.push((words) => {
+      this.button.title = words.buttonTitle;
+      this.updateLabel();
+    });
     this.button.addEventListener('click', () => this.toggle());
     // `prepend` ставит кнопку выше уже добавленных, поэтому панель поддержки
     // создаётся после справки - тогда порядок сверху вниз выходит
@@ -58,23 +72,22 @@ export class SupportPanel {
     const header = document.createElement('div');
     header.className = 'overlay-header';
 
-    const title = document.createElement('h1');
-    title.textContent = 'Поддержать автора';
+    const title = this.text('h1', (words) => words.title);
 
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'overlay-close';
     close.textContent = '✕';
-    close.title = 'Закрыть (Esc)';
+    this.writers.push((words) => {
+      close.title = words.closeTitle;
+    });
     close.addEventListener('click', () => this.setOpen(false));
 
     header.append(title, close);
     card.appendChild(header);
 
-    const lead = document.createElement('p');
+    const lead = this.text('p', (words) => words.lead);
     lead.className = 'support-lead';
-    lead.textContent =
-      'Понравился симулятор? Буду благодарен за любую поддержку - она идёт на развитие проекта.';
     card.appendChild(lead);
 
     const body = document.createElement('div');
@@ -87,13 +100,16 @@ export class SupportPanel {
     const share = document.createElement('div');
     share.className = 'support-share';
 
-    const shareText = document.createElement('span');
-    shareText.textContent = 'Или поделитесь ссылкой на симулятор';
+    const shareText = this.text('span', (words) => words.share);
 
     this.copyButton = document.createElement('button');
     this.copyButton.type = 'button';
     this.copyButton.className = 'support-copy';
-    this.copyButton.textContent = 'Скопировать ссылку';
+    // Подтверждение «Скопировано» держится своё время и на смене языка не
+    // сбрасывается: оно всё равно вот-вот вернётся к обычной подписи.
+    this.writers.push((words) => {
+      if (this.copiedTimer === 0) this.copyButton.textContent = words.copy;
+    });
     this.copyButton.addEventListener('click', () => void this.copyLink());
 
     share.append(shareText, this.copyButton);
@@ -102,9 +118,29 @@ export class SupportPanel {
     this.root.appendChild(card);
     container.appendChild(this.root);
 
+    this.write();
+    onLanguageChange(() => this.write());
+
     this.root.addEventListener('click', (event) => {
       if (event.target === this.root) this.setOpen(false);
     });
+  }
+
+  private write(): void {
+    const words = strings().support;
+    for (const writer of this.writers) writer(words);
+  }
+
+  /** Узел с текстом из словаря: пишется сейчас и переписывается сменой языка. */
+  private text<K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    pick: (words: Words) => string,
+  ): HTMLElementTagNameMap[K] {
+    const node = document.createElement(tag);
+    this.writers.push((words) => {
+      node.textContent = pick(words);
+    });
+    return node;
   }
 
   private createQrLink(): HTMLAnchorElement {
@@ -115,19 +151,21 @@ export class SupportPanel {
     // Без `noopener` открытая страница получает доступ к `window.opener` и
     // может подменить содержимое нашей вкладки.
     link.rel = 'noopener noreferrer';
-    link.title = 'Открыть страницу CloudTips';
 
     const image = document.createElement('img');
     image.src = 'donate-qr.svg';
-    image.alt = 'QR-код на страницу поддержки CloudTips';
     image.width = 104;
     image.height = 104;
     // Картинка не критична: если её нет, остаётся кнопка перехода, и терять
     // из-за неё весь блок незачем.
     image.addEventListener('error', () => link.removeChild(image));
 
-    const caption = document.createElement('span');
-    caption.textContent = 'Нажмите или сканируйте';
+    this.writers.push((words) => {
+      link.title = words.qrTitle;
+      image.alt = words.qrAlt;
+    });
+
+    const caption = this.text('span', (words) => words.qrCaption);
 
     link.append(image, caption);
     return link;
@@ -137,25 +175,34 @@ export class SupportPanel {
     const actions = document.createElement('div');
     actions.className = 'support-actions';
 
+    // Название сервиса и платёжных систем выделено и стоит посреди фразы,
+    // поэтому фраза собирается из кусков - но каждый кусок из словаря, и
+    // порядок их задаёт он же.
     const lead = document.createElement('p');
-    lead.append(document.createTextNode('Быстрый перевод через '));
+    const via = document.createTextNode('');
     const service = document.createElement('b');
     service.textContent = 'CloudTips';
-    lead.append(service);
+    lead.append(via, service);
 
     const methods = document.createElement('p');
     methods.className = 'support-methods';
-    methods.append(document.createTextNode('Оплата в один клик через '));
+    const before = document.createTextNode('');
     const sbp = document.createElement('b');
-    sbp.textContent = 'СБП';
-    methods.append(sbp, document.createTextNode(', T-Pay, SberPay или банковские карты.'));
+    const after = document.createTextNode('');
+    methods.append(before, sbp, after);
 
-    const pay = document.createElement('a');
+    this.writers.push((words) => {
+      via.textContent = words.via;
+      before.textContent = words.methods.before;
+      sbp.textContent = words.methods.sbp;
+      after.textContent = words.methods.after;
+    });
+
+    const pay = this.text('a', (words) => words.pay);
     pay.className = 'support-pay';
     pay.href = DONATION_URL;
     pay.target = '_blank';
     pay.rel = 'noopener noreferrer';
-    pay.textContent = 'Отправить чаевые ↗';
 
     actions.append(lead, methods, pay);
     return actions;
@@ -168,11 +215,11 @@ export class SupportPanel {
 
     try {
       await navigator.clipboard.writeText(url);
-      this.showCopied('Скопировано');
+      this.showCopied(strings().support.copied);
     } catch {
       // Буфер обмена недоступен без защищённого соединения и без жеста
       // пользователя. Молчать здесь нельзя: кнопка выглядела бы сломанной.
-      this.showCopied('Не вышло скопировать');
+      this.showCopied(strings().support.copyFailed);
     }
   }
 
@@ -180,7 +227,8 @@ export class SupportPanel {
     this.copyButton.textContent = text;
     window.clearTimeout(this.copiedTimer);
     this.copiedTimer = window.setTimeout(() => {
-      this.copyButton.textContent = 'Скопировать ссылку';
+      this.copiedTimer = 0;
+      this.copyButton.textContent = strings().support.copy;
     }, COPIED_FEEDBACK_MS);
   }
 
@@ -205,6 +253,7 @@ export class SupportPanel {
 
   /** Подпись кнопки - по образцу соседей: слово и знак состояния. */
   private updateLabel(): void {
-    this.button.textContent = this.open ? 'Поддержать ✕' : 'Поддержать ♥';
+    const words = strings().support;
+    this.button.textContent = this.open ? words.close : words.open;
   }
 }

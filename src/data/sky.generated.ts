@@ -4,60 +4,61 @@ import type { ConstellationFigure, NamedStar } from './sky';
  * Имена ярких звёзд и фигуры созвездий.
  *
  * Файл сгенерирован scripts/fetch-stars.mjs из каталога HYG, править руками
- * нечего. Список фигур и русские имена задаются в scripts/sky-figures.mjs.
+ * нечего. Список фигур, названия созвездий и русские имена звёзд задаются в
+ * scripts/sky-figures.mjs; английские имена звёзд - собственные имена HYG.
  *
  * Координаты экваториальные, эпоха J2000, радианы.
  */
 
 /** Ярчайшие звёзды неба - те, по именам которых на нём ориентируются. */
 export const NAMED_STARS: readonly NamedStar[] = [
-  { name: 'Сириус', ra: 1.7677954, dec: -0.2917513, magnitude: -1.44 },
-  { name: 'Канопус', ra: 1.6753054, dec: -0.9197128, magnitude: -0.62 },
-  { name: 'Арктур', ra: 3.7335290, dec: 0.3347962, magnitude: -0.05 },
-  { name: 'Ригиль Кентаврус', ra: 3.8381792, dec: -1.0617532, magnitude: -0.01 },
-  { name: 'Вега', ra: 4.8735631, dec: 0.6769031, magnitude: 0.03 },
-  { name: 'Капелла', ra: 1.3818164, dec: 0.8028164, magnitude: 0.08 },
-  { name: 'Ригель', ra: 1.3724304, dec: -0.1431456, magnitude: 0.18 },
-  { name: 'Процион', ra: 2.0040830, dec: 0.0911933, magnitude: 0.4 },
-  { name: 'Ахернар', ra: 0.4263551, dec: -0.9989699, magnitude: 0.45 },
-  { name: 'Бетельгейзе', ra: 1.5497291, dec: 0.1292776, magnitude: 0.45 },
-  { name: 'Хадар', ra: 3.6818757, dec: -1.0537083, magnitude: 0.61 },
-  { name: 'Альтаир', ra: 5.1957721, dec: 0.1547814, magnitude: 0.76 },
-  { name: 'Акрукс', ra: 3.2576513, dec: -1.1012869, magnitude: 0.77 },
-  { name: 'Альдебаран', ra: 1.2039308, dec: 0.2881417, magnitude: 0.87 },
-  { name: 'Спика', ra: 3.5133172, dec: -0.1948018, magnitude: 0.98 },
-  { name: 'Антарес', ra: 4.3171055, dec: -0.4613255, magnitude: 1.06 },
-  { name: 'Поллукс', ra: 2.0303269, dec: 0.4891494, magnitude: 1.16 },
-  { name: 'Фомальгаут', ra: 6.0111334, dec: -0.5170056, magnitude: 1.17 },
-  { name: 'Мимоза', ra: 3.3498170, dec: -1.0417654, magnitude: 1.25 },
-  { name: 'Денеб', ra: 5.4167685, dec: 0.7902910, magnitude: 1.25 },
-  { name: 'Регул', ra: 2.6545232, dec: 0.2088672, magnitude: 1.36 },
-  { name: 'Адара', ra: 1.8265996, dec: -0.5056583, magnitude: 1.5 },
-  { name: 'Кастор', ra: 1.9835583, dec: 0.5565554, magnitude: 1.58 },
-  { name: 'Гакрукс', ra: 3.2775789, dec: -0.9968136, magnitude: 1.59 },
-  { name: 'Шаула', ra: 4.5972352, dec: -0.6475838, magnitude: 1.62 },
-  { name: 'Беллатрикс', ra: 1.4186518, dec: 0.1108232, magnitude: 1.64 },
-  { name: 'Эльнат', ra: 1.4237168, dec: 0.4992942, magnitude: 1.65 },
-  { name: 'Миаплацидус', ra: 2.4138012, dec: -1.2167948, magnitude: 1.67 },
-  { name: 'Альнилам', ra: 1.4670084, dec: -0.0209775, magnitude: 1.69 },
-  { name: 'Альнаир', ra: 5.7955076, dec: -0.8196236, magnitude: 1.73 },
-  { name: 'Альнитак', ra: 1.4868407, dec: -0.0339043, magnitude: 1.74 },
-  { name: 'Алиот', ra: 3.3773356, dec: 0.9766831, magnitude: 1.76 },
-  { name: 'Мирфак', ra: 0.8915260, dec: 0.8702418, magnitude: 1.79 },
-  { name: 'Каус Аустралис', ra: 4.8178595, dec: -0.6001248, magnitude: 1.79 },
-  { name: 'Дубхе', ra: 2.8960654, dec: 1.0777588, magnitude: 1.81 },
-  { name: 'Везен', ra: 1.8692101, dec: -0.4606482, magnitude: 1.83 },
-  { name: 'Алькаид', ra: 3.6108299, dec: 0.8606788, magnitude: 1.85 },
-  { name: 'Авиор', ra: 2.1926317, dec: -1.0386364, magnitude: 1.86 },
-  { name: 'Саргас', ra: 4.6134237, dec: -0.7504536, magnitude: 1.86 },
-  { name: 'Менкалинан', ra: 1.5687409, dec: 0.7844807, magnitude: 1.9 },
-  { name: 'Полярная', ra: 0.6622871, dec: 1.5579526, magnitude: 1.97 },
+  { names: { ru: 'Сириус', en: 'Sirius' }, ra: 1.7677954, dec: -0.2917513, magnitude: -1.44 },
+  { names: { ru: 'Канопус', en: 'Canopus' }, ra: 1.6753054, dec: -0.9197128, magnitude: -0.62 },
+  { names: { ru: 'Арктур', en: 'Arcturus' }, ra: 3.7335290, dec: 0.3347962, magnitude: -0.05 },
+  { names: { ru: 'Ригиль Кентаврус', en: 'Rigil Kentaurus' }, ra: 3.8381792, dec: -1.0617532, magnitude: -0.01 },
+  { names: { ru: 'Вега', en: 'Vega' }, ra: 4.8735631, dec: 0.6769031, magnitude: 0.03 },
+  { names: { ru: 'Капелла', en: 'Capella' }, ra: 1.3818164, dec: 0.8028164, magnitude: 0.08 },
+  { names: { ru: 'Ригель', en: 'Rigel' }, ra: 1.3724304, dec: -0.1431456, magnitude: 0.18 },
+  { names: { ru: 'Процион', en: 'Procyon' }, ra: 2.0040830, dec: 0.0911933, magnitude: 0.4 },
+  { names: { ru: 'Ахернар', en: 'Achernar' }, ra: 0.4263551, dec: -0.9989699, magnitude: 0.45 },
+  { names: { ru: 'Бетельгейзе', en: 'Betelgeuse' }, ra: 1.5497291, dec: 0.1292776, magnitude: 0.45 },
+  { names: { ru: 'Хадар', en: 'Hadar' }, ra: 3.6818757, dec: -1.0537083, magnitude: 0.61 },
+  { names: { ru: 'Альтаир', en: 'Altair' }, ra: 5.1957721, dec: 0.1547814, magnitude: 0.76 },
+  { names: { ru: 'Акрукс', en: 'Acrux' }, ra: 3.2576513, dec: -1.1012869, magnitude: 0.77 },
+  { names: { ru: 'Альдебаран', en: 'Aldebaran' }, ra: 1.2039308, dec: 0.2881417, magnitude: 0.87 },
+  { names: { ru: 'Спика', en: 'Spica' }, ra: 3.5133172, dec: -0.1948018, magnitude: 0.98 },
+  { names: { ru: 'Антарес', en: 'Antares' }, ra: 4.3171055, dec: -0.4613255, magnitude: 1.06 },
+  { names: { ru: 'Поллукс', en: 'Pollux' }, ra: 2.0303269, dec: 0.4891494, magnitude: 1.16 },
+  { names: { ru: 'Фомальгаут', en: 'Fomalhaut' }, ra: 6.0111334, dec: -0.5170056, magnitude: 1.17 },
+  { names: { ru: 'Мимоза', en: 'Mimosa' }, ra: 3.3498170, dec: -1.0417654, magnitude: 1.25 },
+  { names: { ru: 'Денеб', en: 'Deneb' }, ra: 5.4167685, dec: 0.7902910, magnitude: 1.25 },
+  { names: { ru: 'Регул', en: 'Regulus' }, ra: 2.6545232, dec: 0.2088672, magnitude: 1.36 },
+  { names: { ru: 'Адара', en: 'Adhara' }, ra: 1.8265996, dec: -0.5056583, magnitude: 1.5 },
+  { names: { ru: 'Кастор', en: 'Castor' }, ra: 1.9835583, dec: 0.5565554, magnitude: 1.58 },
+  { names: { ru: 'Гакрукс', en: 'Gacrux' }, ra: 3.2775789, dec: -0.9968136, magnitude: 1.59 },
+  { names: { ru: 'Шаула', en: 'Shaula' }, ra: 4.5972352, dec: -0.6475838, magnitude: 1.62 },
+  { names: { ru: 'Беллатрикс', en: 'Bellatrix' }, ra: 1.4186518, dec: 0.1108232, magnitude: 1.64 },
+  { names: { ru: 'Эльнат', en: 'Elnath' }, ra: 1.4237168, dec: 0.4992942, magnitude: 1.65 },
+  { names: { ru: 'Миаплацидус', en: 'Miaplacidus' }, ra: 2.4138012, dec: -1.2167948, magnitude: 1.67 },
+  { names: { ru: 'Альнилам', en: 'Alnilam' }, ra: 1.4670084, dec: -0.0209775, magnitude: 1.69 },
+  { names: { ru: 'Альнаир', en: 'Alnair' }, ra: 5.7955076, dec: -0.8196236, magnitude: 1.73 },
+  { names: { ru: 'Альнитак', en: 'Alnitak' }, ra: 1.4868407, dec: -0.0339043, magnitude: 1.74 },
+  { names: { ru: 'Алиот', en: 'Alioth' }, ra: 3.3773356, dec: 0.9766831, magnitude: 1.76 },
+  { names: { ru: 'Мирфак', en: 'Mirfak' }, ra: 0.8915260, dec: 0.8702418, magnitude: 1.79 },
+  { names: { ru: 'Каус Аустралис', en: 'Kaus Australis' }, ra: 4.8178595, dec: -0.6001248, magnitude: 1.79 },
+  { names: { ru: 'Дубхе', en: 'Dubhe' }, ra: 2.8960654, dec: 1.0777588, magnitude: 1.81 },
+  { names: { ru: 'Везен', en: 'Wezen' }, ra: 1.8692101, dec: -0.4606482, magnitude: 1.83 },
+  { names: { ru: 'Алькаид', en: 'Alkaid' }, ra: 3.6108299, dec: 0.8606788, magnitude: 1.85 },
+  { names: { ru: 'Авиор', en: 'Avior' }, ra: 2.1926317, dec: -1.0386364, magnitude: 1.86 },
+  { names: { ru: 'Саргас', en: 'Sargas' }, ra: 4.6134237, dec: -0.7504536, magnitude: 1.86 },
+  { names: { ru: 'Менкалинан', en: 'Menkalinan' }, ra: 1.5687409, dec: 0.7844807, magnitude: 1.9 },
+  { names: { ru: 'Полярная', en: 'Polaris' }, ra: 0.6622871, dec: 1.5579526, magnitude: 1.97 },
 ];
 
 /** Фигуры созвездий: отрезок задан парой вершин - ra1, dec1, ra2, dec2. */
 export const CONSTELLATIONS: readonly ConstellationFigure[] = [
   {
-    name: 'Орион',
+    names: { ru: 'Орион', en: 'Orion' },
     segments: [
       [1.5497291, 0.1292776, 1.4186518, 0.1108232],
       [1.4186518, 0.1108232, 1.4486524, -0.0052201],
@@ -69,7 +70,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Большая Медведица',
+    names: { ru: 'Большая Медведица', en: 'Ursa Major' },
     segments: [
       [2.8960654, 1.0777588, 2.8878246, 0.9840590],
       [2.8878246, 0.9840590, 3.1146712, 0.9371504],
@@ -81,7 +82,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Малая Медведица',
+    names: { ru: 'Малая Медведица', en: 'Ursa Minor' },
     segments: [
       [0.6622871, 1.5579526, 4.5911543, 1.5112188],
       [4.5911543, 1.5112188, 4.3893702, 1.4318203],
@@ -93,7 +94,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Кассиопея',
+    names: { ru: 'Кассиопея', en: 'Cassiopeia' },
     segments: [
       [0.4991425, 1.1112529, 0.3744296, 1.0513040],
       [0.3744296, 1.0513040, 0.2474380, 1.0597070],
@@ -102,7 +103,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Лебедь',
+    names: { ru: 'Лебедь', en: 'Cygnus' },
     segments: [
       [5.4167685, 0.7902910, 5.3329773, 0.7026116],
       [5.3329773, 0.7026116, 5.1082355, 0.4879885],
@@ -111,7 +112,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Лира',
+    names: { ru: 'Лира', en: 'Lyra' },
     segments: [
       [4.8735631, 0.6769031, 4.9077461, 0.6563331],
       [4.9077461, 0.6563331, 4.9502108, 0.6440023],
@@ -121,7 +122,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Лев',
+    names: { ru: 'Лев', en: 'Leo' },
     segments: [
       [2.6545232, 0.2088672, 2.6499881, 0.2925637],
       [2.6499881, 0.2925637, 2.7051398, 0.3462993],
@@ -135,7 +136,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Скорпион',
+    names: { ru: 'Скорпион', en: 'Scorpius' },
     segments: [
       [4.2125144, -0.3456704, 4.1902451, -0.3948233],
       [4.1902451, -0.3948233, 4.1837806, -0.4557771],
@@ -154,14 +155,14 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Южный Крест',
+    names: { ru: 'Южный Крест', en: 'Crux' },
     segments: [
       [3.2576513, -1.1012869, 3.2775789, -0.9968136],
       [3.3498170, -1.0417654, 3.2076778, -1.0253622],
     ],
   },
   {
-    name: 'Телец',
+    names: { ru: 'Телец', en: 'Taurus' },
     segments: [
       [1.1335623, 0.2727538, 1.1472697, 0.3061746],
       [1.1472697, 0.3061746, 1.1720610, 0.3347617],
@@ -171,7 +172,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Возничий',
+    names: { ru: 'Возничий', en: 'Auriga' },
     segments: [
       [1.3818164, 0.8028164, 1.5687409, 0.7844807],
       [1.5687409, 0.7844807, 1.5695792, 0.6494821],
@@ -181,7 +182,7 @@ export const CONSTELLATIONS: readonly ConstellationFigure[] = [
     ],
   },
   {
-    name: 'Близнецы',
+    names: { ru: 'Близнецы', en: 'Gemini' },
     segments: [
       [1.9835583, 0.5565554, 2.0303269, 0.4891494],
       [1.9835583, 0.5565554, 1.8812012, 0.5278777],

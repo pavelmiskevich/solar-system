@@ -32,7 +32,10 @@ import { AimLock } from './camera/aimLock';
 import { TourController } from './camera/tour';
 import { BodyCard, type CardSource } from './ui/bodyCard';
 import { BodyList } from './ui/bodyList';
-import { HINT, TOUCH_HINT, HelpPanel } from './ui/help';
+import { HelpPanel, hintText } from './ui/help';
+import { bodyName, language, onLanguageChange, setLanguage, strings, type Language } from './i18n';
+import { pickLanguage, readStoredLanguage, storeLanguage } from './i18n/language';
+import { LanguageSwitch } from './ui/languageSwitch';
 import { isTouchPrimary } from './ui/pointerKind';
 import { SupportPanel } from './ui/support';
 import { DatePanel } from './ui/datePanel';
@@ -68,6 +71,48 @@ const viewport = new Viewport({ container });
  * увидеть сразу тот кадр, которым с ним поделились.
  */
 const initialState = decodeSceneState(window.location.search);
+
+/**
+ * Язык выбирается следом, и тоже до всего остального: каждая панель пишет
+ * свои подписи при создании, и созданная раньше выбора успела бы показаться
+ * на чужом языке. Старшинство - ссылка, прошлый выбор, браузер: см.
+ * `pickLanguage`.
+ */
+setLanguage(
+  pickLanguage({
+    fromAddress: initialState.language,
+    stored: readStoredLanguage(),
+    browser: navigator.languages?.length ? navigator.languages : [navigator.language],
+  }),
+);
+
+/**
+ * То, что написано в самой разметке страницы, а не собрано сценой: язык
+ * документа, заголовок вкладки, описание для поисковиков и надпись заставки.
+ * Язык документа нужен не для красоты: по нему экранный диктор выбирает
+ * произношение, а браузер - переносы и предложение перевести страницу.
+ */
+function applyDocumentLanguage(): void {
+  const words = strings().page;
+  document.documentElement.lang = language();
+  document.title = words.title;
+  document.querySelector('meta[name="description"]')?.setAttribute('content', words.description);
+  const loaderTitle = loaderElement?.querySelector('.title');
+  if (loaderTitle) loaderTitle.textContent = words.title;
+}
+
+applyDocumentLanguage();
+onLanguageChange(applyDocumentLanguage);
+
+/**
+ * Язык, выбранный переключателем. Запоминается только он: язык из ссылки -
+ * выбор того, кто её прислал, а не того, кто открыл, и навязывать его
+ * следующему визиту незачем.
+ */
+function pickUserLanguage(next: Language): void {
+  storeLanguage(next);
+  setLanguage(next);
+}
 
 const clock = new SimClock(
   initialState.jd === undefined ? new Date() : dateFromJulianDay(initialState.jd),
@@ -152,8 +197,9 @@ exposure.reset(flight.worldPosition.length());
  */
 interface Target {
   readonly id: string;
+  /** Имя на текущем языке - читается заново при каждом обращении. */
   readonly name: string;
-  /** Пометка в списке: звезда, планета, спутник. */
+  /** Пометка в списке: звезда, планета, спутник - тоже на текущем языке. */
   readonly kind: string;
   readonly color: number;
   /** Мировая позиция, км. */
@@ -168,8 +214,12 @@ interface Target {
 const targets: Target[] = [
   {
     id: 'sun',
-    name: 'Солнце',
-    kind: kindOf('sun'),
+    get name() {
+      return bodyName('sun');
+    },
+    get kind() {
+      return kindOf('sun');
+    },
     color: 0xffd9a0,
     worldPosition: sun.worldPosition,
     renderPosition: sun.group.position,
@@ -180,8 +230,12 @@ const targets: Target[] = [
   },
   ...system.bodies.map((body) => ({
     id: body.definition.id,
-    name: body.definition.name,
-    kind: kindOf(body.definition.id),
+    get name() {
+      return bodyName(body.definition.id);
+    },
+    get kind() {
+      return kindOf(body.definition.id);
+    },
     color: body.definition.color,
     worldPosition: body.worldPosition,
     renderPosition: body.group.position,
@@ -289,6 +343,7 @@ function readSceneState(): SceneState {
     jd: clock.jd,
     timeScale: clock.timeScale,
     paused: clock.paused,
+    language: language(),
   };
 
   const held = frame.targetId ? findTarget(frame.targetId) : undefined;
@@ -509,8 +564,13 @@ const bodyList = new BodyList(
     .filter((target): target is Target => target !== undefined)
     .map((target) => ({
       id: target.id,
-      name: target.name,
-      kind: target.kind,
+      // Через цель, а не копией: имя и род меняются вместе с языком.
+      get name() {
+        return target.name;
+      },
+      get kind() {
+        return target.kind;
+      },
       color: target.color,
       // Расстояние до поверхности, а не до центра: именно оно осмысленно,
       // когда стоишь в трёх радиусах от Юпитера.
@@ -531,8 +591,12 @@ function cardSourceFor(id: string | null): CardSource | null {
 
   return {
     id: target.id,
-    name: target.name,
-    kind: target.kind,
+    get name() {
+      return target.name;
+    },
+    get kind() {
+      return target.kind;
+    },
     distanceToCamera: () => target.worldPosition.distanceTo(flight.worldPosition) - target.radius,
     distanceToSun: () => target.worldPosition.length(),
     // Число берётся из сцены, а не считается здесь заново: там оно уже
@@ -579,7 +643,15 @@ const tourButton = new TourButton(bodyList.column, () => {
 
 // Ссылка на исходники - последней кнопкой, но до списка тел: тот раскрывается
 // вниз, и кнопка под ним оказалась бы то у края экрана, то посреди списка.
-bodyList.column.insertBefore(createSourceLink(), bodyList.column.querySelector('.bodies-list'));
+//
+// Переключатель языка стоит с ней в одном ряду, а не отдельной кнопкой под
+// ней. Колонка кнопок на ноутбучном экране и так съедает почти всю высоту, и
+// девятая кнопка отняла бы у списка тел ещё одну строку, а обе эти кнопки
+// узкие и в ряд помещаются свободно.
+const bottomRow = document.createElement('div');
+bottomRow.className = 'column-row';
+bottomRow.append(new LanguageSwitch(pickUserLanguage).element, createSourceLink());
+bodyList.column.insertBefore(bottomRow, bodyList.column.querySelector('.bodies-list'));
 
 /*
  * Справка открыта на старте. Сцена не объясняет себя сама: мышь здесь надо
@@ -640,7 +712,14 @@ const scenarioList = new ScenarioList(bodyList.column, SCENARIOS, showScenario, 
 // раздвигают её, а раскрытые разом отодвинули бы нижние кнопки за край экрана.
 eventList.onOpen(() => scenarioList.setOpen(false));
 
-if (hintElement) hintElement.textContent = isTouchPrimary() ? TOUCH_HINT : HINT;
+if (hintElement) {
+  hintElement.textContent = hintText(isTouchPrimary());
+  // Во время экскурсии в той же плашке идёт рассказ, и его язык меняет сама
+  // экскурсия; подсказка переписывается только тогда, когда плашка её.
+  onLanguageChange(() => {
+    if (!tour.isActive) hintElement.textContent = hintText(isTouchPrimary());
+  });
+}
 
 /** Линии орбит перестраиваются раз в модельный год: вековой дрейф медленный. */
 const ORBIT_REBUILD_INTERVAL_DAYS = 365;
@@ -875,7 +954,7 @@ const loop = new RenderLoop((dt, elapsed) => {
     distanceToSunKm: distanceToSun,
     date: clock.date,
     timeScale: clock.describeScale(),
-    nearestBody: nearest.body?.definition.name ?? 'Солнце',
+    nearestBody: bodyName(nearest.body?.definition.id ?? 'sun'),
     nearestDistanceKm: Math.max(nearest.distance, 0),
     frame: frameTargetName(),
     aim: aimTargetName(),
@@ -955,14 +1034,14 @@ if (import.meta.env.DEV) {
     /** Встать рядом с телом так, чтобы оно было освещено, и посмотреть на него. */
     goTo(id: string, radii = 3.4, phaseAngleDeg = 60) {
       const body = system.find(id);
-      if (!body) return `нет тела ${id}`;
+      if (!body) return `no body ${id}`;
       const position = framingPosition(body.worldPosition, sun.worldPosition, body.visualRadius, {
         distanceInRadii: radii,
         phaseAngle: (phaseAngleDeg * Math.PI) / 180,
       });
       flight.placeLookingAt(position, body.worldPosition);
       exposure.reset(flight.worldPosition.length());
-      return body.definition.name;
+      return bodyName(id);
     },
     setDate(iso: string) {
       clock.date = new Date(iso);

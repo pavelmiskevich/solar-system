@@ -52,7 +52,7 @@ describe('разметка неба', () => {
         const found = nearestStar(ra, dec);
         expect(
           found.separation,
-          `${figure.name}: вершине ${ra.toFixed(4)}, ${dec.toFixed(4)} не нашлось звезды`,
+          `${figure.names.ru}: вершине ${ra.toFixed(4)}, ${dec.toFixed(4)} не нашлось звезды`,
         ).toBeLessThan(TOLERANCE);
       }
     }
@@ -63,7 +63,7 @@ describe('разметка неба', () => {
       for (const [ra, dec] of figureVertices(figure)) {
         // Слабее пятой величины в фигуру попасть нечему: рисунок созвездия
         // складывается из того, что видно без всякого напряжения.
-        expect(nearestStar(ra, dec).magnitude, figure.name).toBeLessThan(5);
+        expect(nearestStar(ra, dec).magnitude, figure.names.ru).toBeLessThan(5);
       }
     }
   });
@@ -73,14 +73,14 @@ describe('разметка неба', () => {
 
     for (const star of NAMED_STARS) {
       const found = nearestStar(star.ra, star.dec);
-      expect(found.separation, star.name).toBeLessThan(TOLERANCE);
-      expect(found.magnitude, star.name).toBeCloseTo(star.magnitude, 1);
-      expect(star.magnitude, star.name).toBeLessThan(2);
+      expect(found.separation, star.names.ru).toBeLessThan(TOLERANCE);
+      expect(found.magnitude, star.names.ru).toBeCloseTo(star.magnitude, 1);
+      expect(star.magnitude, star.names.ru).toBeLessThan(2);
     }
   });
 
   it('имена не повторяются и не садятся друг на друга', () => {
-    const names = NAMED_STARS.map((star) => star.name);
+    const names = NAMED_STARS.map((star) => star.names.ru);
     expect(new Set(names).size).toBe(names.length);
 
     // Две подписи в одной точке неба - это α Центавра, записанная в каталоге
@@ -91,25 +91,25 @@ describe('разметка неба', () => {
         const b = NAMED_STARS[j]!;
         expect(
           separation(a.ra, a.dec, b.ra, b.dec),
-          `${a.name} и ${b.name} стоят в одной точке`,
+          `${a.names.ru} и ${b.names.ru} стоят в одной точке`,
         ).toBeGreaterThan(0.004);
       }
     }
   });
 
   it('созвездия на месте, а линии в них не длиннее настоящих', () => {
-    const names = CONSTELLATIONS.map((figure) => figure.name);
+    const names = CONSTELLATIONS.map((figure) => figure.names.ru);
     expect(names).toContain('Орион');
     expect(names).toContain('Большая Медведица');
     expect(names).toContain('Кассиопея');
 
     for (const figure of CONSTELLATIONS) {
-      expect(figure.segments.length, figure.name).toBeGreaterThan(1);
+      expect(figure.segments.length, figure.names.ru).toBeGreaterThan(1);
 
       for (const [ra1, dec1, ra2, dec2] of figure.segments) {
         const length = (separation(ra1, dec1, ra2, dec2) * 180) / Math.PI;
-        expect(length, figure.name).toBeGreaterThan(0.5);
-        expect(length, figure.name).toBeLessThan(35);
+        expect(length, figure.names.ru).toBeGreaterThan(0.5);
+        expect(length, figure.names.ru).toBeLessThan(35);
       }
     }
   });

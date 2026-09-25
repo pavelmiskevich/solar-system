@@ -1,24 +1,33 @@
 import type { OrbitControls } from './orbit';
 import type { TravelController } from '../camera/travel';
+import { onLanguageChange, strings, type Dictionary } from '../i18n';
 
-export interface TourStop {
-  id: string;
-  caption: string;
-}
+/**
+ * Маршрут экскурсии - от Солнца наружу.
+ *
+ * Здесь только опознаватели тел: рассказ у каждой остановки - слова, и лежит
+ * в словаре интерфейса (src/i18n) под тем же опознавателем. Остановку без
+ * рассказа tsc не пропустит: ключ маршрута обязан быть ключом словаря.
+ */
+type TourStop = keyof Dictionary['tour'];
 
-const TOUR_STOPS: TourStop[] = [
-  { id: 'sun', caption: 'Солнце - наша звезда. В нём сосредоточено 99.8% массы всей системы.' },
-  { id: 'mercury', caption: 'Меркурий - самая маленькая и быстрая планета. Здесь нет атмосферы, а кратеры хранят вечную тень.' },
-  { id: 'venus', caption: 'Венера - самое горячее место в системе. Плотные облака серной кислоты создают парниковый ад.' },
-  { id: 'earth', caption: 'Земля - наш дом. Единственная известная планета с жидкой водой на поверхности и жизнью.' },
-  { id: 'moon', caption: 'Луна - единственный естественный спутник Земли. Она всегда повёрнута к нам одной стороной.' },
-  { id: 'mars', caption: 'Марс - холодная красная пустыня. Когда-то здесь текли реки и были огромные озёра.' },
-  { id: 'jupiter', caption: 'Юпитер - крупнейший газовый гигант. В его атмосфере столетиями бушует Большое красное пятно.' },
-  { id: 'saturn', caption: 'Сатурн - властелин колец, состоящих из мириад ледяных обломков.' },
-  { id: 'uranus', caption: 'Уран - ледяной гигант. Он уникален тем, что вращается, лёжа на боку.' },
-  { id: 'neptune', caption: 'Нептун - самая далёкая планета. Здесь дуют самые быстрые ветры в Солнечной системе.' },
-  { id: 'pluto', caption: 'Плутон - карликовая планета на холодной окраине нашей системы, в поясе Койпера.' }
+const TOUR_STOPS: readonly TourStop[] = [
+  'sun',
+  'mercury',
+  'venus',
+  'earth',
+  'moon',
+  'mars',
+  'jupiter',
+  'saturn',
+  'uranus',
+  'neptune',
+  'pluto',
 ];
+
+function captionOf(stop: TourStop): string {
+  return strings().tour[stop];
+}
 
 /** Сколько стоим у тела, разглядывая его, секунды. */
 const WAIT_TIME = 8;
@@ -44,7 +53,14 @@ export class TourController {
     private readonly orbit: OrbitControls,
     private readonly doTravelTo: (id: string) => void,
     private readonly setCaption: (text: string | null) => void,
-  ) {}
+  ) {
+    // Рассказ на экране сменит язык вместе со всем интерфейсом: у остановки
+    // он висит восемь секунд, и дочитывать его на прежнем языке незачем.
+    onLanguageChange(() => {
+      const stop = TOUR_STOPS[this.step];
+      if (this.active && this.state === 'arrived' && stop) this.setCaption(captionOf(stop));
+    });
+  }
 
   get isActive() { return this.active; }
 
@@ -92,7 +108,7 @@ export class TourController {
     // Но только свой перелёт. Если зритель уже выбрал другое тело, перелёт
     // принадлежит ему, и отмена экскурсии, пришедшая следом, оставила бы его
     // посреди пустоты без того, что он выбрал.
-    if (this.state === 'traveling' && this.travel.targetId === TOUR_STOPS[this.step]?.id) {
+    if (this.state === 'traveling' && this.travel.targetId === TOUR_STOPS[this.step]) {
       this.travel.cancel();
     }
     this.setCaption(null);
@@ -105,7 +121,7 @@ export class TourController {
       if (!this.travel.isActive && this.orbit.isActive) {
         this.state = 'arrived';
         this.timer = 0;
-        this.setCaption(TOUR_STOPS[this.step]!.caption);
+        this.setCaption(captionOf(TOUR_STOPS[this.step]!));
         return;
       }
 
@@ -135,6 +151,6 @@ export class TourController {
     this.state = 'traveling';
     this.timer = 0;
     this.setCaption(null);
-    this.doTravelTo(TOUR_STOPS[step]!.id);
+    this.doTravelTo(TOUR_STOPS[step]!);
   }
 }

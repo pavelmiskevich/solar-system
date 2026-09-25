@@ -1,4 +1,5 @@
 import type { EventRow } from '../data/events';
+import { formatDateTime, onLanguageChange, strings } from '../i18n';
 
 /**
  * Список ближайших астрономических событий.
@@ -12,15 +13,10 @@ import type { EventRow } from '../data/events';
  * ближайшее полное затмение и куда смотреть, - инструмент.
  */
 
-/** Дата события: без секунд - точности модели на них всё равно не хватает. */
-const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
-  year: 'numeric',
-  month: 'short',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  timeZone: 'UTC',
-});
+/*
+ * Дата события - тем же форматом, что в HUD: без секунд - точности модели на
+ * них всё равно не хватает.
+ */
 
 export class EventList {
   private readonly root: HTMLElement;
@@ -52,7 +48,6 @@ export class EventList {
     this.toggleButton = document.createElement('button');
     this.toggleButton.type = 'button';
     this.toggleButton.className = 'bodies-toggle';
-    this.toggleButton.title = 'Ближайшие события (E)';
     this.toggleButton.addEventListener('click', () => this.setOpen(!this.open));
 
     this.list = document.createElement('div');
@@ -61,6 +56,17 @@ export class EventList {
     this.root.append(this.toggleButton, this.list);
     container.prepend(this.root);
     this.updateLabel();
+
+    // Строки собираются из того же посчитанного списка заново: поиск по
+    // эфемеридам языка не касается, меняются только слова и формат даты.
+    onLanguageChange(() => {
+      this.updateLabel();
+      if (!this.filled) return;
+      const active = this.rows.find((row) => row.element.classList.contains('active'))?.id;
+      this.filled = false;
+      this.fill();
+      this.setActive(active ?? null);
+    });
   }
 
   get isOpen(): boolean {
@@ -115,7 +121,7 @@ export class EventList {
     if (events.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'panel-row views-row';
-      empty.textContent = 'В ближайшие годы ничего не найдено';
+      empty.textContent = strings().panels.events.empty;
       this.list.appendChild(empty);
       return;
     }
@@ -134,7 +140,7 @@ export class EventList {
       when.className = 'views-hint';
       // Дата и пояснение в одной строке: дата - главное, ради чего список и
       // открывают, а пояснение отвечает на «и что с того».
-      when.textContent = `${DATE_FORMAT.format(event.date)} · ${event.hint}`;
+      when.textContent = `${formatDateTime(event.date)} · ${event.hint}`;
 
       element.append(name, when);
       element.addEventListener('click', () => {
@@ -148,6 +154,8 @@ export class EventList {
   }
 
   private updateLabel(): void {
-    this.toggleButton.textContent = this.open ? 'События ✕' : 'События ☄';
+    const words = strings().panels.events;
+    this.toggleButton.title = words.title;
+    this.toggleButton.textContent = this.open ? words.close : words.open;
   }
 }
