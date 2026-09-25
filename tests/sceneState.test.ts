@@ -116,4 +116,26 @@ describe('состояние сцены в адресе', () => {
     expect(decodeSceneState('?t=1e9').timeScale).toBeCloseTo(fastest, 6);
     expect(decodeSceneState('?t=0').timeScale).toBeUndefined();
   });
+
+  it('язык интерфейса переживает дорогу через адрес', () => {
+    const search = encodeSceneState({ jd: JD_2032, language: 'en' });
+
+    expect(search).toContain('lang=en');
+    expect(decodeSceneState(search).language).toBe('en');
+    expect(decodeSceneState('?lang=ru').language).toBe('ru');
+    // Регистр набирают руками как придётся - это всё ещё английский.
+    expect(decodeSceneState('?lang=EN').language).toBe('en');
+  });
+
+  it('незнакомый язык выбрасывается, а остальная ссылка остаётся', () => {
+    for (const junk of ['de', 'english', '', 'ru-RU', '<script>']) {
+      const decoded = decodeSceneState(`?lang=${encodeURIComponent(junk)}&b=mars&r=5`);
+
+      expect(decoded.language, junk).toBeUndefined();
+      expect(decoded.view?.kind, junk).toBe('body');
+    }
+    // Языка нет в ссылке - его нет и в состоянии: выбирать будет браузер.
+    expect(decodeSceneState('?b=mars').language).toBeUndefined();
+    expect(encodeSceneState({ jd: JD_2032 })).not.toContain('lang=');
+  });
 });
