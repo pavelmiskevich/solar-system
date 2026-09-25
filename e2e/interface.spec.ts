@@ -1,6 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-import { expectNoErrors, openScene, pauseAt, waitForArrival, waitForFrames } from './helpers';
+import {
+  expectEqualPickers,
+  expectNoErrors,
+  openScene,
+  pauseAt,
+  waitForArrival,
+  waitForFrames,
+} from './helpers';
 
 /**
  * Интерфейс: справка, список тел, карточка, время, размеры, подписи.
@@ -174,6 +181,15 @@ test.describe('интерфейс', () => {
         );
       }
 
+      expectNoErrors(errors);
+    });
+  }
+
+  for (const height of [1080, 768, 657]) {
+    test(`окна выбора на экране 1366x${height} одного размера`, async ({ page }) => {
+      await page.setViewportSize({ width: 1366, height });
+      const errors = await openScene(page);
+      await expectEqualPickers(page);
       expectNoErrors(errors);
     });
   }

@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import {
   emptyScreenPoint,
+  expectEqualPickers,
   expectNoErrors,
   openScene,
   pauseAt,
@@ -248,6 +249,12 @@ test.describe('сенсорное управление', () => {
     await page.touchscreen.tap(centre.x, centre.y);
     await expect(page.locator('#help')).toHaveClass(/closed/);
 
+    expectNoErrors(errors);
+  });
+
+  test('окна выбора на телефоне одного размера', async ({ page }) => {
+    const errors = await openScene(page);
+    await expectEqualPickers(page);
     expectNoErrors(errors);
   });
 
