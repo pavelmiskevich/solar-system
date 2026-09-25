@@ -1,6 +1,7 @@
 import { RAD, dateFromJulianDay } from '../core/units';
 import type { BodyView, FreeView, SceneState } from '../core/sceneState';
-import { bodyById } from './bodies';
+import { strings } from '../i18n';
+import type { ParadeSky } from '../i18n/ru';
 import type { AstronomicalEvent } from '../physics/events';
 import { findEvents, geocentricLongitude, heliocentric } from '../physics/events';
 
@@ -8,8 +9,10 @@ import { findEvents, geocentricLongitude, heliocentric } from '../physics/events
  * События списком: как их назвать и куда за ними лететь.
  *
  * Поиск живёт в physics/events.ts и знает только числа: момент, участников и
- * меру. Здесь к ним прибавляется всё остальное - имя по-русски, строка о том,
- * на что смотреть, и готовое состояние сцены.
+ * меру. Здесь к ним прибавляется всё остальное - имя, строка о том, на что
+ * смотреть, и готовое состояние сцены. Слова для имени и строки берутся из
+ * словаря интерфейса (src/i18n): порядок слов и падежи там свои у каждого
+ * языка, а здесь решается только, какие слова нужны.
  *
  * Состояние - то же самое, чем описан готовый вид: дата, тело, расстояние в его
  * радиусах и два угла. Разница в том, что у вида они записаны в коде руками, а
@@ -26,27 +29,15 @@ const DAYS_PER_YEAR = 365.25;
 export interface EventRow {
   /** Устойчивый ключ: род события и дата. По нему строка находится в списке. */
   id: string;
-  /** Название: «Полное солнечное затмение». */
-  title: string;
-  /** Одна строка о том, на что смотреть. */
-  hint: string;
+  /** Название на текущем языке: «Полное солнечное затмение». */
+  readonly title: string;
+  /** Одна строка о том, на что смотреть, - на текущем языке. */
+  readonly hint: string;
   jd: number;
   date: Date;
   /** Тело, к которому летит камера. У парада его нет: камера смотрит с Земли. */
   body: string;
   state: SceneState & { view: BodyView | FreeView };
-}
-
-const PHASE_NAMES: Record<string, string> = {
-  total: 'Полное',
-  annular: 'Кольцеобразное',
-  partial: 'Частное',
-  penumbral: 'Полутеневое',
-};
-
-/** Имя тела по-русски; неизвестное тело не должно ронять список. */
-function nameOf(id: string): string {
-  return bodyById(id)?.name ?? id;
 }
 
 /**
@@ -114,20 +105,6 @@ function viewpointOf(event: AstronomicalEvent): { body: string; from: string; ra
 
 /* ── Парад планет ─────────────────────────────────────────────────────────── */
 
-/** Сколько планет собралось - словом, потому что цифра в названии читается хуже. */
-const PARADE_COUNTS: Record<number, string> = {
-  3: 'три в одной дуге',
-  4: 'четыре в одной дуге',
-  5: 'все пять',
-};
-
-/** Перечисление через запятую и «и» перед последним. */
-function listNames(ids: readonly string[]): string {
-  const names = ids.map(nameOf);
-  if (names.length < 2) return names[0] ?? '';
-  return `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}`;
-}
-
 /**
  * Вечернее небо или утреннее.
  *
@@ -139,15 +116,15 @@ function listNames(ids: readonly string[]): string {
  * Величина проверяемая, поэтому и сказана: без неё строка сообщала бы, что
  * парад будет, но не когда на него смотреть.
  */
-function skyOf(event: AstronomicalEvent): string {
+function skyOf(event: AstronomicalEvent): ParadeSky {
   const sun = geocentricLongitude('sun', event.jd);
   const sides = event.bodies.map(
     (id) => (((geocentricLongitude(id, event.jd) - sun + 540) % 360) - 180),
   );
 
-  if (sides.every((side) => side > 0)) return 'вечернего неба';
-  if (sides.every((side) => side < 0)) return 'утреннего неба';
-  return 'по обе стороны от Солнца';
+  if (sides.every((side) => side > 0)) return 'evening';
+  if (sides.every((side) => side < 0)) return 'morning';
+  return 'both';
 }
 
 /**

@@ -5,6 +5,7 @@ import { COMETS, bodyById } from '../data/bodies';
 import { scenarioById, type Scenario } from '../data/scenarios';
 import { TAIL_CUTOFF_AU, activityAt } from '../physics/cometTail';
 import { ZERO_CELSIUS_K, equilibriumTemperatureK } from '../physics/temperature';
+import { formatInteger, onLanguageChange, strings, type Dictionary } from '../i18n';
 import { formatDistance } from './distanceUnits';
 import { makeUnitToggle } from './hud';
 import { superscript } from './superscript';
@@ -24,16 +25,17 @@ const EARTH = bodyFacts(bodyById('earth')!);
 export function formatMass(kg: number): string {
   const exponent = Math.floor(Math.log10(kg));
   const mantissa = kg / Math.pow(10, exponent);
-  return `${mantissa.toFixed(2)}·10${superscript(exponent)} кг`;
+  return `${mantissa.toFixed(2)}·10${superscript(exponent)} ${strings().units.kg}`;
 }
 
 /** Период обращения: сутки, если их немного, иначе годы. */
 export function formatOrbitalPeriod(days: number | null): string {
   if (days === null) return '-';
-  if (days < 300) return `${days.toFixed(days < 100 ? 1 : 0)} сут`;
+  const units = strings().units;
+  if (days < 300) return `${days.toFixed(days < 100 ? 1 : 0)} ${units.days}`;
 
   const years = days / 365.25;
-  return `${years.toFixed(years < 10 ? 2 : 1)} года`;
+  return `${years.toFixed(years < 10 ? 2 : 1)} ${units.years}`;
 }
 
 /**
@@ -43,17 +45,22 @@ export function formatOrbitalPeriod(days: number | null): string {
  */
 export function formatRotationPeriod(days: number): string {
   const absolute = Math.abs(days);
-  const retrograde = days < 0 ? ', обратное' : '';
+  const words = strings();
+  const units = words.units;
+  const retrograde = days < 0 ? `, ${words.retrograde}` : '';
 
   if (absolute < 2) {
     const hours = Math.floor(absolute * 24);
     const minutes = Math.round((absolute * 24 - hours) * 60);
     // Округление минут до шестидесяти: «9 ч 60 мин» выглядит как ошибка.
     const carry = minutes === 60;
-    return `${hours + (carry ? 1 : 0)} ч ${carry ? 0 : minutes} мин${retrograde}`;
+    return (
+      `${hours + (carry ? 1 : 0)} ${units.hours} ` +
+      `${carry ? 0 : minutes} ${units.minutes}${retrograde}`
+    );
   }
 
-  return `${absolute.toFixed(absolute < 100 ? 1 : 0)} сут${retrograde}`;
+  return `${absolute.toFixed(absolute < 100 ? 1 : 0)} ${units.days}${retrograde}`;
 }
 
 /**
@@ -118,11 +125,13 @@ export function cometRows(id: string, sunDistanceKm: number): CometRows | null {
     equilibriumTemperatureK(distanceAu, comet.albedo) - ZERO_CELSIUS_K,
   );
 
+  const words = strings().comet;
+
   if (activity === 0) {
     return {
       temperature,
-      atmosphere: 'нет: без испарения нет и комы',
-      tail: `нет: дальше ${TAIL_CUTOFF_AU} а.е. лёд не испаряется`,
+      atmosphere: words.noComa,
+      tail: words.noTail(TAIL_CUTOFF_AU),
       views: (COMET_VIEWS[id] ?? [])
         .map((view) => scenarioById(view))
         .filter((view): view is Scenario => view !== undefined),
@@ -132,12 +141,11 @@ export function cometRows(id: string, sunDistanceKm: number): CometRows | null {
   // Доля от перигелия, а не просто «есть»: у самого порога испаряется так
   // мало, что хвоста на экране почти не видно, и голое «есть» спорило бы с
   // кадром так же, как прежнее молчание. Меньше процента не округляется до
-  // нуля - «есть: 0 %» читалось бы как противоречие.
-  const share = Math.round(activity * 100);
+  // нуля - об этом заботится словарь.
   return {
     temperature,
     atmosphere: bodyLore(id)?.atmosphere ?? '-',
-    tail: `есть: ${share < 1 ? 'меньше 1' : share} % от силы в перигелии`,
+    tail: words.tail(Math.round(activity * 100)),
     views: [],
   };
 }
@@ -159,29 +167,30 @@ export interface CardSource {
   ringSunElevationDeg(): number | null;
 }
 
-const ROWS = [
-  'радиус',
-  'масса',
-  'температура',
-  'атмосфера',
-  'хвост',
-  'спутников',
-  'наклон оси',
-  'кольца к Солнцу',
-  'сутки',
-  'оборот',
-  'от Солнца',
-  'до камеры',
-] as const;
+type RowLabel = keyof Dictionary['card']['rows'];
 
-type RowLabel = (typeof ROWS)[number];
+/** Строки сверху вниз; подписи к ним - в словаре. */
+const ROWS: readonly RowLabel[] = [
+  'radius',
+  'mass',
+  'temperature',
+  'atmosphere',
+  'tail',
+  'moons',
+  'tilt',
+  'rings',
+  'day',
+  'orbit',
+  'fromSun',
+  'toCamera',
+];
 
 /**
  * Строки с расстоянием: щелчок по ним меняет единицы во всём интерфейсе.
  * Радиус сюда не входит - это размер тела, а не расстояние до него, и мерить
  * поперечник Юпитера в световых секундах незачем.
  */
-const DISTANCE_ROWS: ReadonlySet<string> = new Set(['от Солнца', 'до камеры']);
+const DISTANCE_ROWS: ReadonlySet<RowLabel> = new Set(['fromSun', 'toCamera']);
 
 export class BodyCard {
   private readonly root: HTMLElement;
@@ -189,7 +198,10 @@ export class BodyCard {
   private readonly kind: HTMLElement;
   private readonly note: HTMLElement;
   private readonly views: HTMLElement;
+  private readonly viewsLead: HTMLElement;
   private readonly viewList: HTMLElement;
+  /** Подписи строк: они пишутся один раз и переписываются только сменой языка. */
+  private readonly labels = new Map<RowLabel, HTMLElement>();
   /** Какие виды сейчас в приглашении: перестраивать его трижды в секунду незачем. */
   private shownViews = '';
   /** Строка целиком - её приходится прятать там, где величины не существует. */
@@ -223,7 +235,6 @@ export class BodyCard {
       row.className = 'body-card-row';
 
       const key = document.createElement('span');
-      key.textContent = label;
 
       const value = document.createElement('span');
       value.className = 'value';
@@ -233,6 +244,7 @@ export class BodyCard {
 
       row.append(key, value);
       this.root.appendChild(row);
+      this.labels.set(label, key);
       this.rows.set(label, value);
       this.lines.set(label, row);
     }
@@ -242,9 +254,9 @@ export class BodyCard {
     // догадается, что искать её надо именно там.
     this.views = document.createElement('div');
     this.views.className = 'body-card-views hidden';
-    this.views.textContent = 'Хвост во всю длину - в готовых видах:';
+    this.viewsLead = document.createElement('span');
     this.viewList = document.createElement('div');
-    this.views.appendChild(this.viewList);
+    this.views.append(this.viewsLead, this.viewList);
     this.root.appendChild(this.views);
 
     this.note = document.createElement('div');
@@ -252,6 +264,22 @@ export class BodyCard {
     this.root.appendChild(this.note);
 
     container.appendChild(this.root);
+
+    this.writeLabels();
+    // Смена языка переписывает и подписи, и значения: в значениях тоже
+    // слова - единицы, атмосфера, примета, - и ждать следующего тела, чтобы
+    // они сменились, незачем.
+    onLanguageChange(() => {
+      this.writeLabels();
+      this.shownViews = '';
+      if (this.source) this.fill(this.source);
+    });
+  }
+
+  private writeLabels(): void {
+    const words = strings().card;
+    for (const [label, node] of this.labels) node.textContent = words.rows[label];
+    this.viewsLead.textContent = words.tailViews;
   }
 
   /** Показать карточку тела; null - спрятать. */
@@ -260,8 +288,11 @@ export class BodyCard {
 
     this.source = source;
     this.root.classList.toggle('hidden', source === null);
-    if (!source) return;
+    if (source) this.fill(source);
+  }
 
+  /** Заполнить карточку заново - для нового тела или на новом языке. */
+  private fill(source: CardSource): void {
     const definition = bodyById(source.id);
     if (!definition) return;
 
@@ -269,24 +300,33 @@ export class BodyCard {
     this.title.textContent = source.name;
     this.kind.textContent = source.kind;
 
-    this.set('радиус', `${format(facts.radiusKm)} км · ${formatRelative(facts.radiusKm / EARTH.radiusKm, 'R⊕')}`);
-    this.set('масса', `${formatMass(facts.massKg)} · ${formatRelative(facts.massKg / EARTH.massKg, 'M⊕')}`);
-    this.set('наклон оси', `${facts.axialTiltDeg.toFixed(1)}°`);
-    this.set('сутки', formatRotationPeriod(facts.rotationPeriodDays));
-    this.set('оборот', formatOrbitalPeriod(facts.orbitalPeriodDays));
+    // Тысячи разделены так же, как в остальном интерфейсе: пробелом
+    // по-русски, запятой по-английски.
+    const km = strings().units.km;
+    this.set(
+      'radius',
+      `${formatInteger(facts.radiusKm)} ${km} · ${formatRelative(facts.radiusKm / EARTH.radiusKm, 'R⊕')}`,
+    );
+    this.set(
+      'mass',
+      `${formatMass(facts.massKg)} · ${formatRelative(facts.massKg / EARTH.massKg, 'M⊕')}`,
+    );
+    this.set('tilt', `${facts.axialTiltDeg.toFixed(1)}°`);
+    this.set('day', formatRotationPeriod(facts.rotationPeriodDays));
+    this.set('orbit', formatOrbitalPeriod(facts.orbitalPeriodDays));
 
     const lore = bodyLore(source.id);
     // У кометы справочной температуры нет, и обе строки заполнит update():
     // там они считаются от расстояния до Солнца.
     const temperature = lore?.temperatureC ?? null;
-    this.set('температура', temperature === null ? '-' : formatTemperature(temperature));
-    this.set('атмосфера', lore?.atmosphere ?? '-');
+    this.set('temperature', temperature === null ? '-' : formatTemperature(temperature));
+    this.set('atmosphere', lore?.atmosphere ?? '-');
 
     // У Солнца и у спутников своих спутников нет, и прочерк здесь читался бы
     // как «ноль» - утверждение, которого никто не делал. Строка убирается.
     const moons = lore?.moons ?? null;
-    this.showRow('спутников', moons !== null);
-    if (moons !== null) this.set('спутников', String(moons));
+    this.showRow('moons', moons !== null);
+    if (moons !== null) this.set('moons', String(moons));
 
     this.note.textContent = lore?.note ?? '';
     this.note.classList.toggle('hidden', !lore);
@@ -304,28 +344,28 @@ export class BodyCard {
     if (this.age < 0.33) return;
     this.age = 0;
 
-    this.set('от Солнца', formatDistance(Math.max(this.source.distanceToSun(), 0)));
-    this.set('до камеры', formatDistance(Math.max(this.source.distanceToCamera(), 0)));
+    this.set('fromSun', formatDistance(Math.max(this.source.distanceToSun(), 0)));
+    this.set('toCamera', formatDistance(Math.max(this.source.distanceToCamera(), 0)));
 
     // Кольца, повёрнутые к Солнцу ребром, получают почти ничего и тускнеют до
     // неразличимости. Без этой строки такой кадр читается как поломка, а это
     // явление: у равноденствия 2025 года кольцам Сатурна достаётся около
     // десятой доли того света, что в начале тридцатых.
     const rings = this.source.ringSunElevationDeg();
-    this.showRow('кольца к Солнцу', rings !== null);
-    if (rings !== null) this.set('кольца к Солнцу', `${rings.toFixed(1)}°`);
+    this.showRow('rings', rings !== null);
+    if (rings !== null) this.set('rings', `${rings.toFixed(1)}°`);
 
     // Комета вдали от Солнца - тёмная глыба без хвоста, и сцена в этом права.
     // Та же беда, что с кольцами: без объяснения верный кадр читается как
     // непрорисованная планета.
     const comet = cometRows(this.source.id, Math.max(this.source.distanceToSun(), 0));
-    this.showRow('хвост', comet !== null);
+    this.showRow('tail', comet !== null);
     this.showViews(comet?.views ?? []);
     if (!comet) return;
 
-    this.set('температура', comet.temperature);
-    this.set('атмосфера', comet.atmosphere);
-    this.set('хвост', comet.tail);
+    this.set('temperature', comet.temperature);
+    this.set('atmosphere', comet.atmosphere);
+    this.set('tail', comet.tail);
   }
 
   private showViews(views: readonly Scenario[]): void {
@@ -355,9 +395,4 @@ export class BodyCard {
   private showRow(label: RowLabel, visible: boolean): void {
     this.lines.get(label)?.classList.toggle('hidden', !visible);
   }
-}
-
-/** Разделение тысяч неразрывным пробелом - как в остальном интерфейсе. */
-function format(value: number): string {
-  return value.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
 }

@@ -1,10 +1,19 @@
-import { cycleDistanceUnit, distanceUnit, formatDistance, UNIT_NAMES } from './distanceUnits';
+import {
+  bodyName,
+  formatDateTime,
+  formatInteger,
+  onLanguageChange,
+  strings,
+  type Dictionary,
+} from '../i18n';
+import { cycleDistanceUnit, distanceUnit, formatDistance, unitName } from './distanceUnits';
 
 /** Скорость света, км/с - ориентир для показаний скорости. */
 const C = 299_792.458;
 
-/**
- * Дата сцены - всемирным временем, как и всё остальное в ней.
+/*
+ * Дата сцены - всемирным временем, как и всё остальное в ней (см.
+ * `formatDateTime`).
  *
  * Часовой пояс зрителя здесь не при чём: эфемериды считаются в UTC, поле
  * ввода даты подписано UTC, ссылка на вид хранит UTC. Пока показания шли
@@ -13,14 +22,6 @@ const C = 299_792.458;
  * не всем и не сразу - в Лондоне её нет вовсе, - а сверить их зрителю
  * нечем.
  */
-const DATE_FORMAT = new Intl.DateTimeFormat('ru-RU', {
-  year: 'numeric',
-  month: 'short',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  timeZone: 'UTC',
-});
 
 export interface HudData {
   fps: number;
@@ -38,20 +39,32 @@ export interface HudData {
   sizeExaggeration: number;
 }
 
-const ROWS = [
-  'дата, UTC',
-  'время',
-  'до Солнца',
-  'ближайшее',
-  'отсчёт',
-  'захват',
-  'размеры',
-  'скорость',
-  'кадры',
-] as const;
+type RowKey = keyof Dictionary['hud']['rows'];
+
+/** Строки сверху вниз; подписи к ним - в словаре. */
+const ROWS: readonly RowKey[] = [
+  'date',
+  'time',
+  'sun',
+  'nearest',
+  'frame',
+  'aim',
+  'size',
+  'speed',
+  'fps',
+];
 
 /** Строки, показывающие расстояние: щелчок по ним меняет единицы. */
-const DISTANCE_ROWS: ReadonlySet<string> = new Set(['до Солнца']);
+const DISTANCE_ROWS: ReadonlySet<RowKey> = new Set(['sun']);
+
+/**
+ * Ширина колонки подписей, знаки.
+ *
+ * Плашка стоит в `white-space: pre`, и значения отбиваются от подписей
+ * пробелами. Десяти знаков хватает самой длинной подписи на обоих языках -
+ * «ближайшее» и «date, UTC».
+ */
+const LABEL_WIDTH = 10;
 
 /**
  * Сделать показание расстояния переключателем единиц.
@@ -64,6 +77,7 @@ export function makeUnitToggle(node: HTMLElement): void {
   node.tabIndex = 0;
   node.setAttribute('role', 'button');
   refreshTitle(node);
+  onLanguageChange(() => refreshTitle(node));
 
   const toggle = () => {
     cycleDistanceUnit();
@@ -86,7 +100,7 @@ export function makeUnitToggle(node: HTMLElement): void {
 }
 
 function refreshTitle(node: HTMLElement): void {
-  node.title = `Единицы: ${UNIT_NAMES[distanceUnit()]}. Щелчок - следующие`;
+  node.title = strings().unitToggleTitle(unitName(distanceUnit()));
 }
 
 /**
@@ -95,6 +109,7 @@ function refreshTitle(node: HTMLElement): void {
  * шестьдесят раз в секунду - за такое платить нечем.
  */
 export class Hud {
+  private readonly labels: HTMLElement[] = [];
   private readonly values: HTMLElement[] = [];
 
   /**
@@ -108,34 +123,50 @@ export class Hud {
 
   constructor(element: HTMLElement) {
     element.textContent = '';
-    for (const label of ROWS) {
+    for (const row of ROWS) {
       const key = document.createElement('span');
-      key.textContent = label.padEnd(10, ' ');
 
       const value = document.createElement('b');
       value.textContent = '-';
-      if (DISTANCE_ROWS.has(label)) makeUnitToggle(value);
-      if (label === 'ближайшее') {
+      if (DISTANCE_ROWS.has(row)) makeUnitToggle(value);
+      if (row === 'nearest') {
         makeUnitToggle(this.nearestDistance);
         value.appendChild(this.nearestDistance);
       }
 
       element.append(key, value, document.createTextNode('\n'));
+      this.labels.push(key);
       this.values.push(value);
     }
+
+    // Значения переписываются каждый кадр и сменят язык сами, а подписи
+    // написаны один раз - их надо переписать.
+    this.writeLabels();
+    onLanguageChange(() => this.writeLabels());
+  }
+
+  private writeLabels(): void {
+    const names = strings().hud.rows;
+    ROWS.forEach((row, index) => {
+      const label = this.labels[index];
+      if (label) label.textContent = names[row].padEnd(LABEL_WIDTH, ' ');
+    });
   }
 
   update(data: HudData): void {
-    this.set(0, DATE_FORMAT.format(data.date));
+    this.set(0, formatDateTime(data.date));
     this.set(1, data.timeScale);
     this.set(2, formatDistance(data.distanceToSunKm));
     this.setNearest(data.nearestBody, formatDistance(data.nearestDistanceKm));
     // Гелиоцентрическая система - состояние по умолчанию, и называть её честнее так,
     // чем прочерком: камера всё равно всегда в чьёй-то системе отсчёта.
-    this.set(4, data.frame ?? 'Солнце');
+    this.set(4, data.frame ?? bodyName('sun'));
     // Прочерк здесь честнее слова: захвата либо нет вовсе, либо он на теле.
     this.set(5, data.aim ?? '-');
-    this.set(6, data.sizeExaggeration === 1 ? 'настоящие' : `×${data.sizeExaggeration}`);
+    this.set(
+      6,
+      data.sizeExaggeration === 1 ? strings().hud.trueSizes : `×${data.sizeExaggeration}`,
+    );
     this.set(7, formatSpeed(data.speedKmS));
     this.set(8, `${data.fps.toFixed(0)} fps`);
   }
@@ -164,7 +195,8 @@ export class Hud {
 }
 
 export function formatSpeed(kmS: number): string {
-  if (kmS < 1) return `${(kmS * 1000).toFixed(0)} м/с`;
-  if (kmS < C * 0.01) return `${kmS.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} км/с`;
+  const units = strings().units;
+  if (kmS < 1) return `${(kmS * 1000).toFixed(0)} ${units.metersPerSecond}`;
+  if (kmS < C * 0.01) return `${formatInteger(kmS)} ${units.kmPerSecond}`;
   return `${(kmS / C).toFixed(kmS / C < 10 ? 2 : 0)} c`;
 }

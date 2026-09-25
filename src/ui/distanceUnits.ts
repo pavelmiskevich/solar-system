@@ -13,6 +13,7 @@
  */
 
 import { AU } from '../core/units';
+import { formatInteger, strings } from '../i18n';
 import { superscript } from './superscript';
 
 /** Скорость света, км/с. */
@@ -29,13 +30,10 @@ export type DistanceUnit = 'auto' | 'km' | 'au' | 'light';
  */
 const ORDER: readonly DistanceUnit[] = ['auto', 'km', 'au', 'light'];
 
-/** Как называется текущий выбор - для подсказки на наведении. */
-export const UNIT_NAMES: Readonly<Record<DistanceUnit, string>> = {
-  auto: 'по величине',
-  km: 'километры',
-  au: 'астрономические единицы',
-  light: 'световые минуты',
-};
+/** Как называется выбор - для подсказки на наведении. */
+export function unitName(unit: DistanceUnit): string {
+  return strings().unitNames[unit];
+}
 
 let current: DistanceUnit = 'auto';
 const listeners = new Set<() => void>();
@@ -76,34 +74,34 @@ export function formatDistance(km: number): string {
 }
 
 export function formatDistanceIn(km: number, unit: DistanceUnit): string {
+  const units = strings().units;
+
   switch (unit) {
     case 'km':
-      return `${round(km)} км`;
+      return `${round(km)} ${units.km}`;
 
     case 'au':
-      return `${au(km)} а.е.`;
+      return `${au(km)} ${units.au}`;
 
     case 'light':
       // Ближе светового радиуса минуты - в секундах: до Луны 1.28 световой
       // секунды, и это как раз тот ориентир, ради которого сюда и смотрят.
       // В минутах то же расстояние - 0.02, число ни о чём.
       return km < LIGHT_MINUTE
-        ? `${(km / LIGHT_SECOND).toFixed(2)} св. с`
-        : `${(km / LIGHT_MINUTE).toFixed(km / LIGHT_MINUTE < 10 ? 2 : 1)} св. мин`;
+        ? `${(km / LIGHT_SECOND).toFixed(2)} ${units.lightSecond}`
+        : `${(km / LIGHT_MINUTE).toFixed(km / LIGHT_MINUTE < 10 ? 2 : 1)} ${units.lightMinute}`;
 
     default:
       // Прежнее поведение: единица подбирается под величину. Метры у
       // поверхности, километры внутри системы, астрономические - между планет.
-      if (km < 1) return `${(km * 1000).toFixed(0)} м`;
-      if (km < 1e6) return `${round(km)} км`;
-      return `${au(km)} а.е.`;
+      if (km < 1) return `${(km * 1000).toFixed(0)} ${units.m}`;
+      if (km < 1e6) return `${round(km)} ${units.km}`;
+      return `${au(km)} ${units.au}`;
   }
 }
 
 function round(km: number): string {
-  return km < 1
-    ? km.toLocaleString('ru-RU', { maximumFractionDigits: 3 })
-    : km.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
+  return formatInteger(km, km < 1 ? 3 : 0);
 }
 
 function au(km: number): string {
