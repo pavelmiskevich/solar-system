@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { expectNoErrors, openScene, waitForArrival } from './helpers';
+import { expectEqualPickers, expectNoErrors, openScene, waitForArrival } from './helpers';
 
 /**
  * Язык интерфейса: переключатель, ссылка и выбор по браузеру.
@@ -151,6 +151,23 @@ test.describe('язык интерфейса', () => {
     expect(await page.evaluate(() => window.sim.frame.targetId)).toBe('jupiter');
     expectNoErrors(errors);
   });
+});
+
+/*
+ * Английские строки другой длины, чем русские: подсказки видов переносятся
+ * иначе, кнопки колонки уже. Раскладку колонки проверяют и по-английски -
+ * те же экраны, что в interface.spec.ts.
+ */
+test.describe('раскладка на английском', () => {
+  for (const height of [1080, 768, 657]) {
+    test(`окна выбора на экране 1366x${height} одного размера`, async ({ page }) => {
+      await page.setViewportSize({ width: 1366, height });
+      const errors = await openScene(page, { url: '/?lang=en' });
+      await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+      await expectEqualPickers(page);
+      expectNoErrors(errors);
+    });
+  }
 });
 
 test.describe('язык интерфейса в английском браузере', () => {
