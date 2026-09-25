@@ -492,6 +492,11 @@ export async function recordCaptions(page: Page): Promise<() => Promise<string[]
  * Три окна выбора в колонке - виды, события и тела - одного размера, и ни
  * одно, открывшись, не выталкивает кнопки колонки за край экрана.
  *
+ * Одного размера - те, что упёрлись в предел и прокручиваются. Список,
+ * который помещается целиком, пустотой до общего размера не растягивается:
+ * на Linux строки ниже, и все готовые виды на высоком экране влезают без
+ * прокрутки. Такой список обязан быть не выше остальных.
+ *
  * Однажды виды и события держались за предел, посчитанный руками под семь
  * кнопок: кнопок стало восемь, нижняя уходила за край, а список тел,
  * сжимавшийся по месту, выходил на том же экране меньше двух других.
@@ -503,6 +508,7 @@ export async function expectEqualPickers(page: Page): Promise<void> {
     { name: 'тела', key: 'KeyB', list: '#bodies:not(.closed) .bodies-list' },
   ];
   const heights: Record<string, number> = {};
+  const whole: Record<string, number> = {};
 
   for (const { name, key, list } of panels) {
     await page.keyboard.press(key);
@@ -518,7 +524,10 @@ export async function expectEqualPickers(page: Page): Promise<void> {
         return settled;
       })
       .toBe(true);
-    heights[name] = previous;
+    const scrolls = await locator.evaluate(
+      (element) => element.scrollHeight > element.clientHeight + 1,
+    );
+    (scrolls ? heights : whole)[name] = previous;
 
     const overflow = await page.evaluate(() => {
       const bottom = Math.max(
@@ -534,6 +543,14 @@ export async function expectEqualPickers(page: Page): Promise<void> {
     await expect(locator).toHaveCount(0);
   }
 
-  const spread = Math.max(...Object.values(heights)) - Math.min(...Object.values(heights));
-  expect(spread, `высоты окон выбора: ${JSON.stringify(heights)}`).toBeLessThanOrEqual(2);
+  const report = `с прокруткой ${JSON.stringify(heights)}, целиком ${JSON.stringify(whole)}`;
+  // Список тел в двадцать пять строк прокручивается на любом экране, так что
+  // хотя бы одно окно, упёршееся в предел, есть всегда.
+  expect(Object.keys(heights).length, report).toBeGreaterThan(0);
+  const tallest = Math.max(...Object.values(heights));
+  const spread = tallest - Math.min(...Object.values(heights));
+  expect(spread, `высоты окон выбора: ${report}`).toBeLessThanOrEqual(2);
+  for (const height of Object.values(whole)) {
+    expect(height, `высоты окон выбора: ${report}`).toBeLessThanOrEqual(tallest + 2);
+  }
 }
