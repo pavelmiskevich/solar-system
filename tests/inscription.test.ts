@@ -93,6 +93,30 @@ describe('надпись на небе', () => {
     }
   });
 
+  it('не ставит надпись ближе 45° к Солнцу, даже если звёзды там лучше', () => {
+    // Приманка: звёзды ровно в вершинах буквы в 30° от Солнца. Без запрета
+    // лучшего места не найти, и надпись встала бы в засветку.
+    const shape = shapeOf('Л');
+    const sun = at(0, 0);
+    const bait = placeShape(shape, { centre: at(30, 0), height: heightFor(shape) })
+      .map((p) => ({ ...p, magnitude: 1 }));
+    const placement = choosePlacement(shape, bait, { sun, others: [] });
+    expect(angleBetween(placement.centre, sun)).toBeGreaterThanOrEqual(SUN_CLEARANCE);
+  });
+
+  it('не подпускает вершины к планете, даже если звёзды там лучше', () => {
+    // Приманка далеко от Солнца, но на одной из её вершин стоит планета.
+    const shape = shapeOf('Л');
+    const sun = at(300, -20);
+    const bait = placeShape(shape, { centre: at(120, 20), height: heightFor(shape) })
+      .map((p) => ({ ...p, magnitude: 1 }));
+    const planet = bait[0]!;
+    const placement = choosePlacement(shape, bait, { sun, others: [planet] });
+    for (const point of placeShape(shape, placement)) {
+      expect(angleBetween(point, planet)).toBeGreaterThanOrEqual(BODY_CLEARANCE);
+    }
+  });
+
   it('выбирает одно и то же место при одних и тех же условиях', () => {
     const stars = syntheticSky();
     const avoid = { sun: at(30, 10), others: [] };
