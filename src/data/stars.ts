@@ -1,3 +1,4 @@
+import type { BrightStar } from '../core/inscription';
 import { decodeBase64 } from './base64';
 import { STAR_COUNT, STAR_DATA } from './stars.generated';
 
@@ -66,4 +67,22 @@ export function decode(base64: string, count: number): StarCatalog {
   }
 
   return { count, rightAscension, declination, magnitude, colorIndex };
+}
+
+/**
+ * Яркие звёзды - опора надписи на небе.
+ *
+ * Список короткий, около трёхсот звёзд: притяжение перебирает его для
+ * каждой вершины каждого проверяемого места, и весь каталог сделал бы
+ * выбор места секундным.
+ */
+export function brightStars(limit: number): BrightStar[] {
+  const catalog = starCatalog();
+  const stars: BrightStar[] = [];
+  for (let i = 0; i < catalog.count; i++) {
+    const magnitude = catalog.magnitude[i]!;
+    if (magnitude > limit) continue;
+    stars.push({ ra: catalog.rightAscension[i]!, dec: catalog.declination[i]!, magnitude });
+  }
+  return stars;
 }

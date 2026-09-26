@@ -1,0 +1,71 @@
+import { describe, expect, it } from 'vitest';
+
+import { angleBetween, shapeOf, SUN_CLEARANCE } from '../src/core/inscription';
+import {
+  GREETINGS,
+  GREETING_ID,
+  avoidFromEarth,
+  greetingById,
+  greetingLayout,
+  greetingView,
+} from '../src/data/greetings';
+import { brightStars } from '../src/data/stars';
+
+const JD = 2461314.5; // 2026-10-01, 0h UT
+
+describe('поздравления', () => {
+  it('пишутся только поддерживаемыми знаками и с правильным именем', () => {
+    const ids = new Set<string>();
+    for (const greeting of GREETINGS) {
+      expect(greeting.id).toMatch(GREETING_ID);
+      expect(ids.has(greeting.id), greeting.id).toBe(false);
+      ids.add(greeting.id);
+      expect(() => shapeOf(greeting.stars), greeting.id).not.toThrow();
+      expect(greeting.title.trim(), greeting.id).not.toBe('');
+    }
+  });
+
+  it('находятся по имени, а чужое имя ничего не находит', () => {
+    expect(greetingById('primer')?.stars).toBe('ПРИВЕТ');
+    expect(greetingById('no-such')).toBeUndefined();
+  });
+
+  it('яркие звёзды каталога - около трёх сотен, как на настоящем небе', () => {
+    const stars = brightStars(3.5);
+    expect(stars.length).toBeGreaterThan(200);
+    expect(stars.length).toBeLessThan(450);
+    expect(stars.every((s) => s.magnitude <= 3.5)).toBe(true);
+  });
+
+  it('видит Солнце с Земли там, где оно в этот день', () => {
+    const { sun } = avoidFromEarth(JD);
+    // 1 октября Солнце у точки осеннего равноденствия: прямое восхождение около 12ч.
+    expect(sun.ra / (Math.PI / 12)).toBeCloseTo(12.5, 0);
+  });
+
+  it('раскладывает поздравление вдали от Солнца', () => {
+    const layout = greetingLayout(greetingById('primer')!, JD);
+    expect(angleBetween(layout.placement.centre, avoidFromEarth(JD).sun)).toBeGreaterThanOrEqual(
+      SUN_CLEARANCE,
+    );
+    expect(layout.vertices.some((v) => v.real)).toBe(true);
+  });
+
+  it('ставит камеру у Земли лицом к надписи', () => {
+    const layout = greetingLayout(greetingById('primer')!, JD);
+    const view = greetingView(layout.placement.centre, JD);
+    expect(view.kind).toBe('free');
+    // Взгляд обратно в направление: сцена читает углы порядком YXZ и
+    // смотрит вдоль -z - как в paradeView.
+    const yaw = (view.yaw * Math.PI) / 180;
+    const pitch = (view.pitch * Math.PI) / 180;
+    const forward = [-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)];
+    const c = layout.placement.centre;
+    const eq = [Math.cos(c.dec) * Math.cos(c.ra), Math.cos(c.dec) * Math.sin(c.ra), Math.sin(c.dec)];
+    const e = (23.43928 * Math.PI) / 180;
+    const ecl = [eq[0]!, eq[1]! * Math.cos(e) + eq[2]! * Math.sin(e), -eq[1]! * Math.sin(e) + eq[2]! * Math.cos(e)];
+    const scene = [ecl[0]!, ecl[2]!, -ecl[1]!];
+    const cos = forward[0]! * scene[0]! + forward[1]! * scene[1]! + forward[2]! * scene[2]!;
+    expect(cos).toBeGreaterThan(Math.cos((0.5 * Math.PI) / 180));
+  });
+});
