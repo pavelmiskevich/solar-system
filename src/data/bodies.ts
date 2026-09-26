@@ -17,8 +17,12 @@ export interface RotationElements {
 }
 
 export interface BodyDefinition {
+  /**
+   * Опознаватель тела. Имени здесь нет: имя - слово, а слова живут в словаре
+   * интерфейса (src/i18n), и у каждого языка они свои. Имя по опознавателю
+   * даёт `bodyName`.
+   */
   id: string;
-  name: string;
   /** Экваториальный радиус, км. */
   radius: number;
   /**
@@ -60,7 +64,6 @@ export interface BodyDefinition {
  */
 export const SUN: BodyDefinition = {
   id: 'sun',
-  name: 'Солнце',
   radius: 696340,
   polarRadius: 696340,
   mass: 1.98847e30,
@@ -77,7 +80,6 @@ export const SUN: BodyDefinition = {
 export const PLANETS: BodyDefinition[] = [
   {
     id: 'mercury',
-    name: 'Меркурий',
     radius: 2439.7,
     polarRadius: 2439.7,
     mass: 3.3011e23,
@@ -98,7 +100,6 @@ export const PLANETS: BodyDefinition[] = [
   },
   {
     id: 'venus',
-    name: 'Венера',
     radius: 6051.8,
     polarRadius: 6051.8,
     mass: 4.8675e24,
@@ -119,7 +120,6 @@ export const PLANETS: BodyDefinition[] = [
   },
   {
     id: 'earth',
-    name: 'Земля',
     radius: 6378.137,
     polarRadius: 6356.752,
     mass: 5.97237e24,
@@ -140,7 +140,6 @@ export const PLANETS: BodyDefinition[] = [
   },
   {
     id: 'mars',
-    name: 'Марс',
     radius: 3396.2,
     polarRadius: 3376.2,
     mass: 6.4171e23,
@@ -161,7 +160,6 @@ export const PLANETS: BodyDefinition[] = [
   },
   {
     id: 'jupiter',
-    name: 'Юпитер',
     radius: 71492,
     polarRadius: 66854,
     mass: 1.8982e27,
@@ -182,7 +180,6 @@ export const PLANETS: BodyDefinition[] = [
   },
   {
     id: 'saturn',
-    name: 'Сатурн',
     radius: 60268,
     polarRadius: 54364,
     mass: 5.6834e26,
@@ -203,7 +200,6 @@ export const PLANETS: BodyDefinition[] = [
   },
   {
     id: 'uranus',
-    name: 'Уран',
     radius: 25559,
     polarRadius: 24973,
     mass: 8.681e25,
@@ -224,7 +220,6 @@ export const PLANETS: BodyDefinition[] = [
   },
   {
     id: 'neptune',
-    name: 'Нептун',
     radius: 24764,
     polarRadius: 24341,
     mass: 1.02413e26,
@@ -245,7 +240,6 @@ export const PLANETS: BodyDefinition[] = [
   },
   {
     id: 'pluto',
-    name: 'Плутон',
     radius: 1188.3,
     polarRadius: 1188.3,
     mass: 1.303e22,
@@ -268,7 +262,6 @@ export const PLANETS: BodyDefinition[] = [
 
 export const MOON: BodyDefinition = {
   id: 'moon',
-  name: 'Луна',
   radius: 1737.4,
   polarRadius: 1737.4,
   mass: 7.342e22,
@@ -327,7 +320,6 @@ function synchronous(pole: { poleRa: number; poleDec: number }, periodDays: numb
 export const MOONS: BodyDefinition[] = [
   {
     id: 'phobos',
-    name: 'Фобос',
     // Глыба 27 на 22 на 18 км; здесь стоит средний радиус, потому что сцена
     // рисует шар. У тела такого размера гравитации не хватает, чтобы стянуть
     // себя в шар, и настоящая его форма - картофелина.
@@ -351,7 +343,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'deimos',
-    name: 'Деймос',
     radius: 6.2,
     polarRadius: 6.2,
     mass: 1.4762e15,
@@ -372,7 +363,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'io',
-    name: 'Ио',
     radius: 1821.6,
     polarRadius: 1821.6,
     mass: 8.931938e22,
@@ -395,7 +385,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'europa',
-    name: 'Европа',
     radius: 1560.8,
     polarRadius: 1560.8,
     mass: 4.799844e22,
@@ -416,7 +405,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'ganymede',
-    name: 'Ганимед',
     radius: 2631.2,
     polarRadius: 2631.2,
     // Крупнее Меркурия: самый большой спутник в Солнечной системе.
@@ -438,7 +426,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'callisto',
-    name: 'Каллисто',
     radius: 2410.3,
     polarRadius: 2410.3,
     mass: 1.075938e23,
@@ -461,7 +448,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'mimas',
-    name: 'Мимас',
     radius: 198.2,
     polarRadius: 198.2,
     // Кратер Гершель занимает треть поперечника: удар был на пределе того,
@@ -484,7 +470,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'enceladus',
-    name: 'Энцелад',
     radius: 252.1,
     polarRadius: 252.1,
     mass: 1.0802e20,
@@ -509,7 +494,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'titan',
-    name: 'Титан',
     radius: 2574.7,
     polarRadius: 2574.7,
     mass: 1.3452e23,
@@ -532,7 +516,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'titania',
-    name: 'Титания',
     radius: 788.4,
     polarRadius: 788.4,
     mass: 3.4e21,
@@ -553,7 +536,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'oberon',
-    name: 'Оберон',
     radius: 761.4,
     polarRadius: 761.4,
     mass: 3.076e21,
@@ -574,7 +556,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'triton',
-    name: 'Тритон',
     radius: 1353.4,
     polarRadius: 1353.4,
     mass: 2.1389e22,
@@ -603,7 +584,6 @@ export const MOONS: BodyDefinition[] = [
   },
   {
     id: 'charon',
-    name: 'Харон',
     radius: 606,
     polarRadius: 606,
     // Половина поперечника Плутона: такого отношения нет больше нигде.
@@ -643,7 +623,6 @@ export const MOON_MASS_FRACTION = MOON.mass / (PLANETS[2]!.mass + MOON.mass);
 export const COMETS: BodyDefinition[] = [
   {
     id: 'halley',
-    name: 'Комета Галлея',
     /*
      * Ядро - глыба 15 на 8 на 8 км, и шаром оно не является ни в каком
      * приближении. Здесь стоит средний радиус: сцена рисует шар, а настоящую

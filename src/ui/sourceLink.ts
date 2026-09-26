@@ -6,6 +6,8 @@
  * уводит из неё.
  */
 
+import { onLanguageChange, strings } from '../i18n';
+
 export const REPOSITORY_URL = 'https://github.com/pavelmiskevich/solar-system';
 
 /** Логотип GitHub, официальный контур. Инлайном - сцена не грузит ничего извне. */
@@ -27,7 +29,12 @@ export function createSourceLink(): HTMLAnchorElement {
   // Без noopener открытая страница получает доступ к window.opener и может
   // подменить содержимое нашей вкладки.
   link.rel = 'noopener noreferrer';
-  link.title = 'Исходный код на GitHub';
+  // Подпись на кнопке - имя сервиса и переводу не подлежит; подсказка на
+  // наведении - подлежит.
+  link.title = strings().panels.source;
+  onLanguageChange(() => {
+    link.title = strings().panels.source;
+  });
 
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   icon.setAttribute('viewBox', '0 0 16 16');

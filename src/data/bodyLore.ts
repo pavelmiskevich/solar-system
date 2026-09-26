@@ -1,3 +1,4 @@
+import { strings, type Dictionary } from '../i18n';
 import { ALL_BODIES } from './bodies';
 
 /**
@@ -9,6 +10,9 @@ import { ALL_BODIES } from './bodies';
  * выводятся ниоткуда: это чтение из справочника, и другого источника у них
  * нет. Поэтому таблица отдельная, а не дописана к `bodyFacts` - там нарочно
  * лежит только выводимое.
+ *
+ * Числа живут здесь, а слова - атмосфера и примета - в словаре интерфейса
+ * (src/i18n): числа одни на всех, а слова у каждого языка свои.
  *
  * Числа - по данным NASA Planetary Fact Sheet и обзорам систем спутников.
  */
@@ -45,151 +49,33 @@ export interface BodyLore {
   note: string;
 }
 
-const LORE: Readonly<Record<string, BodyLore>> = {
-  sun: {
-    temperatureC: 5504,
-    atmosphere: 'водород 73 %, гелий 25 %',
-    moons: null,
-    note: 'В нём 99.86 % массы всей системы: всё остальное - округление.',
-  },
-  mercury: {
-    temperatureC: 167,
-    atmosphere: 'почти нет: следы натрия и кислорода',
-    moons: 0,
-    note: 'Солнечные сутки здесь длятся два меркурианских года.',
-  },
-  venus: {
-    temperatureC: 464,
-    atmosphere: 'углекислый газ 96 %, азот 3.5 %',
-    moons: 0,
-    note: 'Сутки длиннее года: оборот вокруг оси 243 суток, вокруг Солнца 225.',
-  },
-  earth: {
-    temperatureC: 15,
-    atmosphere: 'азот 78 %, кислород 21 %',
-    moons: 1,
-    note: 'Единственное известное тело с жидкой водой на поверхности.',
-  },
-  mars: {
-    temperatureC: -63,
-    atmosphere: 'углекислый газ 95 %, азот 2.6 %',
-    moons: 2,
-    note: 'Гора Олимп поднимается на 22 км - выше всего, что есть в системе.',
-  },
-  jupiter: {
-    temperatureC: -108,
-    atmosphere: 'водород 90 %, гелий 10 %',
-    moons: 97,
-    note: 'Большое красное пятно наблюдают с XVII века.',
-  },
-  saturn: {
-    temperatureC: -139,
-    atmosphere: 'водород 96 %, гелий 3 %',
-    moons: 274,
-    note: 'Средняя плотность меньше плотности воды.',
-  },
-  uranus: {
-    temperatureC: -197,
-    atmosphere: 'водород 83 %, гелий 15 %, метан 2 %',
-    moons: 28,
-    note: 'Ось наклонена на 98°: планета катится по орбите на боку.',
-  },
-  neptune: {
-    temperatureC: -201,
-    atmosphere: 'водород 80 %, гелий 19 %, метан 1.5 %',
-    moons: 16,
-    note: 'Самые быстрые ветры в системе - до 2100 км/ч.',
-  },
-  pluto: {
-    temperatureC: -229,
-    atmosphere: 'азот, метан, угарный газ; разрежённая',
-    moons: 5,
-    note: 'Харон так велик, что центр вращения пары лежит вне Плутона.',
-  },
-  moon: {
-    temperatureC: -20,
-    atmosphere: 'нет',
-    moons: null,
-    note: 'Обращена к Земле одной стороной: вращение синхронно с обращением.',
-  },
-  phobos: {
-    temperatureC: -40,
-    atmosphere: 'нет',
-    moons: null,
-    note: 'Обходит Марс втрое быстрее, чем тот поворачивается, и восходит на западе.',
-  },
-  deimos: {
-    temperatureC: -40,
-    atmosphere: 'нет',
-    moons: null,
-    note: 'С поверхности Марса выглядит звездой: диск различим только в телескоп.',
-  },
-  io: {
-    temperatureC: -143,
-    atmosphere: 'диоксид серы, разрежённая',
-    moons: null,
-    note: 'Самое вулканически активное тело системы: извержения идут непрерывно.',
-  },
-  europa: {
-    temperatureC: -171,
-    atmosphere: 'кислород, крайне разрежённая',
-    moons: null,
-    note: 'Под ледяной корой - океан солёной воды глубже всех земных.',
-  },
-  ganymede: {
-    temperatureC: -163,
-    atmosphere: 'кислород, крайне разрежённая',
-    moons: null,
-    note: 'Крупнейший спутник системы - больше Меркурия.',
-  },
-  callisto: {
-    temperatureC: -139,
-    atmosphere: 'углекислый газ, крайне разрежённая',
-    moons: null,
-    note: 'Древнейшая поверхность в системе: кратер на кратере, без следов обновления.',
-  },
-  mimas: {
-    temperatureC: -200,
-    atmosphere: 'нет',
-    moons: null,
-    note: 'Кратер Гершель занимает треть поперечника: удар был на пределе прочности.',
-  },
-  enceladus: {
-    temperatureC: -198,
-    atmosphere: 'водяной пар над гейзерами, крайне разрежённая',
-    moons: null,
-    note: 'Гейзеры южного полюса бьют в космос и питают кольцо E Сатурна.',
-  },
-  titan: {
-    temperatureC: -179,
-    atmosphere: 'азот 95 %, метан 5 %',
-    moons: null,
-    note: 'Единственный спутник с плотной атмосферой; в озёрах на нём - метан.',
-  },
-  titania: {
-    temperatureC: -203,
-    atmosphere: 'нет',
-    moons: null,
-    note: 'Каньоны длиной в полторы тысячи километров: кора трескалась, остывая.',
-  },
-  oberon: {
-    temperatureC: -198,
-    atmosphere: 'нет',
-    moons: null,
-    note: 'На лимбе Вояджер снял гору высотой одиннадцать километров.',
-  },
-  triton: {
-    temperatureC: -235,
-    atmosphere: 'азот, разрежённая до сотых долей миллибара',
-    moons: null,
-    note: 'Обращается вспять: пойманное тело пояса Койпера, а не выросшее рядом.',
-  },
-  charon: {
-    temperatureC: -220,
-    atmosphere: 'нет',
-    moons: null,
-    note: 'Половина Плутона по поперечнику: они повёрнуты друг к другу одной стороной.',
-  },
+type LoreNumbers = Pick<BodyLore, 'temperatureC' | 'moons'>;
+
+const LORE: Readonly<Record<keyof Dictionary['lore'], LoreNumbers>> = {
+  sun: { temperatureC: 5504, moons: null },
+  mercury: { temperatureC: 167, moons: 0 },
+  venus: { temperatureC: 464, moons: 0 },
+  earth: { temperatureC: 15, moons: 1 },
+  mars: { temperatureC: -63, moons: 2 },
+  jupiter: { temperatureC: -108, moons: 97 },
+  saturn: { temperatureC: -139, moons: 274 },
+  uranus: { temperatureC: -197, moons: 28 },
+  neptune: { temperatureC: -201, moons: 16 },
+  pluto: { temperatureC: -229, moons: 5 },
+  moon: { temperatureC: -20, moons: null },
+  phobos: { temperatureC: -40, moons: null },
+  deimos: { temperatureC: -40, moons: null },
+  io: { temperatureC: -143, moons: null },
+  europa: { temperatureC: -171, moons: null },
+  ganymede: { temperatureC: -163, moons: null },
+  callisto: { temperatureC: -139, moons: null },
+  mimas: { temperatureC: -200, moons: null },
+  enceladus: { temperatureC: -198, moons: null },
+  titan: { temperatureC: -179, moons: null },
+  titania: { temperatureC: -203, moons: null },
+  oberon: { temperatureC: -198, moons: null },
+  triton: { temperatureC: -235, moons: null },
+  charon: { temperatureC: -220, moons: null },
 
   /*
    * Температура ядра ничего не значит в среднем: у афелия это минус двести
@@ -201,17 +87,16 @@ const LORE: Readonly<Record<string, BodyLore>> = {
    * Кома - по той же причине только состав. Есть ли она сейчас, решает
    * испарение: за тремя а.е. его нет, и карточка говорит, что комы нет.
    */
-  halley: {
-    temperatureC: null,
-    atmosphere: 'кома: водяной пар 80 %, угарный газ, пыль',
-    moons: null,
-    note: 'Её возвращения записаны с 240 года до нашей эры: ни одну комету не проследили так далеко.',
-  },
+  halley: { temperatureC: null, moons: null },
 };
 
-/** Справочные сведения о теле. */
+/** Справочные сведения о теле - со словами на текущем языке. */
 export function bodyLore(id: string): BodyLore | undefined {
-  return LORE[id];
+  const numbers = (LORE as Readonly<Record<string, LoreNumbers>>)[id];
+  const words = (strings().lore as Readonly<Record<string, Dictionary['lore']['sun']>>)[id];
+  if (!numbers || !words) return undefined;
+
+  return { ...numbers, atmosphere: words.atmosphere, note: words.note };
 }
 
 /**
@@ -221,5 +106,5 @@ export function bodyLore(id: string): BodyLore | undefined {
  * забывают - и карточка молча теряет половину строк.
  */
 export function bodiesWithoutLore(): string[] {
-  return ALL_BODIES.filter((body) => !LORE[body.id]).map((body) => body.id);
+  return ALL_BODIES.filter((body) => !bodyLore(body.id)).map((body) => body.id);
 }

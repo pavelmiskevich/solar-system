@@ -1,4 +1,5 @@
 import type { SimClock } from '../core/clock';
+import { onLanguageChange, strings, type Dictionary } from '../i18n';
 
 /**
  * Ввод даты и времени сцены.
@@ -16,6 +17,8 @@ import type { SimClock } from '../core/clock';
 /** Шаг стрелок: сутки и календарный год. */
 const DAY = 1;
 
+type StepWord = Exclude<keyof Dictionary['date'], 'title'>;
+
 export class DatePanel {
   private readonly input: HTMLInputElement;
 
@@ -30,7 +33,6 @@ export class DatePanel {
     this.input.type = 'datetime-local';
     this.input.step = '1';
     this.input.className = 'date-input';
-    this.input.title = 'Дата и время сцены, всемирное время';
     this.input.addEventListener('change', () => this.applyInput());
 
     const label = document.createElement('span');
@@ -40,24 +42,37 @@ export class DatePanel {
     const row = document.createElement('div');
     row.className = 'date-buttons';
 
-    for (const step of [
-      { text: '−год', shift: () => this.shiftYears(-1), title: 'На год назад' },
-      { text: '−сутки', shift: () => this.shiftDays(-DAY), title: 'На сутки назад' },
-      { text: 'сейчас', shift: () => this.now(), title: 'Текущий момент' },
-      { text: '+сутки', shift: () => this.shiftDays(DAY), title: 'На сутки вперёд' },
-      { text: '+год', shift: () => this.shiftYears(1), title: 'На год вперёд' },
-    ]) {
+    const steps: { word: StepWord; shift: () => void }[] = [
+      { word: 'yearBack', shift: () => this.shiftYears(-1) },
+      { word: 'dayBack', shift: () => this.shiftDays(-DAY) },
+      { word: 'now', shift: () => this.now() },
+      { word: 'dayForward', shift: () => this.shiftDays(DAY) },
+      { word: 'yearForward', shift: () => this.shiftYears(1) },
+    ];
+
+    const buttons = steps.map((step) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'date-step';
-      button.textContent = step.text;
-      button.title = step.title;
       button.addEventListener('click', () => {
         step.shift();
         this.write();
       });
       row.appendChild(button);
-    }
+      return { button, word: step.word };
+    });
+
+    // Подписи - отдельно от постройки: их переписывает смена языка.
+    const writeWords = () => {
+      const words = strings().date;
+      this.input.title = words.title;
+      for (const { button, word } of buttons) {
+        button.textContent = words[word].text;
+        button.title = words[word].title;
+      }
+    };
+    writeWords();
+    onLanguageChange(writeWords);
 
     wrapper.append(this.input, label, row);
     container.appendChild(wrapper);

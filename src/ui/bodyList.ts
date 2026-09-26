@@ -1,3 +1,4 @@
+import { onLanguageChange, strings } from '../i18n';
 import { formatDistance, onDistanceUnitChange } from './distanceUnits';
 
 /**
@@ -13,6 +14,7 @@ const REFRESH_SECONDS = 0.33;
 
 export interface BodyListEntry {
   readonly id: string;
+  /** Имя на текущем языке: читается заново при каждой смене языка. */
   readonly name: string;
   /** Цвет метки в списке. */
   readonly color: number;
@@ -25,6 +27,8 @@ export interface BodyListEntry {
 interface Row {
   readonly entry: BodyListEntry;
   readonly element: HTMLButtonElement;
+  readonly nameNode: HTMLElement;
+  readonly kindNode: HTMLElement;
   readonly distanceNode: HTMLElement;
   shownDistance: string;
 }
@@ -49,9 +53,7 @@ export class BodyList {
     this.toggleButton = document.createElement('button');
     this.toggleButton.className = 'bodies-toggle';
     this.toggleButton.type = 'button';
-    this.toggleButton.title = 'Список тел (B)';
     this.toggleButton.addEventListener('click', () => this.setOpen(!this.open));
-    this.updateToggleLabel();
 
     const list = document.createElement('div');
     list.className = 'panel-list bodies-list';
@@ -65,27 +67,34 @@ export class BodyList {
       dot.className = 'dot';
       dot.style.background = `#${entry.color.toString(16).padStart(6, '0')}`;
 
-      const name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = entry.name;
+      const nameNode = document.createElement('span');
+      nameNode.className = 'name';
 
-      const kind = document.createElement('span');
-      kind.className = 'kind';
-      kind.textContent = entry.kind;
+      const kindNode = document.createElement('span');
+      kindNode.className = 'kind';
 
       const distanceNode = document.createElement('span');
       distanceNode.className = 'distance';
       distanceNode.textContent = '-';
 
-      element.append(dot, name, kind, distanceNode);
+      element.append(dot, nameNode, kindNode, distanceNode);
       element.addEventListener('click', () => this.onSelect(entry.id));
       list.appendChild(element);
 
-      this.rows.push({ entry, element, distanceNode, shownDistance: '' });
+      this.rows.push({ entry, element, nameNode, kindNode, distanceNode, shownDistance: '' });
     }
 
     this.root.append(this.toggleButton, list);
     container.appendChild(this.root);
+
+    // Имена и роды пишутся один раз и переписываются только сменой языка.
+    // Расстояния тоже: в них единицы, а у единиц на каждом языке своё имя.
+    this.writeWords();
+    onLanguageChange(() => {
+      this.writeWords();
+      this.age = Infinity;
+      this.update(0);
+    });
 
     // Расстояния здесь обновляются раз в несколько долей секунды, и смену
     // единиц пришлось бы ждать. Ждать нечего: щелчок должен отзываться сразу
@@ -148,7 +157,17 @@ export class BodyList {
     }
   }
 
+  private writeWords(): void {
+    this.toggleButton.title = strings().panels.bodies.title;
+    this.updateToggleLabel();
+    for (const row of this.rows) {
+      row.nameNode.textContent = row.entry.name;
+      row.kindNode.textContent = row.entry.kind;
+    }
+  }
+
   private updateToggleLabel(): void {
-    this.toggleButton.textContent = this.open ? 'Тела ✕' : 'Тела ☰';
+    const words = strings().panels.bodies;
+    this.toggleButton.textContent = this.open ? words.close : words.open;
   }
 }

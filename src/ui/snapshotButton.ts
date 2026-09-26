@@ -1,3 +1,5 @@
+import { onLanguageChange, strings } from '../i18n';
+
 /** Сколько кнопка держит подтверждение «Снимок ✓», миллисекунды. */
 const CONFIRM_TIME = 1400;
 
@@ -11,8 +13,6 @@ const CONFIRM_TIME = 1400;
  */
 const LINK_LIFETIME = 60_000;
 
-const LABEL = 'Снимок ⤓';
-const DONE_LABEL = 'Снимок ✓';
 
 /**
  * Имя файла снимка - по модельной дате кадра, а не по системным часам.
@@ -71,13 +71,19 @@ export class SnapshotButton {
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.className = 'bodies-toggle';
-    this.button.title = 'Снимок кадра в PNG (K)';
-    this.button.textContent = LABEL;
     this.button.addEventListener('click', () => {
       this.onTake();
     });
 
     container.prepend(this.button);
+    this.write();
+    onLanguageChange(() => this.write());
+  }
+
+  private write(): void {
+    const words = strings().panels.snapshot;
+    this.button.title = words.title;
+    this.button.textContent = this.timer === null ? words.label : words.done;
   }
 
   /**
@@ -88,12 +94,11 @@ export class SnapshotButton {
    * провалившимся, и его повторяют.
    */
   confirm(): void {
-    this.button.textContent = DONE_LABEL;
-
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
-      this.button.textContent = LABEL;
       this.timer = null;
+      this.write();
     }, CONFIRM_TIME);
+    this.write();
   }
 }

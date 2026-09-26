@@ -1,3 +1,4 @@
+import type { Localized } from '../i18n';
 import { CONSTELLATIONS, NAMED_STARS } from './sky.generated';
 
 /**
@@ -12,11 +13,15 @@ import { CONSTELLATIONS, NAMED_STARS } from './sky.generated';
  *
  * Данные лежат в sky.generated.ts и делаются тем же скриптом, что и сам
  * каталог: одна загрузка, один источник, разъехаться нечему.
+ *
+ * Имена приходят оттуда сразу на обоих языках, а не ключом в словарь
+ * интерфейса: их полсотни, они выбираются по каталогу, и держать их в двух
+ * местах значило бы сверять два списка при каждой перегенерации.
  */
 
 export interface NamedStar {
-  /** Имя по-русски: «Сириус», «Бетельгейзе». */
-  readonly name: string;
+  /** Имя на обоих языках: «Сириус» и «Sirius». */
+  readonly names: Localized;
   /** Прямое восхождение, радианы, эпоха J2000. */
   readonly ra: number;
   /** Склонение, радианы. */
@@ -29,8 +34,8 @@ export interface NamedStar {
 export type ConstellationSegment = readonly [number, number, number, number];
 
 export interface ConstellationFigure {
-  /** Название по-русски: «Большая Медведица». */
-  readonly name: string;
+  /** Название на обоих языках: «Большая Медведица» и «Ursa Major». */
+  readonly names: Localized;
   readonly segments: readonly ConstellationSegment[];
 }
 

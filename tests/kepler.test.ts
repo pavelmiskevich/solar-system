@@ -66,7 +66,7 @@ describe('положения планет против эфемерид JPL Hori
     const fraction = TOLERANCE_FRACTION[planet.id] ?? DEFAULT_TOLERANCE_FRACTION;
 
     for (const epoch of epochNames) {
-      it(`${planet.name}, ${epoch}: отклонение меньше ${(fraction * 100).toFixed(2)}% радиуса орбиты`, () => {
+      it(`${planet.id}, ${epoch}: отклонение меньше ${(fraction * 100).toFixed(2)}% радиуса орбиты`, () => {
         const computed = positionAt(planet.orbit!, EPOCHS[epoch]);
         const expected = reference[epoch];
 
@@ -92,7 +92,7 @@ describe('положения планет против эфемерид JPL Hori
 
         if (value > arcminutes) {
           arcminutes = value;
-          label = `${planet.name} ${epoch}`;
+          label = `${planet.id} ${epoch}`;
         }
       }
     }
@@ -128,7 +128,7 @@ describe('положения планет против эфемерид JPL Hori
         const latExpected = Math.asin(e[2] / Math.hypot(e[0], e[1], e[2]));
         const arcminutes = (Math.abs(latComputed - latExpected) * 180 * 60) / Math.PI;
 
-        expect(arcminutes, `${planet.name} ${epoch}`).toBeLessThan(0.5);
+        expect(arcminutes, `${planet.id} ${epoch}`).toBeLessThan(0.5);
       }
     }
   });
@@ -148,7 +148,7 @@ describe('орбитальные периоды', () => {
   };
 
   for (const planet of PLANETS) {
-    it(`${planet.name}: период совпадает со справочным в пределах 0.5%`, () => {
+    it(`${planet.id}: период совпадает со справочным в пределах 0.5%`, () => {
       const expected = knownPeriodsDays[planet.id]!;
       const computed = orbitalPeriodDays(planet.orbit!);
       expect(Math.abs(computed - expected) / expected).toBeLessThan(0.005);

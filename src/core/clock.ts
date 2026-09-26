@@ -1,3 +1,4 @@
+import { strings } from '../i18n';
 import { SECONDS_PER_DAY, dateFromJulianDay, julianDayFromDate } from './units';
 
 /**
@@ -37,7 +38,7 @@ export class SimClock {
 
   /** Человекочитаемая скорость течения времени. */
   describeScale(): string {
-    return this.paused ? 'пауза' : describeTimeScale(this.timeScale);
+    return this.paused ? strings().timeScale.paused : describeTimeScale(this.timeScale);
   }
 
   /**
@@ -88,32 +89,22 @@ export class SimClock {
  * время в сутках за секунду.
  */
 export function describeTimeScale(daysPerSecond: number): string {
-  if (daysPerSecond === 0) return 'остановлено';
+  const words = strings().timeScale;
+  if (daysPerSecond === 0) return words.stopped;
 
   const seconds = daysPerSecond * SECONDS_PER_DAY;
   const absolute = Math.abs(seconds);
 
-  if (absolute < 1.5) return 'реальное время';
-  if (absolute < 60) return `${round(seconds)} с/с`;
-  if (absolute < 3600) return `${round(seconds / 60)} мин/с`;
-  if (absolute < SECONDS_PER_DAY) return `${round(seconds / 3600)} ч/с`;
-  if (Math.abs(daysPerSecond) < 45) return `${round(daysPerSecond)} сут/с`;
-  if (Math.abs(daysPerSecond) < 365) return `${round(daysPerSecond / 30.44)} мес/с`;
+  if (absolute < 1.5) return words.realTime;
+  if (absolute < 60) return words.seconds(round(seconds));
+  if (absolute < 3600) return words.minutes(round(seconds / 60));
+  if (absolute < SECONDS_PER_DAY) return words.hours(round(seconds / 3600));
+  if (Math.abs(daysPerSecond) < 45) return words.days(round(daysPerSecond));
+  if (Math.abs(daysPerSecond) < 365) return words.months(round(daysPerSecond / 30.44));
 
-  const years = daysPerSecond / 365.25;
-  return `${round(years)} ${yearWord(years)}/с`;
-}
-
-/** Год, года, лет: «1 лет/с» в интерфейсе выглядит как опечатка. */
-function yearWord(years: number): string {
-  const value = Math.abs(years);
-  if (!Number.isInteger(value)) return 'лет';
-
-  const last = value % 10;
-  const lastTwo = value % 100;
-  if (last === 1 && lastTwo !== 11) return 'год';
-  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return 'года';
-  return 'лет';
+  // Слово при числе - «год», «года», «лет» или «year», «years» - выбирает
+  // словарь: правила числа у каждого языка свои.
+  return words.years(round(daysPerSecond / 365.25));
 }
 
 /** Дробная часть нужна только у мелких значений: «1.5 ч/с», но «30 сут/с». */

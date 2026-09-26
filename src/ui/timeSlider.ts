@@ -1,5 +1,6 @@
 import { DEFAULT_TIME_SCALE, TIME_SCALES } from '../core/clock';
 import type { SimClock } from '../core/clock';
+import { onLanguageChange, strings, type Dictionary } from '../i18n';
 
 /**
  * Ползунок скорости времени.
@@ -15,11 +16,11 @@ import type { SimClock } from '../core/clock';
  */
 
 /** Подписи под шкалой: только опорные ступени, иначе строка превращается в частокол. */
-const MARKS = [
-  { index: 0, text: 'реальное' },
-  { index: 5, text: 'час/с' },
-  { index: 7, text: 'сутки/с' },
-  { index: 11, text: 'год/с' },
+const MARKS: { index: number; word: keyof Dictionary['slider']['marks'] }[] = [
+  { index: 0, word: 'real' },
+  { index: 5, word: 'hour' },
+  { index: 7, word: 'day' },
+  { index: 11, word: 'year' },
 ];
 
 /** Ступени как числа: сравнивать литеральный кортеж со значением часов нельзя. */
@@ -40,7 +41,6 @@ export class TimeSlider {
     this.input.min = '0';
     this.input.max = String(SCALES.length - 1);
     this.input.step = '1';
-    this.input.title = 'Скорость течения времени';
     this.input.value = String(indexOfScale(this.clock.timeScale));
 
     this.input.addEventListener('input', () => {
@@ -51,13 +51,21 @@ export class TimeSlider {
     const marks = document.createElement('div');
     marks.className = 'time-slider-marks';
 
-    for (const mark of MARKS) {
+    const items = MARKS.map((mark) => {
       const item = document.createElement('div');
       item.className = 'time-slider-mark';
       item.style.left = `${(mark.index / (SCALES.length - 1)) * 100}%`;
-      item.textContent = mark.text;
       marks.appendChild(item);
-    }
+      return { item, word: mark.word };
+    });
+
+    const writeWords = () => {
+      const words = strings().slider;
+      this.input.title = words.title;
+      for (const { item, word } of items) item.textContent = words.marks[word];
+    };
+    writeWords();
+    onLanguageChange(writeWords);
 
     wrapper.append(this.input, marks);
     container.appendChild(wrapper);

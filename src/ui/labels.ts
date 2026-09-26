@@ -1,6 +1,7 @@
 import type { PerspectiveCamera } from 'three';
 import type { Vector3 } from 'three';
 
+import { onLanguageChange } from '../i18n';
 import { formatDistance, onDistanceUnitChange } from './distanceUnits';
 import { angularRadiusPixels, projectToScreen, type ScreenPoint } from './projection';
 
@@ -39,6 +40,7 @@ const DISTANCE_REFRESH_SECONDS = 0.5;
 
 export interface LabelSource {
   readonly id: string;
+  /** Имя на текущем языке: подпись перечитывает его при смене языка. */
   readonly name: string;
   /** Позиция в координатах сцены - камера в начале координат, км. */
   readonly renderPosition: Vector3;
@@ -212,6 +214,15 @@ export class LabelLayer {
     // оно изменилось. У неподвижного тела оно не изменится вовсе.
     onDistanceUnitChange(() => {
       for (const entry of this.entries) entry.distanceAge = DISTANCE_REFRESH_SECONDS;
+    });
+
+    // Смена языка - то же самое, и вдобавок имя: оно написано один раз при
+    // создании подписи.
+    onLanguageChange(() => {
+      for (const entry of this.entries) {
+        entry.nameNode.textContent = entry.source.name;
+        entry.distanceAge = DISTANCE_REFRESH_SECONDS;
+      }
     });
   }
 

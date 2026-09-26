@@ -1,4 +1,5 @@
-import { ALL_BODIES, COMETS, PLANETS, SUN } from './bodies';
+import { strings } from '../i18n';
+import { ALL_BODIES, COMETS, PLANETS, SUN, bodyById } from './bodies';
 
 /**
  * Справочные сведения о телах для интерфейса: как называть их род и в каком
@@ -11,32 +12,28 @@ import { ALL_BODIES, COMETS, PLANETS, SUN } from './bodies';
  * потому что тело при этом появляется в сцене и не появляется в списке.
  */
 
-/** Род тела. Плутон с 2006 года карликовая планета, и списку положено это знать. */
-const KINDS: Readonly<Record<string, string>> = {
-  sun: 'звезда',
-  moon: 'спутник Земли',
-  pluto: 'карликовая планета',
-  phobos: 'спутник Марса',
-  deimos: 'спутник Марса',
-  io: 'спутник Юпитера',
-  europa: 'спутник Юпитера',
-  ganymede: 'спутник Юпитера',
-  callisto: 'спутник Юпитера',
-  mimas: 'спутник Сатурна',
-  enceladus: 'спутник Сатурна',
-  titan: 'спутник Сатурна',
-  titania: 'спутник Урана',
-  oberon: 'спутник Урана',
-  triton: 'спутник Нептуна',
-  charon: 'спутник Плутона',
-  halley: 'комета',
-};
+/** Плутон с 2006 года карликовая планета, и списку положено это знать. */
+const DWARF_PLANETS: ReadonlySet<string> = new Set(['pluto']);
 
-const DEFAULT_KIND = 'планета';
-
-/** Род тела по идентификатору; для планет он и не задаётся отдельно. */
+/**
+ * Род тела по идентификатору.
+ *
+ * Выводится из определений, а не перечисляется: спутник узнаётся по полю
+ * `parent`, комета - по списку комет, и новое тело получает свой род само.
+ * Слова берутся из словаря: «спутник Марса» и «moon of Mars» устроены
+ * по-разному, и собрать одно из другого подстановкой имени нельзя.
+ * Неизвестное тело считается планетой - так же, как планеты, у которых
+ * род отдельно не задаётся.
+ */
 export function kindOf(id: string): string {
-  return KINDS[id] ?? DEFAULT_KIND;
+  const kinds = strings().kinds;
+
+  if (id === SUN.id) return kinds.star;
+  if (DWARF_PLANETS.has(id)) return kinds.dwarfPlanet;
+  if (COMETS.some((comet) => comet.id === id)) return kinds.comet;
+
+  const parent = bodyById(id)?.parent;
+  return parent ? kinds.moonOf(parent) : kinds.planet;
 }
 
 /**

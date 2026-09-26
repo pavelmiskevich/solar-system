@@ -16,7 +16,7 @@ import { expectNoErrors, openScene, pauseAt, waitForFrames } from './helpers';
 
 /** Куда смотреть, чтобы созвездие оказалось в кадре: середина его фигуры. */
 function directionOf(name: string): [number, number, number] {
-  const figure = CONSTELLATIONS.find((item) => item.name === name);
+  const figure = CONSTELLATIONS.find((item) => item.names.ru === name);
   if (!figure) throw new Error(`нет созвездия «${name}»`);
 
   const centre = new Vector3();

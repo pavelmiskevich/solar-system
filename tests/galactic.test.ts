@@ -57,7 +57,7 @@ describe('галактические координаты', () => {
   it('долгота растёт в принятую сторону: Денеб на 84°, а не на 276°', () => {
     // Знак долготы - это направление векторного произведения, и перепутать
     // его нечем: полоса выйдет зеркальной, а на глаз это не видно.
-    const deneb = NAMED_STARS.find((star) => star.name === 'Денеб')!;
+    const deneb = NAMED_STARS.find((star) => star.names.ru === 'Денеб')!;
     const found = galacticOf(deneb.ra, deneb.dec);
 
     expect(found.longitude).toBeCloseTo(84.3, 0);
@@ -77,11 +77,11 @@ describe('галактические координаты', () => {
     const inBand = ['Денеб', 'Шаула', 'Альнилам'];
 
     for (const name of inBand) {
-      const star = NAMED_STARS.find((s) => s.name === name)!;
+      const star = NAMED_STARS.find((s) => s.names.ru === name)!;
       expect(Math.abs(galacticOf(star.ra, star.dec).latitude), name).toBeLessThan(20);
     }
 
-    const arcturus = NAMED_STARS.find((s) => s.name === 'Арктур')!;
+    const arcturus = NAMED_STARS.find((s) => s.names.ru === 'Арктур')!;
     expect(Math.abs(galacticOf(arcturus.ra, arcturus.dec).latitude)).toBeGreaterThan(60);
   });
 });
