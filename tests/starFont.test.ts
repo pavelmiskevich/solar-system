@@ -9,6 +9,20 @@ describe('звёздный шрифт', () => {
     }
   });
 
+  it('знает весь алфавит из спецификации, а не только то, что нарисовано', () => {
+    // SUPPORTED собран из самого шрифта, поэтому проверка по нему не заметит
+    // выпавшую букву. Алфавит здесь выписан отдельно, чтобы тест мог упасть.
+    const russian = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
+    const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    expect(russian).toHaveLength(33);
+    expect(latin).toHaveLength(26);
+    for (const char of `${russian}${latin}0123456789!-`) {
+      expect(glyphFor(char), char).toBeDefined();
+      expect(SUPPORTED, char).toContain(char);
+    }
+    expect(SUPPORTED).toContain(' ');
+  });
+
   it('держит вершины в клетке буквы', () => {
     for (const char of SUPPORTED.replace(' ', '')) {
       const glyph = glyphFor(char)!;
