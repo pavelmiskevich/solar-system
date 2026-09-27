@@ -468,6 +468,9 @@ function openGreeting(id: string, keepView: boolean): void {
   greetingCard = new GreetingCard(document.body, greeting, () => {
     activeGreeting = null;
     greetingCard = null;
+    // Плашка занимала место подсказки только на время поздравления. Во время
+    // экскурсии подсказкой распоряжается она сама, и мешать ей незачем.
+    if (!tour.isActive) hintElement?.classList.remove('hidden');
   });
 
   // Камера из ссылки старше: человек облетел надпись и перезагрузил страницу.
@@ -503,6 +506,7 @@ function showScenario(id: string): void {
  * числа: у вида они записаны в коде, у события посчитаны по эфемеридам.
  */
 function showEvent(row: EventRow): void {
+  dismissGreeting();
   // Событие выбирает зритель - как и тело, см. travelTo.
   tour.cancel();
   if (row.state.view.kind === 'free') {

@@ -43,8 +43,9 @@ test.describe('поздравление', () => {
       window.sim.orbits.group.visible = false;
       window.sim.satelliteOrbits.group.visible = false;
     });
-    await waitForFrames(page, 3);
-    expect(await warmPixels(page)).toBeGreaterThan(150);
+    // Ждём не число кадров, а саму надпись: на медленном runner проявление
+    // растягивается, и снимок на фиксированном кадре застал бы его на полпути.
+    await expect.poll(() => warmPixels(page), { timeout: 20_000 }).toBeGreaterThan(150);
     await expect.poll(() => page.url()).toContain('greeting=primer');
 
     expectNoErrors(errors);
@@ -67,7 +68,23 @@ test.describe('поздравление', () => {
     await expect(page.locator('#greeting-card')).toHaveCount(0);
     expect(await page.evaluate(() => window.sim.inscription.isShown)).toBe(true);
     await expect.poll(() => page.url()).not.toContain('greeting=');
+    // Плашка стояла на месте подсказки только на время поздравления. Спрятанная
+    // подсказка лишь прозрачна, а прозрачное Playwright считает видимым,
+    // поэтому проверяется класс.
+    await expect(page.locator('#hint')).not.toHaveClass(/hidden/);
 
+    expectNoErrors(errors);
+  });
+
+  test('событие из списка убирает и надпись, и плашку', async ({ page }) => {
+    const errors = await openScene(page, { url: '/?greeting=primer', keepHelp: true });
+    await page.keyboard.press('KeyE');
+    const row = page.locator('[data-event]').first();
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await row.click();
+
+    await expect(page.locator('#greeting-card')).toHaveCount(0);
+    expect(await page.evaluate(() => window.sim.inscription.isShown)).toBe(false);
     expectNoErrors(errors);
   });
 
