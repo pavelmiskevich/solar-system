@@ -31,6 +31,37 @@ async function warmPixels(page: import('@playwright/test').Page): Promise<number
   }, shot);
 }
 
+/**
+ * Самый дальний от центра кадра край надписи, в долях полукадра.
+ *
+ * Каждая вершина линий и своих звёзд проецируется камерой: 1 - ровно край
+ * кадра, больше - за ним. Вершина позади камеры - тоже за кадром, и тогда
+ * ответ бесконечность: проекция такой точки легла бы на экран зеркально.
+ */
+async function inscriptionReach(page: import('@playwright/test').Page): Promise<number> {
+  return page.evaluate(() => {
+    const camera = window.sim.viewport.camera;
+    const group = window.sim.inscription.group;
+    camera.updateMatrixWorld(true);
+    group.updateMatrixWorld(true);
+    // Vector3 из самой сцены: three.js на странице не лежит в window.
+    const point = camera.position.clone();
+    let reach = 0;
+    let count = 0;
+    for (const child of group.children) {
+      const position = child.geometry.getAttribute('position');
+      for (let i = 0; i < position.count; i++) {
+        point.fromBufferAttribute(position, i).applyMatrix4(child.matrixWorld);
+        count += 1;
+        if (point.clone().applyMatrix4(camera.matrixWorldInverse).z >= 0) return Infinity;
+        point.project(camera);
+        reach = Math.max(reach, Math.abs(point.x), Math.abs(point.y));
+      }
+    }
+    return count > 0 ? reach : Infinity;
+  });
+}
+
 test.describe('поздравление', () => {
   test('ссылка показывает плашку и надпись на небе', async ({ page }) => {
     const errors = await openScene(page, { url: '/?greeting=primer', keepHelp: true });
@@ -123,6 +154,15 @@ test.describe('поздравление', () => {
     const errors = await openScene(page, { url: '/?greeting=primer&lang=en', keepHelp: true });
     await expect(page.locator('#greeting-card .greeting-close')).toHaveAttribute('title', 'Close (Esc)');
     await expect(page.locator('#greeting-card')).toContainText('Так выглядит поздравление на небе');
+    expectNoErrors(errors);
+  });
+
+  test('на телефоне надпись целиком в кадре', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const errors = await openScene(page, { url: '/?greeting=primer', keepHelp: true });
+    // Камера встаёт на вид поздравления не мгновенно: ждём, пока надпись
+    // окажется в кадре, а не проверяем первый попавшийся кадр.
+    await expect.poll(() => inscriptionReach(page)).toBeLessThanOrEqual(1);
     expectNoErrors(errors);
   });
 

@@ -7,6 +7,7 @@ import { FloatingOrigin } from './core/floatingOrigin';
 import { RenderLoop } from './core/loop';
 import { AdaptiveQuality } from './core/quality';
 import { Viewport } from './core/renderer';
+import { fittingWidth } from './core/inscription';
 import { decodeSceneState, encodeSceneState } from './core/sceneState';
 import type { BodyView, SceneState } from './core/sceneState';
 import { AU, DEG, dateFromJulianDay } from './core/units';
@@ -458,7 +459,10 @@ function openGreeting(id: string, keepView: boolean): void {
   const greeting = greetingById(id);
   if (!greeting) return;
 
-  const layout = greetingLayout(greeting, clock.jd);
+  // Ширина надписи - по кадру, иначе на портретном телефоне от слова остаётся
+  // середина. Угол берётся базовый: варп-перелёт раздвигает его лишь на время.
+  const width = fittingWidth(viewport.baseFov * DEG, viewport.camera.aspect);
+  const layout = greetingLayout(greeting, clock.jd, width);
   inscription.show(layout);
   // Сразу, до первого кадра: иначе линии успели бы мелькнуть во всю яркость,
   // не уравненные экспозицией и не спрятанные в начало проявления.

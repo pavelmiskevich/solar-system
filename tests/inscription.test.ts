@@ -7,6 +7,7 @@ import {
   TARGET_WIDTH,
   angleBetween,
   choosePlacement,
+  fittingWidth,
   heightFor,
   layoutInscription,
   placeShape,
@@ -37,7 +38,35 @@ describe('надпись на небе', () => {
     const word = shapeOf('МАША');
     expect(word.width * heightFor(word)).toBeCloseTo(TARGET_WIDTH, 6);
     expect(heightFor(shapeOf('I'))).toBeCloseTo(20 * DEG, 6);
-    expect(heightFor(shapeOf('ПОЗДРАВЛЯЕМ ВСЕХ'))).toBeCloseTo(8 * DEG, 6);
+    expect(heightFor(shapeOf('ПОЗДРАВЛЯЕМ ВСЕХ ДРУЗЕЙ И ЗНАКОМЫХ'))).toBeCloseTo(3 * DEG, 6);
+  });
+
+  it('на узком кадре сужает надпись, не выходя из пределов высоты', () => {
+    // Портретный телефон 390x844 при вертикальном угле 55°: по горизонтали
+    // около 27°, надпись - четыре пятых от него.
+    const phone = fittingWidth(55 * DEG, 390 / 844);
+    expect(phone / DEG).toBeCloseTo(21.6, 1);
+    // Широкий кадр больше 60° не даёт.
+    expect(fittingWidth(55 * DEG, 1400 / 900)).toBeCloseTo(TARGET_WIDTH, 6);
+
+    const word = shapeOf('ПРИВЕТ');
+    const narrow = heightFor(word, phone);
+    expect(word.width * narrow).toBeCloseTo(phone, 6);
+    expect(narrow).toBeLessThan(heightFor(word));
+    expect(narrow).toBeGreaterThanOrEqual(3 * DEG);
+    // Пределы те же: одна буква не раздувается выше 20°, длинная фраза не
+    // сжимается ниже 3°.
+    expect(heightFor(shapeOf('I'), phone)).toBeCloseTo(20 * DEG, 6);
+    expect(heightFor(shapeOf('ПОЗДРАВЛЯЕМ ВСЕХ'), phone)).toBeCloseTo(3 * DEG, 6);
+  });
+
+  it('выбирает место и раскладывает надпись под заданную ширину', () => {
+    const phone = fittingWidth(55 * DEG, 390 / 844);
+    const avoid = { sun: at(0, 0), others: [] };
+    const layout = layoutInscription('ПРИВЕТ', [], avoid, undefined, phone);
+    expect(layout.placement.height).toBeCloseTo(heightFor(shapeOf('ПРИВЕТ'), phone), 9);
+    const placed = layoutInscription('ПРИВЕТ', [], avoid, at(180, 0), phone);
+    expect(placed.placement.height).toBeCloseTo(layout.placement.height, 9);
   });
 
   it('ставит верх надписи к северному полюсу эклиптики', () => {

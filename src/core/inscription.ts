@@ -73,7 +73,22 @@ export const SNAP_TOLERANCE = 0.06;
 
 /** Ширина надписи: целиком в кадре и всё ещё крупно. */
 export const TARGET_WIDTH = 60 * DEG;
-const MIN_HEIGHT = 8 * DEG;
+/**
+ * Какую долю ширины кадра занимает надпись на узком экране.
+ *
+ * Портретный телефон видит по горизонтали около 27°, и от «ПРИВЕТ» в 60° в
+ * кадре оставалось одно «РИВ». Поэтому ширина надписи идёт за кадром, а
+ * пятая часть остаётся полями, чтобы крайние буквы не липли к краю.
+ */
+export const FRAME_SHARE = 0.8;
+/**
+ * Нижний предел высоты буквы.
+ *
+ * Шесть букв на телефоне в 390 точек шириной выходят высотой около 4.5°, а
+ * имя в восемь букв - чуть больше 3°. На экране это те же буквы, что на ноутбуке:
+ * мелкими их делает узкий кадр, а не раскладка.
+ */
+const MIN_HEIGHT = 3 * DEG;
 const MAX_HEIGHT = 20 * DEG;
 
 /** Центр надписи не ближе этого к Солнцу. */
@@ -149,8 +164,20 @@ export function shapeOf(text: string): Shape {
   };
 }
 
-export function heightFor(shape: Shape): number {
-  return Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, TARGET_WIDTH / Math.max(shape.width, 1e-6)));
+/**
+ * Ширина надписи под кадр: 60°, если кадр шире, иначе его большая часть.
+ *
+ * @param verticalFov вертикальный угол обзора камеры, радианы
+ * @param aspect отношение ширины кадра к высоте
+ */
+export function fittingWidth(verticalFov: number, aspect: number): number {
+  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
+  return Math.min(TARGET_WIDTH, FRAME_SHARE * horizontalFov);
+}
+
+/** @param targetWidth желаемая ширина надписи, радианы */
+export function heightFor(shape: Shape, targetWidth = TARGET_WIDTH): number {
+  return Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, targetWidth / Math.max(shape.width, 1e-6)));
 }
 
 /** Оси касательной плоскости: вправо в кадре и вверх, к полюсу эклиптики. */
@@ -298,8 +325,13 @@ const REFINE_REACH = 5;
  * Порядок перебора постоянный, и первое из равных побеждает: одна ссылка в
  * один день даёт одно место.
  */
-export function choosePlacement(shape: Shape, stars: readonly BrightStar[], avoid: Avoid): Placement {
-  const height = heightFor(shape);
+export function choosePlacement(
+  shape: Shape,
+  stars: readonly BrightStar[],
+  avoid: Avoid,
+  targetWidth = TARGET_WIDTH,
+): Placement {
+  const height = heightFor(shape, targetWidth);
   const { vectors } = brightVectors(stars);
   const sun = vec(avoid.sun);
   const blockers = [sun, ...avoid.others.map(vec)];
@@ -373,9 +405,12 @@ export function layoutInscription(
   stars: readonly BrightStar[],
   avoid: Avoid,
   place?: SkyPoint,
+  targetWidth = TARGET_WIDTH,
 ): InscriptionLayout {
   const shape = shapeOf(text);
-  const placement = place ? { centre: place, height: heightFor(shape) } : choosePlacement(shape, stars, avoid);
+  const placement = place
+    ? { centre: place, height: heightFor(shape, targetWidth) }
+    : choosePlacement(shape, stars, avoid, targetWidth);
   const vertices = snapToStars(placeShape(shape, placement), placement.height, stars);
   return { vertices, edges: shape.edges, placement };
 }

@@ -51,6 +51,16 @@ describe('поздравления', () => {
     expect(layout.vertices.some((v) => v.real)).toBe(true);
   });
 
+  it('на узком экране пишет поздравление мельче, но так же вдали от Солнца', () => {
+    const wide = greetingLayout(greetingById('primer')!, JD);
+    const narrow = greetingLayout(greetingById('primer')!, JD, (20 * Math.PI) / 180);
+    expect(narrow.placement.height).toBeLessThan(wide.placement.height);
+    expect(shapeOf('ПРИВЕТ').width * narrow.placement.height).toBeCloseTo((20 * Math.PI) / 180, 6);
+    expect(angleBetween(narrow.placement.centre, avoidFromEarth(JD).sun)).toBeGreaterThanOrEqual(
+      SUN_CLEARANCE,
+    );
+  });
+
   it('ставит камеру у Земли лицом к надписи', () => {
     const layout = greetingLayout(greetingById('primer')!, JD);
     const view = greetingView(layout.placement.centre, JD);

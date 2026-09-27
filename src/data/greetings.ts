@@ -85,12 +85,18 @@ export function avoidFromEarth(jd: number): Avoid {
 
 let stars: BrightStar[] | null = null;
 
-export function greetingLayout(greeting: Greeting, jd: number): InscriptionLayout {
+/**
+ * Надпись поздравления на эту дату.
+ *
+ * @param targetWidth ширина надписи, радианы: по умолчанию 60°, на узком
+ *   экране - сколько вмещает кадр, см. `fittingWidth`
+ */
+export function greetingLayout(greeting: Greeting, jd: number, targetWidth?: number): InscriptionLayout {
   stars ??= brightStars(SNAP_MAGNITUDE);
   const place = greeting.place
     ? { ra: greeting.place.raDeg / RAD, dec: greeting.place.decDeg / RAD }
     : undefined;
-  return layoutInscription(greeting.stars, stars, avoidFromEarth(jd), place);
+  return layoutInscription(greeting.stars, stars, avoidFromEarth(jd), place, targetWidth);
 }
 
 /** Камера отступает от Земли, чтобы та не закрывала полкадра, - как у парада. */
