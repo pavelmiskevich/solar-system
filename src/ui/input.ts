@@ -94,6 +94,8 @@ export interface SceneInputOptions {
   events: { toggle(): void };
   /** Подсказка внизу экрана; прячется, как только пользователь взял мышь. */
   hint?: HTMLElement | null;
+  /** Закрыть плашку поздравления - надпись на небе при этом остаётся. */
+  closeGreeting: () => void;
 }
 
 export function bindSceneInput(options: SceneInputOptions): void {
@@ -156,6 +158,7 @@ function bindKeyboard(options: SceneInputOptions): void {
         help.toggle();
         break;
       case 'Escape':
+        options.closeGreeting();
         help.setOpen(false);
         support.setOpen(false);
         if (tour.isActive) tour.cancel();

@@ -12,6 +12,7 @@ import type { BodyView, SceneState } from './core/sceneState';
 import { AU, DEG, dateFromJulianDay } from './core/units';
 import { SCENARIOS, scenarioById } from './data/scenarios';
 import { EVENT_WINDOW_YEARS, upcomingEvents } from './data/events';
+import { greetingById, greetingLayout, greetingView } from './data/greetings';
 import type { EventRow } from './data/events';
 import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
@@ -21,6 +22,7 @@ import { AsteroidBelt } from './scene/asteroids';
 import { CometTails } from './scene/comet';
 import { SatelliteOrbits } from './scene/satelliteOrbits';
 import { ConstellationLines } from './scene/constellations';
+import { InscriptionView } from './scene/inscription';
 import { MilkyWay } from './scene/milkyWay';
 import { Starfield } from './scene/starfield';
 import { Sun } from './scene/sun';
@@ -41,6 +43,7 @@ import { SupportPanel } from './ui/support';
 import { DatePanel } from './ui/datePanel';
 import { ScenarioList } from './ui/scenarioList';
 import { EventList } from './ui/eventList';
+import { GreetingCard } from './ui/greetingCard';
 import { TimeSlider } from './ui/timeSlider';
 import { TourButton } from './ui/tourButton';
 import { SnapshotButton, saveCanvasPng, snapshotFileName } from './ui/snapshotButton';
@@ -175,6 +178,9 @@ viewport.scene.add(starfield.points);
 // небо сначала показывают как небо, а разбирают по фигурам уже потом.
 const constellations = new ConstellationLines();
 viewport.scene.add(constellations.lines);
+
+const inscription = new InscriptionView(starfield.points.material);
+viewport.scene.add(inscription.group);
 
 system.update(clock.jd);
 
@@ -345,6 +351,7 @@ function readSceneState(): SceneState {
     paused: clock.paused,
     language: language(),
   };
+  if (activeGreeting) state.greeting = activeGreeting;
 
   const held = frame.targetId ? findTarget(frame.targetId) : undefined;
 
@@ -436,6 +443,38 @@ function directionFromAngles(azimuth: number, elevation: number, out: Vector3): 
 }
 
 /**
+ * Поздравление на экране: пока плашка открыта, его имя живёт в адресе.
+ * Экскурсия и готовые виды его убирают - это зритель взял управление.
+ */
+let activeGreeting: string | null = null;
+let greetingCard: GreetingCard | null = null;
+
+function dismissGreeting(): void {
+  greetingCard?.close();
+  inscription.clear();
+}
+
+function openGreeting(id: string, keepView: boolean): void {
+  const greeting = greetingById(id);
+  if (!greeting) return;
+
+  const layout = greetingLayout(greeting, clock.jd);
+  inscription.show(layout);
+  // Сразу, до первого кадра: иначе линии успели бы мелькнуть во всю яркость,
+  // не уравненные экспозицией и не спрятанные в начало проявления.
+  inscription.update(0, viewport.camera.position, viewport.exposure);
+  activeGreeting = id;
+  hintElement?.classList.add('hidden');
+  greetingCard = new GreetingCard(document.body, greeting, () => {
+    activeGreeting = null;
+    greetingCard = null;
+  });
+
+  // Камера из ссылки старше: человек облетел надпись и перезагрузил страницу.
+  if (!keepView) showFreeView({ view: greetingView(layout.placement.centre, clock.jd), paused: clock.paused });
+}
+
+/**
  * Показать готовый вид.
  *
  * Дата и скорость времени ставятся рывком, а камера летит: анимировать
@@ -445,6 +484,7 @@ function directionFromAngles(azimuth: number, elevation: number, out: Vector3): 
  * покажешь.
  */
 function showScenario(id: string): void {
+  dismissGreeting();
   const scenario = scenarioById(id);
   if (!scenario) return;
 
@@ -872,6 +912,7 @@ const loop = new RenderLoop((dt, elapsed) => {
     milkyWay.mesh,
     starfield.points,
     constellations.lines,
+    inscription.group,
     system.pointLayer,
     orbits.group,
     satelliteOrbits.group,
@@ -901,6 +942,12 @@ const loop = new RenderLoop((dt, elapsed) => {
   }
   constellations.followCamera(viewport.camera.position);
   constellations.compensateExposure(viewport.exposure);
+  // Шаг кадра настоящий, а не модельный: надпись проявляется за свои две
+  // секунды и на паузе, и при ускоренном времени.
+  inscription.update(dt, viewport.camera.position, viewport.exposure);
+  // Экскурсию начинают кнопкой, клавишей и пальцем; ловить каждый путь
+  // незачем - достаточно заметить, что она пошла.
+  if (tour.isActive && inscription.isShown) dismissGreeting();
   orbits.update(distanceToSun, distanceToSurface, viewport.exposure);
   satelliteOrbits.update(
     flight.worldPosition,
@@ -965,6 +1012,10 @@ const loop = new RenderLoop((dt, elapsed) => {
 // Вид из ссылки ставится последним и до первого кадра: тела уже расставлены
 // на её дату, панели созданы, список тел готов принять выбранное тело.
 applySceneState(initialState);
+if (initialState.greeting) {
+  help.setOpen(false);
+  openGreeting(initialState.greeting, initialState.view !== undefined);
+}
 
 loop.start();
 
@@ -998,6 +1049,7 @@ bindSceneInput({
   scenarios: scenarioList,
   events: eventList,
   hint: hintElement,
+  closeGreeting: () => greetingCard?.close(),
 });
 
 // Отладочный доступ из консоли: позволяет ставить камеру и время программно,
@@ -1024,6 +1076,10 @@ if (import.meta.env.DEV) {
     cometTails,
     milkyWay,
     constellations,
+    inscription,
+    get greetingCard() {
+      return greetingCard;
+    },
     skyLabels,
     aim,
     travelTo,
