@@ -24,6 +24,9 @@ export class GreetingCard {
   ) {
     this.element = document.createElement('div');
     this.element.id = 'greeting-card';
+    // Плашка появляется сама, без действия зрителя: экранный диктор должен
+    // её прочесть, не дожидаясь, пока до неё дойдут.
+    this.element.setAttribute('role', 'status');
 
     const title = document.createElement('div');
     title.className = 'greeting-title';

@@ -68,6 +68,8 @@ test.describe('поздравление', () => {
     await waitForFrames(page, 90);
 
     await expect(page.locator('#greeting-card')).toContainText('Так выглядит поздравление на небе');
+    // Плашка появляется сама, и экранный диктор её зачитывает.
+    await expect(page.locator('#greeting-card')).toHaveAttribute('role', 'status');
     expect(await page.evaluate(() => window.sim.inscription.isShown)).toBe(true);
     // Орбиты Венеры и Марса тоже тёплые: без них пиксели считают только надпись.
     await page.evaluate(() => {
@@ -183,6 +185,24 @@ test.describe('поздравление', () => {
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(16 - 1);
     expect(box!.x + box!.width).toBeLessThanOrEqual(390 - 16 + 1);
+    // И не ужимается до половины: сдвинутая на середину, она занимала только
+    // место справа от неё и складывала строку втрое.
+    expect(box!.width).toBeGreaterThan(390 * 0.6);
     expectNoErrors(errors);
+  });
+
+  test.describe('на сенсорном экране', () => {
+    test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+    test('крестик плашки - цель для пальца', async ({ page }) => {
+      const errors = await openScene(page, { url: '/?greeting=primer', keepHelp: true });
+      const box = await page.locator('#greeting-card .greeting-close').boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.width).toBeGreaterThanOrEqual(44 - 1);
+      expect(box!.height).toBeGreaterThanOrEqual(44 - 1);
+      await page.locator('#greeting-card .greeting-close').tap();
+      await expect(page.locator('#greeting-card')).toHaveCount(0);
+      expectNoErrors(errors);
+    });
   });
 });

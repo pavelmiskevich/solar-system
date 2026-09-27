@@ -206,12 +206,20 @@
 
       #hint.hidden { opacity: 0; }
 
-      /* Плашка поздравления: на месте подсказки и в той же одежде. */
+      /*
+       * Плашка поздравления: на месте подсказки и в той же одежде.
+       *
+       * Ширина - по тексту, явно. Блок, сдвинутый на середину экрана, сам
+       * ужимается до места справа от середины: на телефоне в 390 точек плашка
+       * выходила в 195 и складывала строку втрое. Предел ширины держит её в
+       * экране.
+       */
       #greeting-card {
         position: fixed;
         left: 50%;
         bottom: 24px;
         transform: translateX(-50%);
+        width: max-content;
         max-width: min(560px, calc(100vw - 32px));
         box-sizing: border-box;
         padding: 14px 44px 14px 22px;
@@ -1132,6 +1140,8 @@
         .panel-row { padding: 11px 10px; }
         .date-step { padding: 8px 0; }
         .overlay-close { width: 34px; height: 34px; }
+        /* Крестик плашки занимает весь угол, под который оставлен отступ справа. */
+        #greeting-card .greeting-close { top: 0; right: 0; width: 44px; height: 44px; }
       }
     </style>
   </head>
