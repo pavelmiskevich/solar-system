@@ -290,6 +290,11 @@ export const EN: Dictionary = {
     source: 'Source code on GitHub',
   },
 
+  greeting: {
+    close: '✕',
+    closeTitle: 'Close (Esc)',
+  },
+
   help: {
     title: 'Controls',
     buttonTitle: 'Controls (H)',
