@@ -99,6 +99,15 @@ export function greetingLayout(greeting: Greeting, jd: number, targetWidth?: num
   return layoutInscription(greeting.stars, stars, avoidFromEarth(jd), place, targetWidth);
 }
 
+/**
+ * Скорость времени, с которой открывается поздравление: реальная.
+ *
+ * Сцена открывается у Земли на сегодняшнюю дату, а при обычных сутках в
+ * секунду за шесть секунд уходят два дня, и Земля уплывает из-за спины.
+ * Останавливать время незачем: небо с надписью живёт, как настоящее.
+ */
+export const GREETING_TIME_SCALE = 1 / 86_400;
+
 /** Камера отступает от Земли, чтобы та не закрывала полкадра, - как у парада. */
 const STANDOFF_KM = 20 * 6378.137;
 

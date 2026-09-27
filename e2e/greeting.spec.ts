@@ -78,7 +78,17 @@ test.describe('поздравление', () => {
     // растягивается, и снимок на фиксированном кадре застал бы его на полпути.
     await expect.poll(() => warmPixels(page), { timeout: 20_000 }).toBeGreaterThan(150);
     await expect.poll(() => page.url()).toContain('greeting=primer');
+    // Сцена открывается на сегодняшней дате и в реальном времени: при сутках
+    // в секунду Земля за несколько секунд уплывала бы от камеры.
+    expect(await page.evaluate(() => window.sim.clock.timeScale)).toBeCloseTo(1 / 86_400, 12);
 
+    expectNoErrors(errors);
+  });
+
+  test('скорость времени из ссылки старше реального времени поздравления', async ({ page }) => {
+    const errors = await openScene(page, { url: '/?greeting=primer&t=7', keepHelp: true });
+    expect(await page.evaluate(() => window.sim.inscription.isShown)).toBe(true);
+    expect(await page.evaluate(() => window.sim.clock.timeScale)).toBe(7);
     expectNoErrors(errors);
   });
 

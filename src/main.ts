@@ -13,7 +13,7 @@ import type { BodyView, SceneState } from './core/sceneState';
 import { AU, DEG, dateFromJulianDay } from './core/units';
 import { SCENARIOS, scenarioById } from './data/scenarios';
 import { EVENT_WINDOW_YEARS, upcomingEvents } from './data/events';
-import { greetingById, greetingLayout, greetingView } from './data/greetings';
+import { GREETING_TIME_SCALE, greetingById, greetingLayout, greetingView } from './data/greetings';
 import type { EventRow } from './data/events';
 import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
@@ -455,7 +455,12 @@ function dismissGreeting(): void {
   inscription.clear();
 }
 
-function openGreeting(id: string, keepView: boolean): void {
+/**
+ * @param fromLink что из ссылки старше поздравления: камера и скорость времени.
+ *   Человек облетел надпись, сменил скорость и перезагрузил страницу - ему
+ *   возвращается его вид, а не вид поздравления.
+ */
+function openGreeting(id: string, fromLink: { view: boolean; timeScale: boolean }): void {
   const greeting = greetingById(id);
   if (!greeting) return;
 
@@ -477,8 +482,8 @@ function openGreeting(id: string, keepView: boolean): void {
     if (!tour.isActive) hintElement?.classList.remove('hidden');
   });
 
-  // Камера из ссылки старше: человек облетел надпись и перезагрузил страницу.
-  if (!keepView) showFreeView({ view: greetingView(layout.placement.centre, clock.jd), paused: clock.paused });
+  if (!fromLink.timeScale) clock.timeScale = GREETING_TIME_SCALE;
+  if (!fromLink.view) showFreeView({ view: greetingView(layout.placement.centre, clock.jd), paused: clock.paused });
 }
 
 /**
@@ -1022,7 +1027,10 @@ const loop = new RenderLoop((dt, elapsed) => {
 applySceneState(initialState);
 if (initialState.greeting) {
   help.setOpen(false);
-  openGreeting(initialState.greeting, initialState.view !== undefined);
+  openGreeting(initialState.greeting, {
+    view: initialState.view !== undefined,
+    timeScale: initialState.timeScale !== undefined,
+  });
 }
 
 loop.start();
