@@ -61,6 +61,18 @@ describe('поздравления', () => {
     );
   });
 
+  it('ставит надпись в одно место на любом экране', () => {
+    // Ссылку с камерой, снятую на ноутбуке, открывают на телефоне: камера
+    // из адреса должна найти надпись там же, только буквы мельче.
+    const greeting = greetingById('primer')!;
+    for (let day = 0; day < 5; day++) {
+      const wide = greetingLayout(greeting, JD + day * 4);
+      const phone = greetingLayout(greeting, JD + day * 4, (19.5 * Math.PI) / 180);
+      expect(phone.placement.height).toBeLessThan(wide.placement.height);
+      expect(angleBetween(phone.placement.centre, wide.placement.centre)).toBeLessThan(1e-9);
+    }
+  });
+
   it('ставит камеру у Земли лицом к надписи', () => {
     const layout = greetingLayout(greetingById('primer')!, JD);
     const view = greetingView(layout.placement.centre, JD);

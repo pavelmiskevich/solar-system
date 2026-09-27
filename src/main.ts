@@ -466,6 +466,8 @@ function openGreeting(id: string, fromLink: { view: boolean; timeScale: boolean 
 
   // Ширина надписи - по кадру, иначе на портретном телефоне от слова остаётся
   // середина. Угол берётся базовый: варп-перелёт раздвигает его лишь на время.
+  // Кадр меняет только размер букв, место одно на все экраны: камера из
+  // ссылки, снятой на ноутбуке, и на телефоне смотрит на надпись.
   const width = fittingWidth(viewport.baseFov * DEG, viewport.camera.aspect);
   const layout = greetingLayout(greeting, clock.jd, width);
   inscription.show(layout);

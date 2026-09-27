@@ -69,6 +69,16 @@ describe('надпись на небе', () => {
     expect(placed.placement.height).toBeCloseTo(layout.placement.height, 9);
   });
 
+  it('ищет место по надписи в 60° и не сдвигает его под узкий кадр', () => {
+    const phone = fittingWidth(55 * DEG, 390 / 844);
+    const stars = syntheticSky();
+    const avoid = { sun: at(30, 10), others: [at(200, -5)] };
+    const wide = layoutInscription('ПРИВЕТ', stars, avoid);
+    const narrow = layoutInscription('ПРИВЕТ', stars, avoid, undefined, phone);
+    expect(narrow.placement.height).toBeLessThan(wide.placement.height);
+    expect(angleBetween(narrow.placement.centre, wide.placement.centre)).toBeLessThan(1e-9);
+  });
+
   it('ставит верх надписи к северному полюсу эклиптики', () => {
     const shape = shapeOf('Т');
     const points = placeShape(shape, { centre: at(90, 23.44), height: 10 * DEG });

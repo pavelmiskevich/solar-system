@@ -89,7 +89,8 @@ let stars: BrightStar[] | null = null;
  * Надпись поздравления на эту дату.
  *
  * @param targetWidth ширина надписи, радианы: по умолчанию 60°, на узком
- *   экране - сколько вмещает кадр, см. `fittingWidth`
+ *   экране - сколько вмещает кадр, см. `fittingWidth`. Меняет только размер
+ *   букв, место на небе от экрана не зависит.
  */
 export function greetingLayout(greeting: Greeting, jd: number, targetWidth?: number): InscriptionLayout {
   stars ??= brightStars(SNAP_MAGNITUDE);

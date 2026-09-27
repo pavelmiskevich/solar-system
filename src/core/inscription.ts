@@ -324,14 +324,16 @@ const REFINE_REACH = 5;
  *
  * Порядок перебора постоянный, и первое из равных побеждает: одна ссылка в
  * один день даёт одно место.
+ *
+ * Ширины кадра перебор не знает и мерит надпись всегда в 60°. Через полсекунды
+ * после открытия в адресе уже стоит камера, и ссылка, скопированная на
+ * ноутбуке, открывается на телефоне его камерой. Ищи телефон место под свою
+ * узкую надпись - он находил другое, в 10-26° от ноутбучного, и смотрел в
+ * пустое небо. Узкая надпись ложится в том же центре, внутри широкой, и
+ * отступы от Солнца, Луны и планет для неё тоже держатся.
  */
-export function choosePlacement(
-  shape: Shape,
-  stars: readonly BrightStar[],
-  avoid: Avoid,
-  targetWidth = TARGET_WIDTH,
-): Placement {
-  const height = heightFor(shape, targetWidth);
+export function choosePlacement(shape: Shape, stars: readonly BrightStar[], avoid: Avoid): Placement {
+  const height = heightFor(shape);
   const { vectors } = brightVectors(stars);
   const sun = vec(avoid.sun);
   const blockers = [sun, ...avoid.others.map(vec)];
@@ -400,6 +402,10 @@ export function choosePlacement(
   return { centre: sky(centre), height };
 }
 
+/**
+ * @param targetWidth ширина надписи под кадр, радианы. От неё зависит только
+ *   размер букв: место одно на все экраны, см. `choosePlacement`.
+ */
 export function layoutInscription(
   text: string,
   stars: readonly BrightStar[],
@@ -408,9 +414,8 @@ export function layoutInscription(
   targetWidth = TARGET_WIDTH,
 ): InscriptionLayout {
   const shape = shapeOf(text);
-  const placement = place
-    ? { centre: place, height: heightFor(shape, targetWidth) }
-    : choosePlacement(shape, stars, avoid, targetWidth);
+  const centre = place ?? choosePlacement(shape, stars, avoid).centre;
+  const placement = { centre, height: heightFor(shape, targetWidth) };
   const vertices = snapToStars(placeShape(shape, placement), placement.height, stars);
   return { vertices, edges: shape.edges, placement };
 }
