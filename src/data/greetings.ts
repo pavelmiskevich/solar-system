@@ -75,12 +75,47 @@ function towards(from: Ecl, to: Ecl): SkyPoint {
   return { ra: ra < 0 ? ra + 2 * Math.PI : ra, dec: Math.atan2(ez, Math.hypot(ex, ey)) };
 }
 
+/** Где тело на небе с Земли в этот момент. */
+export function seenFromEarth(id: string, jd: number): SkyPoint {
+  return towards(heliocentric('earth', jd), heliocentric(id, jd));
+}
+
+/** Начало суток по всемирному времени, в которые попадает момент. */
+export function dayStart(jd: number): number {
+  return Math.floor(jd - 0.5) + 0.5;
+}
+
+/**
+ * Через сколько часов отмечается путь тел за сутки.
+ *
+ * Луна за сутки проходит 12-15°, за три часа - меньше двух. Вершина, которая
+ * отстоит на 10° от каждой отметки, отстоит от пути между ними хотя бы на
+ * 9.95°: отступ держится весь день.
+ */
+const PATH_STEP_HOURS = 3;
+
+/**
+ * Что засвечивает небо с Земли в течение суток, куда попадает момент.
+ *
+ * Засветка на сам момент открытия двигала место внутри дня: Луна за сутки
+ * сдвигает свою запретную зону на 13°, и утром и вечером по одной ссылке
+ * выходили места в десятках градусов друг от друга. Засветка на начало суток
+ * держит место, но к вечеру Луна могла войти в буквы. Поэтому запретны все
+ * точки пути Луны и планет за сутки: место одно на весь день и чисто весь
+ * день. Расширить круг вокруг Луны на её суточный ход вышло бы втрое дороже
+ * по площади неба, а звёзд в надписи путь не отнимает - на полугоде проб
+ * настоящих вершин в среднем столько же.
+ *
+ * Солнце за сутки уходит на градус, при отступе в 45° это ничего не меняет:
+ * оно берётся на начало суток.
+ */
 export function avoidFromEarth(jd: number): Avoid {
-  const earth = heliocentric('earth', jd);
-  return {
-    sun: towards(earth, { x: 0, y: 0, z: 0 }),
-    others: GLARE.map((id) => towards(earth, heliocentric(id, jd))),
-  };
+  const start = dayStart(jd);
+  const others: SkyPoint[] = [];
+  for (let hour = 0; hour <= 24; hour += PATH_STEP_HOURS) {
+    for (const id of GLARE) others.push(seenFromEarth(id, start + hour / 24));
+  }
+  return { sun: seenFromEarth('sun', start), others };
 }
 
 let stars: BrightStar[] | null = null;

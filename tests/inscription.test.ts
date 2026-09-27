@@ -76,7 +76,7 @@ describe('надпись на небе', () => {
     const wide = layoutInscription('ПРИВЕТ', stars, avoid);
     const narrow = layoutInscription('ПРИВЕТ', stars, avoid, undefined, phone);
     expect(narrow.placement.height).toBeLessThan(wide.placement.height);
-    expect(angleBetween(narrow.placement.centre, wide.placement.centre)).toBeLessThan(1e-9);
+    expectSameCentre(narrow.placement.centre, wide.placement.centre);
   });
 
   it('ставит верх надписи к северному полюсу эклиптики', () => {
@@ -197,4 +197,13 @@ function syntheticSky(): BrightStar[] {
     stars.push({ ra: next() * 2 * Math.PI, dec: Math.asin(next() * 2 - 1), magnitude: next() * 3.5 });
   }
   return stars;
+}
+
+/**
+ * Один и тот же центр - по координатам, а не по углу между ними: арккосинус
+ * у нуля теряет точность, и для одной и той же точки даёт до 1.5e-8.
+ */
+function expectSameCentre(a: SkyPoint, b: SkyPoint): void {
+  expect(Math.abs(a.ra - b.ra)).toBeLessThan(1e-9);
+  expect(Math.abs(a.dec - b.dec)).toBeLessThan(1e-9);
 }

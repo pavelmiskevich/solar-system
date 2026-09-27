@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { angleBetween, shapeOf, SUN_CLEARANCE } from '../src/core/inscription';
+import {
+  BODY_CLEARANCE,
+  SUN_CLEARANCE,
+  angleBetween,
+  placeShape,
+  shapeOf,
+  type SkyPoint,
+} from '../src/core/inscription';
 import {
   GREETINGS,
   GREETING_ID,
@@ -8,10 +15,12 @@ import {
   greetingById,
   greetingLayout,
   greetingView,
+  seenFromEarth,
 } from '../src/data/greetings';
 import { brightStars } from '../src/data/stars';
 
 const JD = 2461314.5; // 2026-10-01, 0h UT
+const DEG = Math.PI / 180;
 
 describe('поздравления', () => {
   it('пишутся только поддерживаемыми знаками и с правильным именем', () => {
@@ -69,7 +78,28 @@ describe('поздравления', () => {
       const wide = greetingLayout(greeting, JD + day * 4);
       const phone = greetingLayout(greeting, JD + day * 4, (19.5 * Math.PI) / 180);
       expect(phone.placement.height).toBeLessThan(wide.placement.height);
-      expect(angleBetween(phone.placement.centre, wide.placement.centre)).toBeLessThan(1e-9);
+      expectSameCentre(phone.placement.centre, wide.placement.centre);
+    }
+  });
+
+  it('держит место весь день, пока идут сутки', () => {
+    // 10 ноября 2026 года: с засветкой на момент открытия место к вечеру
+    // уходило на 78° - Луна за день двигала свою запретную зону.
+    const day = 2461354.5;
+    const greeting = greetingById('primer')!;
+    const morning = greetingLayout(greeting, day + 0.1);
+    const evening = greetingLayout(greeting, day + 0.9);
+    expectSameCentre(morning.placement.centre, evening.placement.centre);
+
+    // И весь день Луна не входит в буквы: отступ держится по всему её пути,
+    // а не только в начале суток. Отметки пути через три часа оставляют
+    // между собой запас меньше десятой градуса.
+    const letters = placeShape(shapeOf(greeting.stars), morning.placement);
+    for (let hour = 0; hour <= 24; hour += 0.5) {
+      const moon = seenFromEarth('moon', day + hour / 24);
+      for (const point of letters) {
+        expect(angleBetween(point, moon)).toBeGreaterThan(BODY_CLEARANCE - 0.1 * DEG);
+      }
     }
   });
 
@@ -91,3 +121,12 @@ describe('поздравления', () => {
     expect(cos).toBeGreaterThan(Math.cos((0.5 * Math.PI) / 180));
   });
 });
+
+/**
+ * Один и тот же центр - по координатам, а не по углу между ними: арккосинус
+ * у нуля теряет точность, и для одной и той же точки даёт до 1.5e-8.
+ */
+function expectSameCentre(a: SkyPoint, b: SkyPoint): void {
+  expect(Math.abs(a.ra - b.ra)).toBeLessThan(1e-9);
+  expect(Math.abs(a.dec - b.dec)).toBeLessThan(1e-9);
+}
