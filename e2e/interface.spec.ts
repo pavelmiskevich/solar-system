@@ -194,6 +194,72 @@ test.describe('интерфейс', () => {
     });
   }
 
+  /*
+   * Открытая карточка тела забирает у колонки высоту, и ноутбучному экрану
+   * её не хватает на всё. Однажды виды и события уступали эту высоту не
+   * своим списком, а обёрткой вокруг него: обёртка сжималась ниже списка,
+   * список вылезал из неё, и кнопки колонки ложились поверх строк. Уступать
+   * должна карточка - она прокручивается, - а список держит свои три строки.
+   */
+  for (const height of [768, 657]) {
+    test(`на экране 1366x${height} с карточкой тела кнопки не ложатся на виды и события`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1366, height });
+      const errors = await openScene(page);
+
+      await page.keyboard.press('KeyB');
+      await page.locator('.bodies-row', { hasText: 'Сатурн' }).first().click();
+      await expect(page.locator('.body-card-header b')).toHaveText('Сатурн');
+      await page.keyboard.press('KeyB');
+      await expect(page.locator('#bodies')).toHaveClass(/closed/);
+
+      for (const { name, key } of [
+        { name: 'виды', key: 'KeyV' },
+        { name: 'события', key: 'KeyE' },
+      ]) {
+        await page.keyboard.press(key);
+        const list = page.locator('.views:not(.closed) .views-list');
+        let previous = -1;
+        await expect
+          .poll(async () => {
+            const box = await list.evaluate((element) => element.getBoundingClientRect().height);
+            const settled = box === previous;
+            previous = box;
+            return settled;
+          })
+          .toBe(true);
+
+        const covered = await list.evaluate((element) => {
+          const own = element.getBoundingClientRect();
+          return [...document.querySelectorAll('#bodies .bodies-toggle, #bodies .column-row')]
+            // Своя кнопка панели стоит над списком и в счёт не идёт.
+            .filter((control) => !element.parentElement!.contains(control))
+            .filter((control) => {
+              const box = control.getBoundingClientRect();
+              return box.height > 0 && box.bottom > own.top + 1 && box.top < own.bottom - 1;
+            })
+            .map((control) => (control.textContent ?? '').trim());
+        });
+        expect(covered, `открыты ${name}: кнопки поверх списка`).toEqual([]);
+
+        const bottom = await page.evaluate(() =>
+          Math.max(
+            ...[...document.querySelectorAll('#bodies .bodies-toggle, #bodies .column-row')].map(
+              (control) => control.getBoundingClientRect().bottom,
+            ),
+          ),
+        );
+        expect(bottom, `открыты ${name}: нижняя кнопка за краем экрана`).toBeLessThanOrEqual(height);
+
+        await page.keyboard.press(key);
+        await expect(list).toHaveCount(0);
+      }
+
+      expectNoErrors(errors);
+    });
+  }
+
   test('карточка тела показывает справочные величины', async ({ page }) => {
     await openScene(page);
 
