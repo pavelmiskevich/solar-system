@@ -254,7 +254,10 @@ const browser = await chromium.launch({
   ],
 });
 
-const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+// Язык интерфейса сцена берёт из браузера, а безголовый Chromium
+// представляется английским. Описание проекта русское, и снимки в нём -
+// тоже: с тем же языком, что и в playwright.config.ts.
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, locale: 'ru-RU' });
 
 try {
   await page.goto(URL);
