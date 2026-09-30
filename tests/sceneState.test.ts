@@ -138,4 +138,17 @@ describe('состояние сцены в адресе', () => {
     expect(decodeSceneState('?b=mars').language).toBeUndefined();
     expect(encodeSceneState({ jd: JD_2032 })).not.toContain('lang=');
   });
+
+  it('несёт поздравление в ссылке и возвращает его обратно', () => {
+    const search = encodeSceneState({ greeting: 'primer' });
+    expect(search).toContain('greeting=primer');
+    expect(decodeSceneState(search).greeting).toBe('primer');
+  });
+
+  it('выбрасывает неизвестное и испорченное поздравление, не трогая остального', () => {
+    expect(decodeSceneState('?greeting=no-such').greeting).toBeUndefined();
+    expect(decodeSceneState('?greeting=<script>').greeting).toBeUndefined();
+    expect(decodeSceneState('?greeting=PRIMER').greeting).toBe('primer');
+    expect(decodeSceneState('?greeting=no-such&p=1').paused).toBe(true);
+  });
 });

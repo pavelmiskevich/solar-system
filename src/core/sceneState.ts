@@ -1,6 +1,7 @@
 import { TIME_SCALES } from './clock';
 import { dateFromJulianDay, julianDayFromDate } from './units';
 import { bodyById } from '../data/bodies';
+import { GREETING_ID, greetingById } from '../data/greetings';
 import { isLanguage, type Language } from '../i18n/language';
 
 /**
@@ -55,6 +56,13 @@ export interface SceneState {
    * «на усмотрение того, кто открыл», и тогда язык выбирается как обычно.
    */
   language?: Language;
+  /**
+   * Поздравление, которое сейчас на экране.
+   *
+   * В ссылке оно живёт, пока открыта плашка: перезагрузка не должна отнимать
+   * у человека открытку, которую ему прислали. Закрыл плашку - параметр уходит.
+   */
+  greeting?: string;
 }
 
 /** Ближе этого к центру тела камера не ставится: внутри планеты смотреть нечего. */
@@ -105,6 +113,7 @@ export function encodeSceneState(state: SceneState): string {
   }
 
   if (state.language) search.set('lang', state.language);
+  if (state.greeting) search.set('greeting', state.greeting);
 
   // Двоеточия в дате возвращаются на место: `URLSearchParams` заменяет их
   // на `%3A`, и ссылка перестаёт читаться глазами, ради чего всё и затеяно.
@@ -135,6 +144,11 @@ export function decodeSceneState(search: string): SceneState {
   // выбрасывается, как и всё прочее, чему нельзя верить.
   const language = query.get('lang')?.trim().toLowerCase();
   if (isLanguage(language)) state.language = language;
+
+  // Регистр прощается, как у языка. Проверка по списку, а не только по виду:
+  // незнакомое имя не должно даже намекать, что поздравления бывают.
+  const greeting = query.get('greeting')?.trim().toLowerCase();
+  if (greeting && GREETING_ID.test(greeting) && greetingById(greeting)) state.greeting = greeting;
 
   return state;
 }

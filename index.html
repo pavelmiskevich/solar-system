@@ -206,6 +206,45 @@
 
       #hint.hidden { opacity: 0; }
 
+      /*
+       * Плашка поздравления: на месте подсказки и в той же одежде.
+       *
+       * Ширина - по тексту, явно. Блок, сдвинутый на середину экрана, сам
+       * ужимается до места справа от середины: на телефоне в 390 точек плашка
+       * выходила в 195 и складывала строку втрое. Предел ширины держит её в
+       * экране.
+       */
+      #greeting-card {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        transform: translateX(-50%);
+        width: max-content;
+        max-width: min(560px, calc(100vw - 32px));
+        box-sizing: border-box;
+        padding: 14px 44px 14px 22px;
+        border-radius: 18px;
+        background: var(--ui-bg);
+        border: 1px solid var(--ui-border);
+        backdrop-filter: blur(12px);
+        text-align: center;
+        pointer-events: auto;
+      }
+      #greeting-card .greeting-title { font-size: 18px; line-height: 1.3; }
+      #greeting-card .greeting-from { margin-top: 6px; font-size: 13px; opacity: 0.75; }
+      #greeting-card .greeting-close {
+        position: absolute;
+        top: 8px;
+        right: 10px;
+        border: 0;
+        background: none;
+        color: inherit;
+        font-size: 16px;
+        cursor: pointer;
+        opacity: 0.7;
+      }
+      #greeting-card .greeting-close:hover { opacity: 1; }
+
       /* Прицел: пока мышь захвачена, выбор идёт по центру кадра. */
       #reticle {
         position: fixed;
@@ -1110,6 +1149,8 @@
         .panel-row { padding: 11px 10px; }
         .date-step { padding: 8px 0; }
         .overlay-close { width: 34px; height: 34px; }
+        /* Крестик плашки занимает весь угол, под который оставлен отступ справа. */
+        #greeting-card .greeting-close { top: 0; right: 0; width: 44px; height: 44px; }
       }
     </style>
   </head>
