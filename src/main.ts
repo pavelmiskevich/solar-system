@@ -767,6 +767,30 @@ const scenarioList = new ScenarioList(bodyList.column, SCENARIOS, showScenario, 
 // раздвигают её, а раскрытые разом отодвинули бы нижние кнопки за край экрана.
 eventList.onOpen(() => scenarioList.setOpen(false));
 
+/**
+ * Высота, которую занимают кнопки колонки, - для низкого экрана.
+ *
+ * Там кнопки стоят рядом вдоль верхнего края, в одну строку или в две: это
+ * решает ширина окна и язык подписей, и заранее этого не знает никто. Окна под
+ * ними берут ровно оставшееся (правило `max-height: 480px` в index.html). На
+ * обычном экране кнопки стоят колонкой, и величина там ни на что не влияет.
+ */
+function measureToggleRows(): void {
+  const column = bodyList.column;
+  const toggles = column.querySelectorAll(
+    ':scope > .bodies-toggle, :scope > .views > .bodies-toggle, :scope > .column-row',
+  );
+  const top = column.getBoundingClientRect().top;
+  let bottom = top;
+  for (const toggle of toggles) bottom = Math.max(bottom, toggle.getBoundingClientRect().bottom);
+  column.style.setProperty('--toggles-height', `${Math.ceil(bottom - top)}px`);
+}
+
+// Колонка меняет размер, когда открываются окна, переписываются подписи на
+// другом языке и поворачивается экран, - этого достаточно, чтобы замер не
+// отставал.
+new ResizeObserver(measureToggleRows).observe(bodyList.column);
+
 if (hintElement) {
   hintElement.textContent = hintText(isTouchPrimary());
   // Во время экскурсии в той же плашке идёт рассказ, и его язык меняет сама

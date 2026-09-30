@@ -574,3 +574,105 @@ test.describe('интерфейс', () => {
     expect((await download).suggestedFilename()).toMatch(/^solar-system-.+[.]png$/);
   });
 });
+
+/*
+ * Низкий экран: телефон лёжа. Окно около 930x350, и колонка из восьми кнопок
+ * под палец в высоту не помещается - она выше самого окна. Однажды так и было:
+ * «Тела», язык и GitHub уходили за нижний край, а открытый список выталкивал
+ * туда же «Справку» и «Поддержать». Здесь кнопки встают рядом сверху, а окна
+ * выбора и карточка - под ними.
+ */
+test.describe('низкий экран', () => {
+  test.use({ hasTouch: true, isMobile: true });
+
+  const cases = [
+    { width: 932, height: 350, lang: 'ru' },
+    { width: 844, height: 340, lang: 'ru' },
+    { width: 844, height: 340, lang: 'en' },
+  ];
+
+  for (const { width, height, lang } of cases) {
+    test(`на экране ${width}x${height} (${lang}) кнопки и окна помещаются и не ложатся друг на друга`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      const errors = await openScene(page, { url: `/?lang=${lang}` });
+
+      /** Прямоугольники кнопок колонки и открытых окон; всё должно быть в кадре. */
+      const layout = () =>
+        page.evaluate(() => {
+          const box = (element: Element) => {
+            const r = element.getBoundingClientRect();
+            return { top: r.top, bottom: r.bottom, left: r.left, right: r.right };
+          };
+          const toggles = [
+            ...document.querySelectorAll(
+              '#bodies > .bodies-toggle, #bodies > .views > .bodies-toggle, #bodies > .column-row',
+            ),
+          ].map((element) => ({ name: (element.textContent ?? '').trim(), ...box(element) }));
+          const panels = [...document.querySelectorAll('#bodies .panel-list, #bodies .body-card')]
+            .filter((element) => {
+              const r = element.getBoundingClientRect();
+              return r.height > 1 && getComputedStyle(element).display !== 'none';
+            })
+            .map((element) => ({ name: element.className, ...box(element) }));
+          // Подсказка внизу тоже препятствие, пока она видна.
+          const hint = document.getElementById('hint');
+          const obstacles =
+            hint && !hint.classList.contains('hidden') ? [{ name: 'подсказка', ...box(hint) }] : [];
+          return { toggles, panels, obstacles, width: innerWidth, height: innerHeight };
+        });
+
+      const check = async (state: string) => {
+        // Раскрытие идёт переходом: ждём, пока раскладка перестанет меняться.
+        let previous = '';
+        await expect
+          .poll(async () => {
+            const now = JSON.stringify(await layout());
+            const settled = now === previous;
+            previous = now;
+            return settled;
+          })
+          .toBe(true);
+        const { toggles, panels, obstacles, width: w, height: h } = JSON.parse(previous) as Awaited<
+          ReturnType<typeof layout>
+        >;
+
+        for (const item of [...toggles, ...panels]) {
+          expect(item.top, `${state}: «${item.name}» выше кадра`).toBeGreaterThanOrEqual(-1);
+          expect(item.bottom, `${state}: «${item.name}» ниже кадра`).toBeLessThanOrEqual(h + 1);
+          expect(item.left, `${state}: «${item.name}» левее кадра`).toBeGreaterThanOrEqual(-1);
+          expect(item.right, `${state}: «${item.name}» правее кадра`).toBeLessThanOrEqual(w + 1);
+        }
+        for (const panel of panels) {
+          for (const toggle of [...toggles, ...obstacles]) {
+            const overlaps =
+              toggle.bottom > panel.top + 1 &&
+              toggle.top < panel.bottom - 1 &&
+              toggle.right > panel.left + 1 &&
+              toggle.left < panel.right - 1;
+            expect(overlaps, `${state}: «${toggle.name}» поверх окна ${panel.name}`).toBe(false);
+          }
+        }
+      };
+
+      await check('всё свёрнуто');
+
+      await page.keyboard.press('KeyV');
+      await check('открыты виды');
+      await page.keyboard.press('KeyV');
+
+      await page.keyboard.press('KeyE');
+      await check('открыты события');
+      await page.keyboard.press('KeyE');
+
+      await page.keyboard.press('KeyB');
+      await check('открыт список тел');
+      await page.locator('.bodies-row').nth(1).click();
+      await expect(page.locator('.body-card')).toBeVisible();
+      await check('открыт список тел и карточка');
+
+      expectNoErrors(errors);
+    });
+  }
+});
