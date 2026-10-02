@@ -92,6 +92,11 @@ const PAGE_REPLY_MARGIN_MS = 5_000;
  * `requestAnimationFrame`. Поэтому второй сторож стоит на стороне теста, и
  * падая, он говорит, на сколько опоздал его собственный таймер. Опоздание в
  * секунды значит, что задыхается уже вся машина, а не одна страница.
+ *
+ * Сама причина #100 нашлась потом: страницу заваливал синтетическими
+ * движениями мыши захват мыши в headless-shell под Linux, подробно - в
+ * hover-locked.spec.ts. Сторожа остались: следующая заминка, откуда бы она ни
+ * взялась, должна называть себя сама, а не выедать предел теста.
  */
 export async function waitForFrames(
   page: Page,
@@ -131,24 +136,28 @@ export async function waitForFrames(
   const deadlineMs = count * stallMs + PAGE_REPLY_MARGIN_MS;
   const started = Date.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const silence = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      const lateMs = Date.now() - started - deadlineMs;
-      reject(
-        new Error(
-          `страница не отвечает: ожидание ${count} кадров не вернулось за ` +
-            `${deadlineMs / 1000} с, и сторож внутри неё тоже молчит; ` +
-            `таймер теста опоздал на ${(lateMs / 1000).toFixed(1)} с`,
-        ),
-      );
-    }, deadlineMs);
+  const silence = new Promise<'silence'>((resolve) => {
+    timer = setTimeout(() => resolve('silence'), deadlineMs);
   });
 
-  let seen: number;
+  let seen: number | 'silence';
   try {
     seen = await Promise.race([reply, silence]);
   } finally {
     clearTimeout(timer);
+  }
+
+  // Ошибки бросаются здесь, после await, а не из обратного вызова таймера: у
+  // ошибки, созданной в таймере, в стеке только он сам, и отчёт показывал
+  // строку этого файла вместо вызова в проверке. Отсюда стек доходит до
+  // строки проверки, и видно, какое из ожиданий встало.
+  if (seen === 'silence') {
+    const lateMs = Date.now() - started - deadlineMs;
+    throw new Error(
+      `страница не отвечает: ожидание ${count} кадров не вернулось за ` +
+        `${deadlineMs / 1000} с, и сторож внутри неё тоже молчит; ` +
+        `таймер теста опоздал на ${(lateMs / 1000).toFixed(1)} с`,
+    );
   }
 
   if (seen < count) {
