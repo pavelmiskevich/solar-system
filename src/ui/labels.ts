@@ -212,8 +212,14 @@ export class LabelLayer {
     // Смена единиц не должна ждать очередного обновления расстояний: подписи
     // держат последнее показанное значение и трогают вёрстку, только когда
     // оно изменилось. У неподвижного тела оно не изменится вовсе.
+    //
+    // Переписываются все подписи сразу, а не только разложенные в кадре.
+    // Однажды смена лишь помечала расстояние на обновление, а обновлялось оно
+    // при раскладке, - и подпись, которой в кадре не нашлось места, держала
+    // «405 648 км» после английского: глазом не видно, но текст в документе,
+    // его находит поиск по странице и читает экранный диктор.
     onDistanceUnitChange(() => {
-      for (const entry of this.entries) entry.distanceAge = DISTANCE_REFRESH_SECONDS;
+      for (const entry of this.entries) this.rewriteDistance(entry);
     });
 
     // Смена языка - то же самое, и вдобавок имя: оно написано один раз при
@@ -221,7 +227,7 @@ export class LabelLayer {
     onLanguageChange(() => {
       for (const entry of this.entries) {
         entry.nameNode.textContent = entry.source.name;
-        entry.distanceAge = DISTANCE_REFRESH_SECONDS;
+        this.rewriteDistance(entry);
       }
     });
   }
@@ -363,12 +369,32 @@ export class LabelLayer {
     entry.distanceAge += dt;
     if (entry.distanceAge >= DISTANCE_REFRESH_SECONDS) {
       entry.distanceAge = 0;
-      const text = formatDistance(Math.max(this.pointDepthFor(entry), 0));
-      if (text !== entry.shownDistance) {
-        entry.shownDistance = text;
-        entry.distanceNode.textContent = text;
-      }
+      this.showDistance(entry);
     }
+  }
+
+  /** Записать текущее расстояние, если оно на экране изменилось. */
+  private showDistance(entry: LabelEntry): void {
+    const text = formatDistance(Math.max(this.pointDepthFor(entry), 0));
+    if (text !== entry.shownDistance) {
+      entry.shownDistance = text;
+      entry.distanceNode.textContent = text;
+    }
+  }
+
+  /**
+   * Переписать расстояние на новых единицах или языке - прямо сейчас, а не при
+   * раскладке. Подпись, которая ещё ни разу не показывалась, остаётся пустой:
+   * свою первую запись она получит, когда для неё найдётся место.
+   */
+  private rewriteDistance(entry: LabelEntry): void {
+    if (entry.shownDistance === '') {
+      // Ещё не показывалась: первая запись - сразу, как только найдётся место.
+      entry.distanceAge = DISTANCE_REFRESH_SECONDS;
+      return;
+    }
+    this.showDistance(entry);
+    entry.distanceAge = 0;
   }
 
   /** Расстояние до тела от камеры: камера всегда в начале координат сцены. */

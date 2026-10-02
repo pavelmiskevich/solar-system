@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { expectEqualPickers, expectNoErrors, openScene, waitForArrival } from './helpers';
+import { expectEqualPickers, expectNoErrors, openScene, waitForArrival, waitForFrames } from './helpers';
 
 /**
  * Язык интерфейса: переключатель, ссылка и выбор по браузеру.
@@ -95,6 +95,43 @@ test.describe('язык интерфейса', () => {
     });
 
     expect(await russianLeftovers(page)).toEqual([]);
+    expectNoErrors(errors);
+  });
+
+  /*
+   * Подпись, которой в кадре нет места, не раскладывается и раньше не
+   * переписывалась вовсе: смена языка только помечала её расстояние на
+   * обновление, а обновление шло при раскладке. Спрятанная подпись держала
+   * «405 648 км» и после английского - глазом не видно, но текст в документе:
+   * его находит поиск по странице и читает экранный диктор. Однажды проверка
+   * ниже поймала такую подпись Энцелада через раз - смотря какие подписи в
+   * кадре на дату прогона. Здесь подписи прячутся наверняка: клавишей L.
+   */
+  test('спрятанные подписи тоже переписывают расстояние на новый язык', async ({ page }) => {
+    const errors = await openScene(page);
+    const distances = page.locator('#overlay .label i');
+
+    // Подписи успели показать расстояния по-русски.
+    await expect
+      .poll(async () => (await distances.allTextContents()).filter((text) => text !== '').length)
+      .toBeGreaterThan(0);
+
+    await page.keyboard.press('KeyL');
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          [...document.querySelectorAll<HTMLElement>('#overlay .label')].every(
+            (label) => Number(label.style.opacity || '0') === 0,
+          ),
+        ),
+      )
+      .toBe(true);
+
+    await page.locator('.language-switch [data-language="en"]').click();
+    await waitForFrames(page, 10);
+
+    const leftovers = (await distances.allTextContents()).filter((text) => CYRILLIC.test(text));
+    expect(leftovers).toEqual([]);
     expectNoErrors(errors);
   });
 
