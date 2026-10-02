@@ -151,6 +151,15 @@ test.describe('интерфейс', () => {
       await page.keyboard.press('KeyB');
       const list = page.locator('.bodies-list');
       await expect(list).toBeVisible();
+      // Список раскрывается переходом по max-height от нуля, и пока переход
+      // не начался или идёт, высоту держит нижний предел окна выбора,
+      // min(150px, 22vh). Замер до первого кадра после нажатия получал ровно
+      // его, 148 px без рамок, хотя места в колонке хватает на девять строк с
+      // лихвой. Попадёт ли кадр между нажатием и замером, решает загрузка
+      // машины, поэтому ждём не срок, а конца самих переходов.
+      await list.evaluate(async (element) => {
+        await Promise.all(element.getAnimations().map((animation) => animation.finished));
+      });
 
       const visibleRows = () =>
         list.evaluate((element) => {
