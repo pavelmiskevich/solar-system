@@ -1,0 +1,20 @@
+{
+  "atmosphere.spec.ts": 84,
+  "eclipse.spec.ts": 106,
+  "events.spec.ts": 28,
+  "greeting.spec.ts": 208,
+  "hover.spec.ts": 95,
+  "interface.spec.ts": 918,
+  "language.spec.ts": 325,
+  "milkyway.spec.ts": 78,
+  "moons.spec.ts": 37,
+  "navigation.spec.ts": 384,
+  "parade.spec.ts": 37,
+  "rendering.spec.ts": 201,
+  "scenarios.spec.ts": 343,
+  "scene.spec.ts": 112,
+  "sky.spec.ts": 81,
+  "state.spec.ts": 28,
+  "touch.spec.ts": 220,
+  "tour.spec.ts": 543
+}
