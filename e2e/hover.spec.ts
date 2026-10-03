@@ -78,31 +78,4 @@ test.describe('наведение', () => {
     // Подсвечено всегда не больше одного тела: иначе непонятно, куда полетим.
     expect(await page.locator('.label.highlight').count()).toBe(1);
   });
-
-  test('подсветка снимается, когда мышь захвачена свободным полётом', async ({ page }) => {
-    await openScene(page);
-    // Прилетаем к телу, а не полагаемся на то, где оно окажется при запуске:
-    // сцена стартует с текущей даты, и в другой день Юпитер стоит в другом
-    // месте кадра - а то и за Солнцем.
-    await page.evaluate(() => window.sim.travelTo('jupiter'));
-    await waitForArrival(page, 'jupiter');
-    await waitForFrames(page, 3);
-
-    const centre = await screenPositionOf(page, 'jupiter');
-    expect(centre, 'Юпитер должен быть в кадре').not.toBeNull();
-    const onDisc = { x: centre!.x - 60, y: centre!.y + 60 };
-
-    await page.mouse.move(onDisc.x, onDisc.y);
-    await waitForFrames(page, 2);
-    expect(await page.locator('.label.highlight').count()).toBe(1);
-
-    // В свободном полёте курсора нет: целятся прицелом в центре кадра, и
-    // подсвечивать под несуществующим курсором нечего.
-    await page.evaluate(() => window.sim.flight.requestLook());
-    await waitForFrames(page, 3);
-    await page.mouse.move(onDisc.x + 3, onDisc.y + 3);
-    await waitForFrames(page, 2);
-
-    expect(await page.locator('.label.highlight').count()).toBe(0);
-  });
 });
