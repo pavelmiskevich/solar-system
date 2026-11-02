@@ -283,6 +283,60 @@ test.describe('экскурсия на сенсорном экране', () => {
     expectNoErrors(errors);
   });
 
+  test('свайп, начатый на подписи тела, тоже переводит по остановкам', async ({ page }) => {
+    // Подписи лежат поверх холста, и касание подписи холст не видит. Какая
+    // подпись окажется под пальцем в проверке выше, решает положение планет
+    // на сегодня: в один день свайп пропадал через раз, в другой ни разу.
+    //
+    // Настоящую подпись под палец не подгадать - у Солнца диск закрывает
+    // кадр, а подписи прячутся под кнопками. Поэтому подпись кладётся под
+    // палец нарочно: элемент с тем же классом, по которому приложение и
+    // отличает подпись от холста, туда, где начинается свайп. Сцена его не
+    // двигает, и все три свайпа начинаются на нём.
+    const errors = await openScene(page);
+
+    await page.keyboard.press('KeyT');
+    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
+
+    const from = { x: 320, y: 380 };
+    const onLabel = await page.evaluate(({ x, y }) => {
+      const real = document.querySelector<HTMLElement>('.label')!;
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = 'подпись под пальцем';
+      Object.assign(label.style, {
+        position: 'absolute',
+        left: `${x - 60}px`,
+        top: `${y - 20}px`,
+        width: '120px',
+        height: '40px',
+        transform: 'none',
+        opacity: '1',
+        pointerEvents: 'auto',
+      });
+      real.parentElement!.appendChild(label);
+      return document.elementFromPoint(x, y) === label;
+    }, from);
+    expect(onLabel, 'под пальцем должна оказаться подпись, а не холст').toBe(true);
+
+    const captionsSeen = await recordCaptions(page);
+
+    for (let i = 0; i < 3; i += 1) {
+      await drag(page, from, { x: 80, y: 386 });
+    }
+
+    await expect(caption(page)).toContainText('Земля', { timeout: 60_000 });
+    expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
+
+    const shown = (await captionsSeen()).join(' | ');
+    expect(shown).toContain('Солнце');
+    expect(shown).toContain('Земля');
+    expect(shown).not.toContain('Меркурий');
+    expect(shown).not.toContain('Венера');
+
+    expectNoErrors(errors);
+  });
+
   test('вертикальное протаскивание по-прежнему обрывает её', async ({ page }) => {
     const errors = await openScene(page);
 
