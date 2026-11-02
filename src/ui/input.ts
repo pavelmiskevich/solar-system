@@ -360,35 +360,48 @@ function bindPointer(options: SceneInputOptions): void {
     canvas.setPointerCapture(event.pointerId);
   });
 
+  /**
+   * Решает судьбу касания, начатого во время экскурсии, по его движению.
+   *
+   * Если жест решился осмотром, экскурсия оборвана, и возвращается путь,
+   * который палец уже прошёл: начатое движение надо подхватить вращением,
+   * чтобы жест не пропал. Иначе - null.
+   */
+  const resolveSwipe = (event: PointerEvent): number | null => {
+    if (!swipeFrom) return null;
+    const dx = event.clientX - swipeFrom.x;
+    const dy = event.clientY - swipeFrom.y;
+
+    // Горизонталь - перемотка: движение влево уводит к следующей
+    // остановке, вправо - к предыдущей, как листают страницы. Жест на этом
+    // истрачен: следующий шаг - следующим жестом.
+    if (Math.abs(dx) >= SWIPE_THRESHOLD_PX && Math.abs(dx) > Math.abs(dy)) {
+      swipeFrom = null;
+      moved = Math.abs(dx) + Math.abs(dy);
+      if (dx < 0) tour.next();
+      else tour.previous();
+      return null;
+    }
+
+    // Вертикаль - человек взялся осматривать сам: экскурсия обрывается.
+    if (Math.abs(dy) >= SWIPE_THRESHOLD_PX) {
+      swipeFrom = null;
+      tour.cancel();
+      return Math.abs(dx) + Math.abs(dy);
+    }
+
+    return null;
+  };
+
   canvas.addEventListener('pointermove', (event) => {
     if (swipeFrom) {
-      const dx = event.clientX - swipeFrom.x;
-      const dy = event.clientY - swipeFrom.y;
-
-      // Горизонталь - перемотка: движение влево уводит к следующей
-      // остановке, вправо - к предыдущей, как листают страницы. Жест на этом
-      // истрачен: следующий шаг - следующим жестом.
-      if (Math.abs(dx) >= SWIPE_THRESHOLD_PX && Math.abs(dx) > Math.abs(dy)) {
-        swipeFrom = null;
-        moved = Math.abs(dx) + Math.abs(dy);
-        if (dx < 0) tour.next();
-        else tour.previous();
-        return;
+      const path = resolveSwipe(event);
+      if (path !== null && orbit.isActive) {
+        dragging = true;
+        moved = path;
+        lastX = event.clientX;
+        lastY = event.clientY;
       }
-
-      // Вертикаль - человек взялся осматривать сам: экскурсия обрывается, а
-      // начатое движение подхватывается вращением, чтобы жест не пропал.
-      if (Math.abs(dy) >= SWIPE_THRESHOLD_PX) {
-        swipeFrom = null;
-        tour.cancel();
-        if (orbit.isActive) {
-          dragging = true;
-          moved = Math.abs(dx) + Math.abs(dy);
-          lastX = event.clientX;
-          lastY = event.clientY;
-        }
-      }
-
       return;
     }
 
@@ -488,9 +501,40 @@ function bindPointer(options: SceneInputOptions): void {
   const isScene = (target: EventTarget | null): boolean =>
     target === canvas || (target instanceof Element && target.closest('.label') !== null);
 
+  /*
+   * Свайп по экскурсии, начатый на подписи тела.
+   *
+   * Холст такого касания не видит: оно досталось подписи, и все его движения
+   * идут ей же. А подписей на телефоне в кадре десяток, и какие из них окажутся
+   * под пальцем, решает положение планет на сегодня: свайп пропадал молча, в
+   * один день через раз, в другой ни разу. Поэтому касание подписи во время
+   * экскурсии разбирается здесь тем же порядком, что и касание холста.
+   *
+   * Короткое касание подписи остаётся щелчком по ней - то есть выбором тела,
+   * как и было. Поэтому указатель не перехватывается холстом: щелчок тогда
+   * достался бы не подписи.
+   */
+  let swipeOnLabel = false;
+
   window.addEventListener(
     'pointerdown',
     (event) => {
+      if (
+        tour.isActive &&
+        event.pointerType !== 'mouse' &&
+        event.button === 0 &&
+        !flight.isLocked &&
+        event.target !== canvas &&
+        isScene(event.target)
+      ) {
+        swipeFrom = { x: event.clientX, y: event.clientY };
+        swipeOnLabel = true;
+        // Путь прошлого жеста здесь ни при чём: оставшись, он погасил бы
+        // щелчок по подписи как конец протаскивания.
+        moved = 0;
+        return;
+      }
+
       // Экскурсия разбирает касание сама: по его движению она решает,
       // перемотать себя или оборваться, и осмотру это касание не отдаётся.
       if (event.pointerType !== 'touch' || tour.isActive || !isScene(event.target)) return;
@@ -507,6 +551,17 @@ function bindPointer(options: SceneInputOptions): void {
   window.addEventListener(
     'pointermove',
     (event) => {
+      if (swipeOnLabel) {
+        const path = resolveSwipe(event);
+        // Решился осмотром - дальше это обычный жест пальцем: экскурсии уже
+        // нет, и вращение подхватывает движение с этой точки.
+        if (path !== null && event.pointerType === 'touch') {
+          swipeOnLabel = false;
+          moved = path;
+          gestures.down(event.pointerId, event.clientX, event.clientY);
+        }
+        return;
+      }
       if (event.pointerType === 'touch')
         gestures.move(event.pointerId, event.clientX, event.clientY);
     },
@@ -514,6 +569,12 @@ function bindPointer(options: SceneInputOptions): void {
   );
 
   const endTouch = (event: PointerEvent): void => {
+    // Касание подписи, так и не ставшее свайпом, - щелчок по ней, и его
+    // разберёт сама подпись.
+    if (swipeOnLabel) {
+      swipeOnLabel = false;
+      swipeFrom = null;
+    }
     if (event.pointerType === 'touch') gestures.up(event.pointerId);
   };
 
