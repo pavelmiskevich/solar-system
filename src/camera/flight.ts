@@ -1,5 +1,7 @@
 import { Euler, Quaternion, Vector3 } from 'three';
 
+import { belongsToScene, focusedField } from '../core/keyRouting';
+
 /** Время затухания скорости. Даёт инерцию без ощущения ватности. */
 const VELOCITY_TAU = 0.35;
 
@@ -213,7 +215,9 @@ export class FlightControls {
     if (this.keys.has('KeyD')) this.desired.add(this.right);
     if (this.keys.has('KeyA')) this.desired.sub(this.right);
     if (this.keys.has('Space')) this.desired.add(this.up);
-    if (this.keys.has('ControlLeft') || this.keys.has('KeyC')) this.desired.sub(this.up);
+    // Вниз - только C. Левый Ctrl тоже был «вниз», но он же начинает любое
+    // сочетание браузера: Ctrl+C, скопировав число из карточки, уводил камеру.
+    if (this.keys.has('KeyC')) this.desired.sub(this.up);
 
     const boost = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? BOOST : 1;
     if (this.desired.lengthSq() > 0) {
@@ -304,7 +308,8 @@ export class FlightControls {
   };
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
-    if (e.target instanceof HTMLInputElement) return;
+    const press = { code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey, metaKey: e.metaKey };
+    if (!belongsToScene({ ...press, field: focusedField(e.target) })) return;
     this.keys.add(e.code);
     if (e.code === 'Space') e.preventDefault();
   };
