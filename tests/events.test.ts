@@ -72,6 +72,63 @@ describe('поиск минимумов и нулей', () => {
     expect(found.length).toBeGreaterThan(0);
     expect(found[0]!).toBeCloseTo(10.5, 1);
   });
+
+  it('минимум в первом полушаге после начала не теряется', () => {
+    // Вершина в 0.2 шага от начала: значение в первом узле после начала уже
+    // выше, чем в самом начале, и тройка, начатая с него, вершины не видит.
+    const found = findMinima((x) => Math.abs(x - 10.2), 10, 20, 1);
+
+    expect(found).toHaveLength(1);
+    expect(found[0]!).toBeCloseTo(10.2, 1);
+  });
+
+  it('минимум в последнем полушаге перед концом не теряется', () => {
+    const found = findMinima((x) => Math.abs(x - 19.8), 10, 20, 1);
+
+    expect(found).toHaveLength(1);
+    expect(found[0]!).toBeCloseTo(19.8, 1);
+  });
+
+  it('минимум за краями отрезка не выдаётся', () => {
+    // Начинать перебор на шаг раньше - не повод возвращать то, о чём не
+    // спрашивали: вершина в 9.8 лежит до начала, в 20.2 - после конца.
+    expect(findMinima((x) => Math.abs(x - 9.8), 10, 20, 1)).toHaveLength(0);
+    expect(findMinima((x) => Math.abs(x - 20.2), 10, 20, 1)).toHaveLength(0);
+  });
+});
+
+describe('событие, до которого осталось меньше шага перебора', () => {
+  // Кольцеобразное затмение 17 февраля 2026 года и противостояние Марса
+  // 19 февраля 2027 года. На них задача #160 и была замечена: начатый за
+  // несколько часов до максимума поиск их не находил.
+  const eclipse = solarEclipses(jd('2026-02-01T00:00:00Z'), jd('2026-03-01T00:00:00Z'))[0]!;
+  const opposition = oppositions('mars', jd('2027-01-01T00:00:00Z'), jd('2027-04-01T00:00:00Z'))[0]!;
+  const HOUR = 1 / 24;
+
+  it('затмение находится за три часа, за час и за четверть часа', () => {
+    for (const before of [3, 1, 0.25]) {
+      const from = eclipse.jd - before * HOUR;
+      const found = solarEclipses(from, from + 30);
+
+      expect(found, `${before} ч`).toHaveLength(1);
+      expect(Math.abs(found[0]!.jd - eclipse.jd), `${before} ч`).toBeLessThan(HOUR);
+    }
+  });
+
+  it('затмение не находится, если искать с суток после него', () => {
+    const from = eclipse.jd + 1;
+    expect(solarEclipses(from, from + 30)).toHaveLength(0);
+  });
+
+  it('противостояние находится за шесть и за два часа', () => {
+    for (const before of [6, 2]) {
+      const from = opposition.jd - before * HOUR;
+      const found = oppositions('mars', from, from + 60);
+
+      expect(found, `${before} ч`).toHaveLength(1);
+      expect(Math.abs(found[0]!.jd - opposition.jd), `${before} ч`).toBeLessThan(HOUR);
+    }
+  });
 });
 
 describe('солнечные затмения', () => {

@@ -133,6 +133,14 @@ function geocentric(id: string, jd: number): Vec {
  * опуститься и подняться: при большем шаге минимум проскочит между узлами и
  * событие потеряется целиком. Это единственное место, где ошибка в параметре
  * не даёт неверного ответа, а даёт молчание, - потому шаги подобраны с запасом.
+ *
+ * Перебор заходит на шаг за оба края отрезка. Иначе средним узлом первой тройки
+ * был бы `from + step`, и минимум в первом полушаге после `from` тройкой не
+ * ловился бы: значение в `from + step` уже выше, чем в `from`. У затмения с
+ * шагом в шесть часов это три часа слепоты, у противостояния - полсуток, а
+ * список событий ищет ровно от даты сцены: человек, открывший сайт за пару
+ * часов до затмения, его в списке не находил. То же у правого края. Найденное
+ * за краями отрезка не выдаётся - о нём не спрашивали.
  */
 export function findMinima(
   f: (jd: number) => number,
@@ -141,12 +149,15 @@ export function findMinima(
   step: number,
 ): number[] {
   const found: number[] = [];
-  let left = f(from);
-  let middle = f(from + step);
+  let left = f(from - step);
+  let middle = f(from);
 
-  for (let jd = from + step; jd + step <= to; jd += step) {
+  for (let jd = from; jd <= to; jd += step) {
     const right = f(jd + step);
-    if (middle < left && middle <= right) found.push(refineMinimum(f, jd - step, jd + step));
+    if (middle < left && middle <= right) {
+      const minimum = refineMinimum(f, jd - step, jd + step);
+      if (minimum >= from && minimum <= to) found.push(minimum);
+    }
     left = middle;
     middle = right;
   }
@@ -484,14 +495,22 @@ function polarAxis(rotation: RotationElements): Vec {
   };
 }
 
+/**
+ * Раскрытие колец к точке, град: под каким углом их видно оттуда. Точка
+ * гелиоцентрическая, эклиптическая - в тех же координатах, что `heliocentric`.
+ */
+export function ringOpeningFrom(observer: Vec, jd: number): number {
+  return Math.asin(ringElevationSine(observer, jd)) * RAD;
+}
+
 /** Раскрытие колец к Солнцу, град. Знак - сторона, с которой они освещены. */
 export function ringOpeningToSun(jd: number): number {
-  return Math.asin(ringElevationSine({ x: 0, y: 0, z: 0 }, jd)) * RAD;
+  return ringOpeningFrom({ x: 0, y: 0, z: 0 }, jd);
 }
 
 /** Раскрытие колец к Земле, град. Столько их видно с неё. */
 export function ringOpeningToEarth(jd: number): number {
-  return Math.asin(ringElevationSine(heliocentric('earth', jd), jd)) * RAD;
+  return ringOpeningFrom(heliocentric('earth', jd), jd);
 }
 
 /**
