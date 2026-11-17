@@ -5,6 +5,7 @@ import type { OrbitControls } from '../camera/orbit';
 import type { TravelController } from '../camera/travel';
 import type { TourController } from '../camera/tour';
 import type { SimClock } from '../core/clock';
+import { belongsToScene, focusedField, repeats, type KeyPress } from '../core/keyRouting';
 import type { BodyList } from './bodyList';
 import type { HelpPanel } from './help';
 import type { LabelLayer } from './labels';
@@ -36,9 +37,18 @@ const TAKEOVER_KEYS = new Set([
   'KeyD',
   'KeyC',
   'Space',
-  'ControlLeft',
   'Escape',
 ]);
+
+/** Модификаторы нажатия - то, по чему видно сочетание браузера. */
+function pressOf(event: KeyboardEvent): Omit<KeyPress, 'field'> {
+  return {
+    code: event.code,
+    ctrlKey: event.ctrlKey,
+    altKey: event.altKey,
+    metaKey: event.metaKey,
+  };
+}
 
 export interface SceneInputOptions {
   /** Холст сцены: по нему приходят клики и от него берутся размеры кадра. */
@@ -107,7 +117,14 @@ function bindKeyboard(options: SceneInputOptions): void {
   const { clock, travel, tour, labels, bodyList, help, support, orbit, flight } = options;
 
   window.addEventListener('keydown', (event) => {
-    if (event.target instanceof HTMLInputElement) return;
+    const field = focusedField(event.target);
+    if (!belongsToScene({ ...pressOf(event), field })) return;
+
+    // Esc выводит из поля: иначе фокус остался бы в нём, почти невидимый, и
+    // следующая клавиша снова досталась бы полю.
+    if (field && event.code === 'Escape' && event.target instanceof HTMLElement) {
+      event.target.blur();
+    }
 
     if (TAKEOVER_KEYS.has(event.code)) {
       if (tour.isActive) tour.cancel();
@@ -119,6 +136,10 @@ function bindKeyboard(options: SceneInputOptions): void {
       // бы движению: каждый кадр она возвращалась бы на свою окружность.
       orbit.release();
     }
+
+    // Удержание переключателя - одно нажатие, а не дребезг с частотой
+    // автоповтора: удержанная P ставила и снимала паузу десятки раз.
+    if (event.repeat && !repeats(event.code)) return;
 
     switch (event.code) {
       // Стрелки принадлежат экскурсии, пока она идёт: они переводят её на
