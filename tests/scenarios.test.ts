@@ -5,6 +5,7 @@ import { decodeSceneState, encodeSceneState } from '../src/core/sceneState';
 import { dateFromJulianDay } from '../src/core/units';
 import { SCENARIOS, scenarioById } from '../src/data/scenarios';
 import { bodyById } from '../src/data/bodies';
+import { heliocentric, ringOpeningFrom, ringOpeningToEarth } from '../src/physics/events';
 
 describe('готовые виды', () => {
   it('у каждого своё имя и свой опознаватель', () => {
@@ -58,6 +59,28 @@ describe('готовые виды', () => {
       expect(decoded.view, scenario.id).toEqual(scenario.state.view);
       expect(decoded.jd!, scenario.id).toBeCloseTo(scenario.state.jd!, 6);
     }
+  });
+
+  it('кольца Сатурна с ребра: с ребра и с Земли, и из камеры', () => {
+    const scenario = scenarioById('saturn-rings-edge')!;
+    const jd = scenario.state.jd!;
+    const { azimuth, elevation } = scenario.state.view;
+
+    // Дата - пересечение плоскости колец Землёй: с неё они видны краем.
+    expect(Math.abs(ringOpeningToEarth(jd))).toBeLessThan(0.5);
+
+    // Камера: углы вида - мировые, оси сцены (x, y, z) - это эклиптические
+    // (x, z, −y). Точка берётся в астрономической единице от Сатурна по
+    // направлению камеры: раскрытию важно направление, а не расстояние.
+    const az = (azimuth * Math.PI) / 180;
+    const el = (elevation * Math.PI) / 180;
+    const saturn = heliocentric('saturn', jd);
+    const camera = {
+      x: saturn.x + Math.cos(el) * Math.sin(az),
+      y: saturn.y - Math.cos(el) * Math.cos(az),
+      z: saturn.z + Math.sin(el),
+    };
+    expect(Math.abs(ringOpeningFrom(camera, jd))).toBeLessThan(0.5);
   });
 
   it('рассказывают, на что смотреть', () => {
