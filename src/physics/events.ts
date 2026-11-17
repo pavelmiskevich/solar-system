@@ -484,14 +484,22 @@ function polarAxis(rotation: RotationElements): Vec {
   };
 }
 
+/**
+ * Раскрытие колец к точке, град: под каким углом их видно оттуда. Точка
+ * гелиоцентрическая, эклиптическая - в тех же координатах, что `heliocentric`.
+ */
+export function ringOpeningFrom(observer: Vec, jd: number): number {
+  return Math.asin(ringElevationSine(observer, jd)) * RAD;
+}
+
 /** Раскрытие колец к Солнцу, град. Знак - сторона, с которой они освещены. */
 export function ringOpeningToSun(jd: number): number {
-  return Math.asin(ringElevationSine({ x: 0, y: 0, z: 0 }, jd)) * RAD;
+  return ringOpeningFrom({ x: 0, y: 0, z: 0 }, jd);
 }
 
 /** Раскрытие колец к Земле, град. Столько их видно с неё. */
 export function ringOpeningToEarth(jd: number): number {
-  return Math.asin(ringElevationSine(heliocentric('earth', jd), jd)) * RAD;
+  return ringOpeningFrom(heliocentric('earth', jd), jd);
 }
 
 /**
