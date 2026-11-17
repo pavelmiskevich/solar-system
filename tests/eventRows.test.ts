@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { Euler, Quaternion, Vector3 } from 'three';
 
 import { DEG, julianDayFromDate } from '../src/core/units';
-import { describeEvent } from '../src/data/events';
-import { geocentricLongitude, heliocentric, planetParades } from '../src/physics/events';
+import { describeEvent, upcomingEvents } from '../src/data/events';
+import { geocentricLongitude, heliocentric, planetParades, solarEclipses } from '../src/physics/events';
 
 /**
  * События как строки списка и как готовые виды.
@@ -104,5 +104,26 @@ describe('парад в списке событий', () => {
 
     // Восточнее Солнца - заходит после него, значит небо вечернее.
     expect(row.hint).toContain(difference > 0 ? 'вечернего' : 'утреннего');
+  });
+});
+
+describe('ближайшие события', () => {
+  // Кольцеобразное затмение 17 февраля 2026 года: момент берётся из самого
+  // поиска, чтобы проверка мерила запас списка, а не точность эфемерид.
+  const eclipse = solarEclipses(jd('2026-02-01T00:00:00Z'), jd('2026-03-01T00:00:00Z'))[0]!;
+  const HOUR = 1 / 24;
+  const eclipseIn = (rows: readonly { jd: number; id: string }[]) =>
+    rows.some((row) => row.id.startsWith('solar-eclipse') && Math.abs(row.jd - eclipse.jd) < HOUR);
+
+  it('затмение за пару часов до максимума стоит в списке', () => {
+    expect(eclipseIn(upcomingEvents(eclipse.jd - 2 * HOUR, 0.1))).toBe(true);
+  });
+
+  it('идущее прямо сейчас затмение тоже стоит в списке', () => {
+    expect(eclipseIn(upcomingEvents(eclipse.jd + 2 * HOUR, 0.1))).toBe(true);
+  });
+
+  it('прошедшее накануне затмение в список не попадает', () => {
+    expect(eclipseIn(upcomingEvents(eclipse.jd + 1, 0.1))).toBe(false);
   });
 });

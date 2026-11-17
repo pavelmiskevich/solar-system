@@ -307,7 +307,21 @@ export function describeEvent(event: AstronomicalEvent): EventRow {
  * один раз - когда его впервые открыли, - и держится, пока дата сцены не ушла
  * за его край. Считать это каждый кадр было бы нечем оправдать: события не
  * меняются от того, что камера повернулась.
+ *
+ * Поиск начинается на ONGOING_DAYS раньше даты сцены: событие, максимум
+ * которого был час назад, ещё идёт, и человек открыл сайт, может быть, ровно
+ * ради него.
  */
 export function upcomingEvents(fromJd: number, years = EVENT_WINDOW_YEARS): EventRow[] {
-  return findEvents(fromJd, fromJd + DAYS_PER_YEAR * years).map(describeEvent);
+  return findEvents(fromJd - ONGOING_DAYS, fromJd + DAYS_PER_YEAR * years).map(describeEvent);
 }
+
+/**
+ * Сколько событие ещё идёт после своего максимума, сут.
+ *
+ * Мерка - затмение: от первого касания до последнего солнечное затмение идёт по
+ * Земле пять-шесть часов, лунное - столько же, и максимум приходится на
+ * середину. Противостояние или сближение длятся сутками, и для них три часа
+ * назад - это всё ещё сегодня.
+ */
+const ONGOING_DAYS = 3 / 24;
