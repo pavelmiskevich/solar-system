@@ -133,6 +133,14 @@ function geocentric(id: string, jd: number): Vec {
  * опуститься и подняться: при большем шаге минимум проскочит между узлами и
  * событие потеряется целиком. Это единственное место, где ошибка в параметре
  * не даёт неверного ответа, а даёт молчание, - потому шаги подобраны с запасом.
+ *
+ * Перебор заходит на шаг за оба края отрезка. Иначе средним узлом первой тройки
+ * был бы `from + step`, и минимум в первом полушаге после `from` тройкой не
+ * ловился бы: значение в `from + step` уже выше, чем в `from`. У затмения с
+ * шагом в шесть часов это три часа слепоты, у противостояния - полсуток, а
+ * список событий ищет ровно от даты сцены: человек, открывший сайт за пару
+ * часов до затмения, его в списке не находил. То же у правого края. Найденное
+ * за краями отрезка не выдаётся - о нём не спрашивали.
  */
 export function findMinima(
   f: (jd: number) => number,
@@ -141,12 +149,15 @@ export function findMinima(
   step: number,
 ): number[] {
   const found: number[] = [];
-  let left = f(from);
-  let middle = f(from + step);
+  let left = f(from - step);
+  let middle = f(from);
 
-  for (let jd = from + step; jd + step <= to; jd += step) {
+  for (let jd = from; jd <= to; jd += step) {
     const right = f(jd + step);
-    if (middle < left && middle <= right) found.push(refineMinimum(f, jd - step, jd + step));
+    if (middle < left && middle <= right) {
+      const minimum = refineMinimum(f, jd - step, jd + step);
+      if (minimum >= from && minimum <= to) found.push(minimum);
+    }
     left = middle;
     middle = right;
   }

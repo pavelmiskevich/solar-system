@@ -41,7 +41,7 @@ test.describe('ближайшие события', () => {
     expectNoErrors(errors);
   });
 
-  test('в списке есть затмения, противостояния и сближения, и все в будущем', async ({ page }) => {
+  test('в списке есть затмения, противостояния и сближения, и все впереди', async ({ page }) => {
     await openScene(page);
     await page.keyboard.press('KeyE');
     await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
@@ -56,12 +56,16 @@ test.describe('ближайшие события', () => {
     expect(kinds.some((k) => k.startsWith('conjunction'))).toBe(true);
 
     // Ключ строки кончается датой: список отсортирован по времени и начинается
-    // не раньше сегодняшнего дня. Ради этого он и называется «ближайшие».
+    // не раньше нынешнего часа. Ради этого он и называется «ближайшие».
+    // Исключение одно: событие, максимум которого прошёл не больше трёх часов
+    // назад, ещё идёт и стоит в списке первым. Ещё час - на то, что ключ
+    // обрезан до часа.
     const dates = kinds.map((k) => /\d{4}-\d{2}-\d{2}T\d{2}$/.exec(k)?.[0] ?? '');
 
     expect(dates.every(Boolean)).toBe(true);
     expect(dates).toEqual([...dates].sort());
-    expect(Number(dates[0]!.slice(0, 4))).toBeGreaterThanOrEqual(new Date().getUTCFullYear());
+    const first = Date.parse(`${dates[0]}:00:00Z`);
+    expect(first).toBeGreaterThanOrEqual(Date.now() - 4 * 3_600_000);
   });
 
   test('переход к полному затмению приводит туда, где видна тень', async ({ page }) => {
