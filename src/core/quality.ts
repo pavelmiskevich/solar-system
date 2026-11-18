@@ -4,8 +4,10 @@
  * Сцена честно рисует шум по восемь октав на пиксель, клеточный шум кратеров
  * и полноэкранный bloom - на слабой видеокарте этого хватает, чтобы уронить
  * кадры вдвое. Ронять при этом надо не физику и не масштабы, а картинку:
- * первым уходит bloom (он стоит четверти кадра и заметен только у Солнца),
- * следом - разрешение композитора.
+ * первым уходит сглаживание (его потерю видно разве что на краю дисков, а
+ * стоит оно четыре сэмпла на каждый пиксель сцены), следом bloom (он стоит
+ * четверти кадра и заметен только у Солнца), последним - разрешение
+ * композитора.
  *
  * Переключение с гистерезисом и по времени, а не по мгновенному fps: один
  * тяжёлый кадр на подлёте к Луне не повод выключать свечение, а мигание
@@ -13,15 +15,18 @@
  */
 
 export interface QualityLevel {
+  /** Сглаживание в буфере композитора (см. msaaSamples в renderer.ts). */
+  msaa: boolean;
   bloom: boolean;
   /** Множитель внутреннего разрешения композитора. */
   resolutionScale: number;
 }
 
 export const QUALITY_LEVELS: readonly QualityLevel[] = [
-  { bloom: true, resolutionScale: 1 },
-  { bloom: false, resolutionScale: 1 },
-  { bloom: false, resolutionScale: 0.75 },
+  { msaa: true, bloom: true, resolutionScale: 1 },
+  { msaa: false, bloom: true, resolutionScale: 1 },
+  { msaa: false, bloom: false, resolutionScale: 1 },
+  { msaa: false, bloom: false, resolutionScale: 0.75 },
 ];
 
 /** Ниже этого - качество понижается. Выше верхнего - возвращается. */
@@ -39,10 +44,19 @@ const UPGRADE_SECONDS = 6;
 const WARMUP_SECONDS = 3;
 
 export class AdaptiveQuality {
-  private index = 0;
+  private index: number;
   private lowSeconds = 0;
   private highSeconds = 0;
   private warmup = WARMUP_SECONDS;
+
+  /**
+   * @param startIndex ступень, с которой начинать. Не верхняя - когда заранее
+   * известно, что верхняя не по силам (см. softwareRendered в renderer.ts):
+   * спускаться к ней пришлось бы через секунды почти стоящей сцены.
+   */
+  constructor(startIndex = 0) {
+    this.index = Math.min(Math.max(Math.round(startIndex), 0), QUALITY_LEVELS.length - 1);
+  }
 
   get level(): QualityLevel {
     return QUALITY_LEVELS[this.index]!;

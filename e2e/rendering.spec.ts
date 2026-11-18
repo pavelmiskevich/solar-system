@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import {
   openScene,
@@ -16,6 +16,23 @@ import {
  * попала ли в кадр ночная сторона, есть ли у планеты кольца, не выродилась ли
  * картинка в чёрный прямоугольник.
  */
+
+/**
+ * Держать качество на верхней ступени.
+ *
+ * Программный растеризатор CI медленный, и адаптивное качество снимает
+ * сглаживание первым, за несколько секунд. Проверке сглаживания нужно именно
+ * оно, поэтому адаптация замораживается, а верхняя ступень ставится явно.
+ */
+async function holdFullQuality(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const sim = window.sim;
+    sim.quality.update = () => false;
+    sim.viewport.setMsaaEnabled(true);
+    sim.viewport.setBloomEnabled(true);
+    sim.viewport.setResolutionScale(1);
+  });
+}
 
 test.describe('рендеринг', () => {
   test('экспозиция раскрывается на ночной стороне и возвращается на дневной', async ({ page }) => {
@@ -321,6 +338,7 @@ test.describe('рендеринг', () => {
 
   test('сглаживание взято в буфере композитора, а не на канвасе', async ({ page }) => {
     await openScene(page);
+    await holdFullQuality(page);
 
     // Сцена рисуется в буфер композитора, до канваса доходит только последний
     // полноэкранный квадрат. Сглаживание канваса этому квадрату ничего не даёт,
@@ -339,6 +357,23 @@ test.describe('рендеринг', () => {
     expect(setup.canvas).toBe(false);
   });
 
+  test('на программном рендерере сцена начинает без сглаживания', async ({ page }) => {
+    // CI рисует через SwiftShader - тот же путь, что у посетителя без
+    // видеокарты. Сглаживание там роняет кадр до единиц в секунду, и сцена
+    // обязана узнать это сама, а не ждать, пока заметит адаптивное качество.
+    await openScene(page);
+
+    const start = await page.evaluate(() => ({
+      software: window.sim.viewport.softwareRendered as boolean,
+      level: window.sim.quality.levelIndex as number,
+      samples: window.sim.viewport.composer.renderTarget1.samples as number,
+    }));
+
+    expect(start.software).toBe(true);
+    expect(start.level).toBeGreaterThanOrEqual(1);
+    expect(start.samples).toBe(0);
+  });
+
   test('край диска сглажен: за ним есть полупокрытые пиксели', async ({ page }) => {
     /*
      * Луна в полной фазе на чёрном небе: диск освещён почти ровно, и край
@@ -351,6 +386,7 @@ test.describe('рендеринг', () => {
      * а частичную яркость за краем - только покрытие.
      */
     await openScene(page);
+    await holdFullQuality(page);
     await pauseAt(page, '2026-08-14T12:00:00Z');
     await page.evaluate(() => {
       window.sim.labels.setEnabled(false);
@@ -409,21 +445,23 @@ test.describe('рендеринг', () => {
     await openScene(page);
 
     // Программный растеризатор медленный, и качество может понизиться - это
-    // штатное поведение. Проверяем, что механизм не переключается туда-сюда:
-    // уровень за пять секунд меняется не больше раза.
-    const changes = await page.evaluate(async () => {
+    // штатное поведение, причём на несколько ступеней подряд. Проверяем, что
+    // механизм не переключается туда-сюда: за пять секунд уровень только
+    // опускается или стоит, но не возвращается вверх.
+    const levels = await page.evaluate(async () => {
       const sim = window.sim;
-      let previous = sim.quality?.levelIndex ?? 0;
-      let count = 0;
+      const seen: number[] = [sim.quality.levelIndex as number];
       for (let i = 0; i < 25; i += 1) {
         await new Promise((resolve) => setTimeout(resolve, 200));
-        const level = sim.quality?.levelIndex ?? 0;
-        if (level !== previous) count += 1;
-        previous = level;
+        seen.push(sim.quality.levelIndex as number);
       }
-      return count;
+      return seen;
     });
 
-    expect(changes).toBeLessThanOrEqual(1);
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i], `уровни по замерам: ${levels.join(' ')}`).toBeGreaterThanOrEqual(
+        levels[i - 1]!,
+      );
+    }
   });
 });

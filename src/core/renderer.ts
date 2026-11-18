@@ -45,6 +45,19 @@ export function msaaSamples(pixelRatio: number): number {
   return pixelRatio < 1.5 ? 4 : 0;
 }
 
+/**
+ * Программный ли это рендерер - по его имени.
+ *
+ * Без видеокарты (или с драйвером из чёрного списка) браузер рисует WebGL
+ * процессором: Chrome - через SwiftShader, Firefox и Linux - через llvmpipe.
+ * Там четыре сэмпла сглаживания роняли кадр до одного-пяти в секунду, и
+ * адаптивное качество снимало их лишь через несколько секунд почти стоящей
+ * сцены. В том же положении и CI: сквозные тесты идут на SwiftShader.
+ */
+export function isSoftwareRenderer(name: string): boolean {
+  return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
+}
+
 export interface ViewportOptions {
   container: HTMLElement;
   fov?: number;
@@ -64,6 +77,7 @@ export class Viewport {
   private readonly exposurePass: ShaderPass;
   private readonly outputPass: OutputPass;
   private bloomEnabled = true;
+  private msaaEnabled = true;
   private resolutionScale = 1;
 
   constructor({ container, fov = 55 }: ViewportOptions) {
@@ -131,7 +145,7 @@ export class Viewport {
 
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(w, h);
-    this.setSamples(msaaSamples(this.pixelRatio));
+    this.setSamples(this.msaaEnabled ? msaaSamples(this.pixelRatio) : 0);
     this.composer.setPixelRatio(this.pixelRatio);
     this.composer.setSize(w, h);
     this.bloom.setSize(w / 2, h / 2);
@@ -169,6 +183,36 @@ export class Viewport {
     if (enabled === this.bloomEnabled) return;
     this.bloomEnabled = enabled;
     this.bloom.enabled = enabled;
+  }
+
+  /**
+   * Рисует ли браузер без видеокарты.
+   *
+   * Имя рендерера Chrome прячет за общим «WebKit WebGL» и отдаёт настоящее
+   * через расширение; Firefox сразу пишет обезличенное, но честное имя, а
+   * расширение у него устарело и сыплет предупреждением в консоль. Поэтому
+   * расширение спрашивается только тогда, когда имя спрятано.
+   */
+  get softwareRendered(): boolean {
+    const gl = this.renderer.getContext();
+    let name = String(gl.getParameter(gl.RENDERER) ?? '');
+    if (/^webkit webgl$/i.test(name)) {
+      const info = gl.getExtension('WEBGL_debug_renderer_info');
+      if (info) name = String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL) ?? '');
+    }
+    return isSoftwareRenderer(name);
+  }
+
+  /**
+   * Включить или снять сглаживание: адаптивное качество снимает его первым.
+   *
+   * Просадку в программном растеризаторе оно делало четырёхкратной, и на
+   * слабой видеокарте его цена тоже заметна, а потеря почти не видна.
+   */
+  setMsaaEnabled(enabled: boolean): void {
+    if (enabled === this.msaaEnabled) return;
+    this.msaaEnabled = enabled;
+    this.setSamples(enabled ? msaaSamples(this.pixelRatio) : 0);
   }
 
   /** Понизить внутреннее разрешение композитора - первая ступень после отключения bloom. */
