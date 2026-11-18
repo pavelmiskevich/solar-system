@@ -319,6 +319,92 @@ test.describe('рендеринг', () => {
     await test.info().attach('юпитер.png', { body: shot, contentType: 'image/png' });
   });
 
+  test('сглаживание взято в буфере композитора, а не на канвасе', async ({ page }) => {
+    await openScene(page);
+
+    // Сцена рисуется в буфер композитора, до канваса доходит только последний
+    // полноэкранный квадрат. Сглаживание канваса этому квадрату ничего не даёт,
+    // поэтому сэмплы нужны буферам, а канвасу - нет.
+    const setup = await page.evaluate(() => {
+      const viewport = window.sim.viewport;
+      return {
+        rt1: viewport.composer.renderTarget1.samples as number,
+        rt2: viewport.composer.renderTarget2.samples as number,
+        canvas: viewport.renderer.getContext().getContextAttributes().antialias as boolean,
+      };
+    });
+
+    expect(setup.rt1).toBeGreaterThan(0);
+    expect(setup.rt2).toBeGreaterThan(0);
+    expect(setup.canvas).toBe(false);
+  });
+
+  test('край диска сглажен: за ним есть полупокрытые пиксели', async ({ page }) => {
+    /*
+     * Луна в полной фазе на чёрном небе: диск освещён почти ровно, и край
+     * зависит только от того, как растеризован силуэт.
+     *
+     * Без сглаживания пиксель сразу за краем либо внутри, либо снаружи: на
+     * снимке он ровно чёрный в каждой строке. Со сглаживанием край пересекает
+     * часть пикселя, и тот получает долю яркости диска. Мерится именно этот
+     * пиксель, а не перепад внутри диска: перепад дают и моря, и освещение,
+     * а частичную яркость за краем - только покрытие.
+     */
+    await openScene(page);
+    await pauseAt(page, '2026-08-14T12:00:00Z');
+    await page.evaluate(() => {
+      window.sim.labels.setEnabled(false);
+      window.sim.goTo('moon', 6, 0);
+    });
+    await waitForStableExposure(page);
+
+    const shot = (await page.locator('#viewport canvas').screenshot()).toString('base64');
+    const edge = await page.evaluate(async (base64) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d')!;
+      context.drawImage(image, 0, 0);
+      const { data, width, height } = context.getImageData(0, 0, image.width, image.height);
+      const lum = (x: number, y: number) => {
+        const i = (y * width + x) * 4;
+        return (data[i]! + data[i + 1]! + data[i + 2]!) / 3;
+      };
+
+      // Край в строке - первый тёмный пиксель, если идти от центра влево.
+      // Порог тёмного - пятая часть яркости диска: полупокрытые пиксели
+      // темнее её не всегда, но последний из них - всегда.
+      const cx = width >> 1;
+      const cy = height >> 1;
+      const dark = lum(cx, cy) / 5;
+      let radius = 0;
+      while (cx - radius > 0 && lum(cx - radius, cy) > dark) radius += 1;
+
+      let rows = 0;
+      let partial = 0;
+      const span = Math.floor(radius * 0.8);
+      for (let y = cy - span; y <= cy + span; y += 3) {
+        let x = cx;
+        while (x > 0 && lum(x, y) > dark) x -= 1;
+        rows += 1;
+        // Небо рядом с Луной чёрное до нуля: всё, что ярче нескольких единиц,
+        // - доля диска в этом пикселе.
+        if (lum(x, y) > 4) partial += 1;
+      }
+      return { radius, rows, partial };
+    }, shot);
+
+    // Диск должен быть в кадре и крупным - иначе мерить нечего.
+    expect(edge.radius).toBeGreaterThan(40);
+    // Со сглаживанием полупокрыто около сорока процентов строк, без него - ни
+    // одной.
+    // Порог вчетверо ниже первого и с запасом выше второго.
+    expect(edge.partial / edge.rows).toBeGreaterThan(0.1);
+  });
+
   test('адаптивное качество не срабатывает на ровном кадре', async ({ page }) => {
     await openScene(page);
 

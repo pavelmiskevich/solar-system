@@ -1,10 +1,12 @@
 import {
   ACESFilmicToneMapping,
+  HalfFloatType,
   PerspectiveCamera,
   Scene,
   SRGBColorSpace,
   Vector2,
   WebGLRenderer,
+  WebGLRenderTarget,
 } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -22,6 +24,26 @@ import { ExposureShader } from '../shaders/exposure.pass';
  */
 const NEAR = 1e-3;
 const FAR = 1e13;
+
+/**
+ * Сколько сэмплов сглаживания брать при данной плотности пикселей.
+ *
+ * Сглаживать надо там, где сцена рисуется, - в буфере композитора: до канваса
+ * доходит только последний полноэкранный квадрат, и сглаживание канваса ему
+ * ничего не даёт. Геометрия сцены почти сплошь окружности - диски, кольца,
+ * лимбы, - и без сглаживания их край идёт лесенкой.
+ *
+ * Буферов у композитора два, и сцена попадает то в один, то в другой, поэтому
+ * сэмплы берут оба. Цена - видеопамять: четыре сэмпла цвета half-float и
+ * четыре глубины на каждый пиксель обоих буферов. На экране 1920x1080 при
+ * плотности 1 буферы композитора занимают около 230 МБ вместо 50 без
+ * сглаживания, на 2560x1440 при плотности 2 заняли бы больше полутора
+ * гигабайт. А лесенку при плотности 2 и так почти не видно: пиксель вдвое
+ * мельче. Поэтому выше полутора сглаживание не берётся вовсе.
+ */
+export function msaaSamples(pixelRatio: number): number {
+  return pixelRatio < 1.5 ? 4 : 0;
+}
 
 export interface ViewportOptions {
   container: HTMLElement;
@@ -48,7 +70,10 @@ export class Viewport {
     this.baseFov = fov;
 
     this.renderer = new WebGLRenderer({
-      antialias: true,
+      // Канвас не сглаживается: сцена рисуется не в него, а в буфер
+      // композитора, и сглаживание взято там (см. msaaSamples). Здесь оно
+      // только занимало бы видеопамять под буфер, который никто не читает.
+      antialias: false,
       powerPreference: 'high-performance',
       logarithmicDepthBuffer: true,
       stencil: false,
@@ -63,7 +88,12 @@ export class Viewport {
 
     this.camera = new PerspectiveCamera(fov, 1, NEAR, FAR);
 
-    this.composer = new EffectComposer(this.renderer);
+    // Свой буфер вместо того, что композитор сделал бы сам: тот без сэмплов.
+    // Тип тот же, half-float, - экспозиция и bloom работают с яркостью выше
+    // единицы. Размер и число сэмплов выставит resize.
+    const target = new WebGLRenderTarget(1, 1, { type: HalfFloatType });
+    target.texture.name = 'EffectComposer.rt1';
+    this.composer = new EffectComposer(this.renderer, target);
     this.renderPass = new RenderPass(this.scene, this.camera);
     this.composer.addPass(this.renderPass);
 
@@ -101,6 +131,7 @@ export class Viewport {
 
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(w, h);
+    this.setSamples(msaaSamples(this.pixelRatio));
     this.composer.setPixelRatio(this.pixelRatio);
     this.composer.setSize(w, h);
     this.bloom.setSize(w / 2, h / 2);
@@ -108,6 +139,22 @@ export class Viewport {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   };
+
+  /**
+   * Число сэмплов в обоих буферах композитора.
+   *
+   * Сэмплы - свойство буфера, заданное при его создании в GL, поэтому смена
+   * числа сопровождается dispose: three пересоздаст буфер при следующей
+   * отрисовке, уже с новым числом. Меняется оно редко - когда окно ушло на
+   * экран с другой плотностью или качество срезало разрешение.
+   */
+  private setSamples(samples: number): void {
+    for (const target of [this.composer.renderTarget1, this.composer.renderTarget2]) {
+      if (target.samples === samples) continue;
+      target.samples = samples;
+      target.dispose();
+    }
+  }
 
   /** Экспозиция «глаза». Физику освещения не трогает, см. lighting/exposure.ts. */
   set exposure(value: number) {
