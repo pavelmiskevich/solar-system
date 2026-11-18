@@ -13,8 +13,23 @@ describe('AdaptiveQuality', () => {
     const quality = new AdaptiveQuality();
 
     expect(quality.levelIndex).toBe(0);
+    expect(quality.level.msaa).toBe(true);
     expect(quality.level.bloom).toBe(true);
     expect(quality.level.resolutionScale).toBe(1);
+  });
+
+  it('может начать не с верхней ступени, и тогда возвращается к ней тем же порядком', () => {
+    const quality = new AdaptiveQuality(1);
+    expect(quality.levelIndex).toBe(1);
+    expect(quality.level.msaa).toBe(false);
+    expect(quality.level.bloom).toBe(true);
+
+    run(quality, 4, 60);
+    run(quality, 7, 120);
+    expect(quality.levelIndex).toBe(0);
+
+    expect(new AdaptiveQuality(-3).levelIndex).toBe(0);
+    expect(new AdaptiveQuality(99).levelIndex).toBe(QUALITY_LEVELS.length - 1);
   });
 
   it('первые секунды не считаются: прогрев не повод понижать качество', () => {
@@ -25,18 +40,37 @@ describe('AdaptiveQuality', () => {
     expect(quality.levelIndex).toBe(0);
   });
 
-  it('стойкая просадка гасит сначала свечение, потом разрешение', () => {
+  it('стойкая просадка гасит сначала сглаживание, потом свечение, потом разрешение', () => {
     const quality = new AdaptiveQuality();
 
     run(quality, 4, 60); // прогрев
     run(quality, 3, 30);
     expect(quality.levelIndex).toBe(1);
-    expect(quality.level.bloom).toBe(false);
+    expect(quality.level.msaa).toBe(false);
+    expect(quality.level.bloom).toBe(true);
     expect(quality.level.resolutionScale).toBe(1);
 
     run(quality, 3, 30);
     expect(quality.levelIndex).toBe(2);
+    expect(quality.level.bloom).toBe(false);
+    expect(quality.level.resolutionScale).toBe(1);
+
+    run(quality, 3, 30);
+    expect(quality.levelIndex).toBe(3);
     expect(quality.level.resolutionScale).toBeLessThan(1);
+  });
+
+  it('снятое однажды не возвращается на более низкой ступени', () => {
+    // Ступени вложены: каждая следующая отнимает ещё что-то и ничего не
+    // возвращает. Иначе падение качества местами улучшало бы картинку.
+    for (let i = 1; i < QUALITY_LEVELS.length; i++) {
+      const [above, below] = [QUALITY_LEVELS[i - 1]!, QUALITY_LEVELS[i]!];
+      expect(below.msaa && !above.msaa, `ступень ${i}: сглаживание`).toBe(false);
+      expect(below.bloom && !above.bloom, `ступень ${i}: свечение`).toBe(false);
+      expect(below.resolutionScale, `ступень ${i}: разрешение`).toBeLessThanOrEqual(
+        above.resolutionScale,
+      );
+    }
   });
 
   it('ниже последнего уровня не опускается', () => {

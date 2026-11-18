@@ -863,12 +863,22 @@ function cycleSizePreset(): void {
 }
 
 /**
- * Адаптивное качество: на слабой видеокарте первым уходит bloom,
- * следом - внутреннее разрешение. Масштабы и физика не трогаются никогда.
+ * Адаптивное качество: на слабой видеокарте первым уходит сглаживание, за ним
+ * bloom, следом - внутреннее разрешение. Масштабы и физика не трогаются никогда.
+ *
+ * Без видеокарты сцена начинает сразу без сглаживания: там оно роняет кадр до
+ * единиц в секунду, и ждать, пока качество это заметит, незачем.
  */
-const quality = new AdaptiveQuality();
+const quality = new AdaptiveQuality(viewport.softwareRendered ? 1 : 0);
+applyQuality();
 
-const loop = new RenderLoop((dt, elapsed) => {
+function applyQuality(): void {
+  viewport.setMsaaEnabled(quality.level.msaa);
+  viewport.setBloomEnabled(quality.level.bloom);
+  viewport.setResolutionScale(quality.level.resolutionScale);
+}
+
+const loop = new RenderLoop((dt, elapsed, frameSeconds) => {
   clock.advance(dt);
   system.update(clock.jd);
 
@@ -995,10 +1005,10 @@ const loop = new RenderLoop((dt, elapsed) => {
     clock.jd,
   );
 
-  if (quality.update(dt, loop.fps)) {
-    viewport.setBloomEnabled(quality.level.bloom);
-    viewport.setResolutionScale(quality.level.resolutionScale);
-  }
+  // Качество копит секунды настоящего времени, а не шагов модели: шаг
+  // ограничен сверху, и при кадре в секунду прогрев в три секунды длился бы
+  // сорок пять секунд - чем тяжелее просадка, тем позже на неё ответ.
+  if (quality.update(frameSeconds, loop.fps)) applyQuality();
 
   tour.update(dt);
   tourButton.setActive(tour.isActive);
