@@ -15,29 +15,42 @@ const panel = '[data-event]';
 /** Сама панель: свёрнутая, она оставляет строки в разметке, и судить надо по ней. */
 const aside = '[data-panel="events"]';
 
-/**
- * Предел для самой долгой задачи главного потока, мс. Поиск в главном потоке
- * занимал от полусекунды до секунд; строки списка и обычный кадр - десятки
- * миллисекунд.
- */
-const LONG_TASK_LIMIT_MS = 250;
+/** Что страница поручала фоновым потокам. */
+interface WorkerLog {
+  /** Адреса скриптов созданных потоков. */
+  created: string[];
+  requests: number;
+  replies: number;
+}
 
-/** Начать запись долгих задач главного потока. */
-async function startLongTaskLog(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const log: number[] = [];
-    (window as unknown as { longTasks: number[] }).longTasks = log;
-    new PerformanceObserver((list) => {
-      for (const entry of list.getEntries()) log.push(entry.duration);
-    }).observe({ type: 'longtask' });
+/**
+ * Вести журнал фоновых потоков страницы с самой загрузки: конструктор
+ * `Worker` подменяется обёрткой, которая считает созданные потоки, запросы к
+ * ним и ответы от них.
+ */
+async function logWorkers(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const log: WorkerLog = { created: [], requests: 0, replies: 0 };
+    (window as unknown as { workerLog: WorkerLog }).workerLog = log;
+
+    const post = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (this: Worker, ...args: unknown[]) {
+      log.requests += 1;
+      return (post as (...a: unknown[]) => void).apply(this, args);
+    };
+    window.Worker = new Proxy(Worker, {
+      construct(target, args: ConstructorParameters<typeof Worker>) {
+        const worker = new target(...args);
+        log.created.push(String(args[0]));
+        worker.addEventListener('message', () => (log.replies += 1));
+        return worker;
+      },
+    });
   });
 }
 
-/** Самая долгая задача с начала записи, мс. */
-async function longestTask(page: Page): Promise<number> {
-  return page.evaluate(() =>
-    Math.round(Math.max(0, ...(window as unknown as { longTasks: number[] }).longTasks)),
-  );
+async function workerLog(page: Page): Promise<WorkerLog> {
+  return page.evaluate(() => (window as unknown as { workerLog: WorkerLog }).workerLog);
 }
 
 test.describe('ближайшие события', () => {
@@ -66,23 +79,50 @@ test.describe('ближайшие события', () => {
     expectNoErrors(errors);
   });
 
-  test('поиск событий не останавливает сцену', async ({ page }) => {
+  // Поток поиска может не заработать. Ответа из него тогда не будет никогда,
+  // и без запасного пути список навсегда остался бы на «ищу».
+  const brokenWorkers = [
+    { name: 'скрипт потока не загрузился', response: { status: 500, body: '' } },
+    {
+      name: 'расчёт в потоке упал',
+      response: {
+        status: 200,
+        contentType: 'text/javascript',
+        body: "self.addEventListener('message', () => { throw new Error('поиск упал'); });",
+      },
+    },
+  ];
+  for (const broken of brokenWorkers) {
+    test(`список заполняется, даже если ${broken.name}`, async ({ page }) => {
+      await page.route('**/eventsWorker*', (route) => route.fulfill(broken.response));
+      await openScene(page);
+
+      await page.keyboard.press('KeyE');
+      await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
+      expect(await page.locator(panel).count()).toBeGreaterThan(20);
+    });
+  }
+
+  test('поиск событий идёт в фоновом потоке', async ({ page }) => {
     // Пять лет поиска идут сотни миллисекунд и на настольной машине, и
     // раньше всё это время стоял кадр: первое открытие списка выглядело как
-    // зависание. Теперь поиск в фоновом потоке, и главный поток занят только
-    // строками. Мерится самая долгая задача главного потока: кадр
-    // программного рендерера длинный сам по себе, но рисует его не главный
-    // поток.
+    // зависание. Теперь поиск в фоновом потоке.
+    //
+    // Долгие задачи главного потока здесь не мерятся: на программном
+    // рендерере сцена и с закрытым списком даёт задачи по 250-330 мс, а
+    // поиск в главном потоке давал 345. Предел между ними ничего бы не
+    // различал. Проверяется само свойство: запрос ушёл в поток, ответ
+    // пришёл оттуда, и по нему собран список.
+    await logWorkers(page);
     await openScene(page);
-    await startLongTaskLog(page);
 
     await page.keyboard.press('KeyE');
     await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
 
-    const longest = await longestTask(page);
-    expect(longest, `самая долгая задача главного потока ${longest} мс`).toBeLessThan(
-      LONG_TASK_LIMIT_MS,
-    );
+    const log = await workerLog(page);
+    expect(log.created.some((url) => url.includes('eventsWorker'))).toBe(true);
+    expect(log.requests).toBeGreaterThan(0);
+    expect(log.replies).toBe(log.requests);
   });
 
   test('открытый список на высокой скорости времени пересчитывается не чаще раза в три секунды', async ({
