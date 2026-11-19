@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import {
+  EVENT_ROWS_TIMEOUT_MS,
   expectEqualPickers,
   expectNoErrors,
   openScene,
@@ -260,11 +261,14 @@ test.describe('интерфейс', () => {
       await page.keyboard.press('KeyB');
       await expect(page.locator('#bodies')).toHaveClass(/closed/);
 
-      for (const { name, key } of [
+      for (const { name, key, rows } of [
         { name: 'виды', key: 'KeyV' },
-        { name: 'события', key: 'KeyE' },
+        // События ищутся в фоновом потоке: мерить окно надо после строк, а
+        // не на строке «Ищу события…».
+        { name: 'события', key: 'KeyE', rows: '.views:not(.closed) [data-event]' },
       ]) {
         await page.keyboard.press(key);
+        if (rows) await expect(page.locator(rows).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
         const list = page.locator('.views:not(.closed) .views-list');
         let previous = -1;
         await expect
@@ -709,6 +713,11 @@ test.describe('низкий экран', () => {
       await page.keyboard.press('KeyV');
 
       await page.keyboard.press('KeyE');
+      // Строки событий приходят из фонового потока: до них окно стоит на
+      // одной строке «Ищу события…», и раскладка ещё не та.
+      await expect(page.locator('.views:not(.closed) [data-event]').first()).toBeVisible({
+        timeout: EVENT_ROWS_TIMEOUT_MS,
+      });
       await check('открыты события');
       await page.keyboard.press('KeyE');
 

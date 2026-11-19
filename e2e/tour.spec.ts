@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  EVENT_ROWS_TIMEOUT_MS,
   expectNoErrors,
   openScene,
   pauseAt,
@@ -193,7 +194,7 @@ test.describe('экскурсия уступает зрителю', () => {
 
     await page.keyboard.press('KeyE');
     const eclipse = page.locator('[data-event^="solar-eclipse"]').first();
-    await expect(eclipse).toBeVisible({ timeout: 20_000 });
+    await expect(eclipse).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
     await eclipse.click();
 
     await expectTourOver(page);

@@ -498,6 +498,16 @@ export async function recordCaptions(page: Page): Promise<() => Promise<string[]
 }
 
 /**
+ * Сколько ждать строк списка событий, мс.
+ *
+ * Поиск идёт в фоновом потоке, а программный рендерер занимает своими
+ * потоками все ядра. На этой машине без сцены поиск в потоке идёт 160-240
+ * мс, со сценой 3 секунды, у Сатурна с кольцами 6 и ещё 2 на загрузку
+ * модулей потока. Под нагрузкой полного прогона не хватало и 20 секунд.
+ */
+export const EVENT_ROWS_TIMEOUT_MS = 60_000;
+
+/**
  * Три окна выбора в колонке - виды, события и тела - одного размера, и ни
  * одно, открывшись, не выталкивает кнопки колонки за край экрана.
  *
@@ -513,14 +523,23 @@ export async function recordCaptions(page: Page): Promise<() => Promise<string[]
 export async function expectEqualPickers(page: Page): Promise<void> {
   const panels = [
     { name: 'виды', key: 'KeyV', list: '.views:not(.closed) .views-list' },
-    { name: 'события', key: 'KeyE', list: '.views:not(.closed) .views-list' },
+    // События ищутся в фоновом потоке, и окно сначала открывается с одной
+    // строкой «Ищу события…» на нижнем пределе высоты. Два равных замера
+    // там - не конец раскрытия, а ожидание поиска: мерить надо после строк.
+    {
+      name: 'события',
+      key: 'KeyE',
+      list: '.views:not(.closed) .views-list',
+      rows: '.views:not(.closed) [data-event]',
+    },
     { name: 'тела', key: 'KeyB', list: '#bodies:not(.closed) .bodies-list' },
   ];
   const heights: Record<string, number> = {};
   const whole: Record<string, number> = {};
 
-  for (const { name, key, list } of panels) {
+  for (const { name, key, list, rows } of panels) {
     await page.keyboard.press(key);
+    if (rows) await expect(page.locator(rows).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
     const locator = page.locator(list);
     // Раскрытие идёт переходом по max-height: высоту берём, когда она
     // перестала меняться.

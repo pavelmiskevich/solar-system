@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { expectNoErrors, openScene, waitForFrames } from './helpers';
+import { EVENT_ROWS_TIMEOUT_MS, expectNoErrors, openScene, waitForFrames } from './helpers';
 
 /**
  * Парад планет в списке событий.
@@ -20,7 +20,7 @@ test.describe('парад планет', () => {
     await page.keyboard.press('KeyE');
 
     const parade = page.locator('[data-event^="planet-parade"]').first();
-    await expect(parade).toBeVisible({ timeout: 20_000 });
+    await expect(parade).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
     // В названии - сколько планет, в пояснении - дуга и сторона неба.
     await expect(parade).toContainText('Парад планет');
@@ -35,7 +35,7 @@ test.describe('парад планет', () => {
     await page.keyboard.press('KeyE');
 
     const parade = page.locator('[data-event^="planet-parade"]').first();
-    await expect(parade).toBeVisible({ timeout: 20_000 });
+    await expect(parade).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
     const caption = (await parade.locator('.views-hint').textContent()) ?? '';
     await parade.click();
@@ -55,7 +55,7 @@ test.describe('парад планет', () => {
     await page.keyboard.press('KeyE');
 
     const parade = page.locator('[data-event^="planet-parade"]').first();
-    await expect(parade).toBeVisible({ timeout: 20_000 });
+    await expect(parade).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
     const caption = (await parade.locator('.views-hint').textContent()) ?? '';
     await parade.click();

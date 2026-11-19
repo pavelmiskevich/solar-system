@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { expectNoErrors, openScene, waitForFrames } from './helpers';
+import { EVENT_ROWS_TIMEOUT_MS, expectNoErrors, openScene, waitForFrames } from './helpers';
 
 /**
  * Поздравление надписью на небе.
@@ -123,7 +123,7 @@ test.describe('поздравление', () => {
     const errors = await openScene(page, { url: '/?greeting=primer', keepHelp: true });
     await page.keyboard.press('KeyE');
     const row = page.locator('[data-event]').first();
-    await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect(row).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
     await row.click();
 
     await expect(page.locator('#greeting-card')).toHaveCount(0);
