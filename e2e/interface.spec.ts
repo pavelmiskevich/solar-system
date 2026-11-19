@@ -8,6 +8,9 @@ import {
   waitForArrival,
   waitForFrames,
 } from './helpers';
+import packageJson from '../package.json' with { type: 'json' };
+
+const { version } = packageJson;
 
 /**
  * Интерфейс: справка, список тел, карточка, время, размеры, подписи.
@@ -49,6 +52,40 @@ test.describe('интерфейс', () => {
     // Порядок в колонке: поддержка сверху, под ней справка, под ней список тел.
     const order = await page.locator('#bodies > button').allTextContents();
     expect(order).toEqual(['Экскурсия ▶', 'Снимок ⤓', 'Поддержать ♥', 'Справка ✕', 'Тела ☰']);
+  });
+
+  test('внизу справки видно, какая сборка перед глазами', async ({ page }) => {
+    // Замечания приходят с боевого сайта, часто с телефона, и первый вопрос
+    // к каждому - на какой это версии. Сквозные идут на сервере разработки,
+    // поэтому вместо хеша коммита там dev.
+    await openScene(page, { keepHelp: true });
+
+    await expect(page.locator('#help .help-version')).toHaveText(`v${version} · dev`);
+    await expect(page.locator('#help .help-version')).toBeVisible();
+  });
+
+  test('на телефоне версию в конце справки ничто не закрывает', async ({ page }) => {
+    // Строка последняя в карточке, а внизу экрана лежит подсказка. Однажды
+    // она закрывала конец справки, и версии с телефона было не прочесть.
+    await page.setViewportSize({ width: 375, height: 700 });
+    await openScene(page, { keepHelp: true });
+
+    const version = page.locator('#help .help-version');
+    await version.scrollIntoViewIfNeeded();
+    // Подсказка прозрачна для мыши, и elementFromPoint её не видит: судить
+    // приходится по её непрозрачности и по тому, где она лежит.
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const line = document.querySelector('#help .help-version')!.getBoundingClientRect();
+          const hint = document.getElementById('hint')!;
+          const box = hint.getBoundingClientRect();
+          const visible = Number(getComputedStyle(hint).opacity) > 0;
+          const overlaps = box.top < line.bottom && box.bottom > line.top;
+          return visible && overlaps;
+        }),
+      )
+      .toBe(false);
   });
 
   test('карточка поддержки открывается, закрывается и ведёт на CloudTips', async ({ page }) => {
