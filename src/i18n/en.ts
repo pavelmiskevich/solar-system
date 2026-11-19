@@ -296,6 +296,7 @@ export const EN: Dictionary = {
       open: 'Events ☄',
       close: 'Events ✕',
       empty: 'Nothing found in the coming years',
+      loading: 'Searching for events…',
     },
     tour: { title: 'Start the tour (T)', start: 'Tour ▶', stop: 'Stop the tour ✕' },
     snapshot: { title: 'Save the frame as PNG (K)', label: 'Snapshot ⤓', done: 'Snapshot ✓' },

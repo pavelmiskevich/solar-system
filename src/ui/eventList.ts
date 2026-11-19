@@ -25,17 +25,23 @@ export class EventList {
   private readonly rows: { id: string; element: HTMLButtonElement }[] = [];
   private open = false;
   private filled = false;
+  /** Последний полученный список: по нему строки пишутся заново при смене языка. */
+  private events: readonly EventRow[] | null = null;
+  /** Номер запроса: ответ на устаревший, пришедший позже нового, не показывается. */
+  private request = 0;
+  private activeId: string | null = null;
   /** Панель открыли: соседняя в той же колонке должна закрыться. */
   private opened: () => void = () => {};
 
   /**
    * @param load события считаются не в конструкторе, а при первом открытии:
-   *        поиск по пяти годам занимает около четверти секунды, и платить её
-   *        при загрузке страницы за список, который могут и не открыть, незачем
+   *        поиск по пяти годам идёт сотни миллисекунд даже в фоновом потоке,
+   *        и тратить их при загрузке страницы на список, который могут и не
+   *        открыть, незачем
    */
   constructor(
     container: HTMLElement,
-    private readonly load: () => readonly EventRow[],
+    private readonly load: () => Promise<readonly EventRow[]>,
     private readonly onSelect: (row: EventRow) => void,
   ) {
     this.root = document.createElement('aside');
@@ -61,11 +67,8 @@ export class EventList {
     // эфемеридам языка не касается, меняются только слова и формат даты.
     onLanguageChange(() => {
       this.updateLabel();
-      if (!this.filled) return;
-      const active = this.rows.find((row) => row.element.classList.contains('active'))?.id;
-      this.filled = false;
-      this.fill();
-      this.setActive(active ?? null);
+      if (this.events) this.render(this.events);
+      else if (this.filled) this.showLoading();
     });
   }
 
@@ -100,6 +103,7 @@ export class EventList {
 
   /** Отметить выбранное событие: по нему видно, куда сейчас смотрит камера. */
   setActive(id: string | null): void {
+    this.activeId = id;
     for (const row of this.rows) row.element.classList.toggle('active', row.id === id);
   }
 
@@ -109,14 +113,38 @@ export class EventList {
     if (this.open) this.fill();
   }
 
+  /**
+   * Запросить список и показать, когда придёт. Прежние строки до тех пор
+   * остаются: на высокой скорости времени список устаревает раз в несколько
+   * секунд, и мигать каждый раз строкой «считаю» незачем. Её видно только при
+   * первом открытии.
+   */
   private fill(): void {
     if (this.filled) return;
     this.filled = true;
 
+    if (!this.events) this.showLoading();
+    const request = ++this.request;
+    void this.load().then((events) => {
+      if (request !== this.request) return;
+      this.events = events;
+      this.render(events);
+    });
+  }
+
+  private showLoading(): void {
     this.list.replaceChildren();
     this.rows.length = 0;
+    const loading = document.createElement('div');
+    loading.className = 'panel-row views-row';
+    loading.dataset.loading = '';
+    loading.textContent = strings().panels.events.loading;
+    this.list.appendChild(loading);
+  }
 
-    const events = this.load();
+  private render(events: readonly EventRow[]): void {
+    this.list.replaceChildren();
+    this.rows.length = 0;
 
     if (events.length === 0) {
       const empty = document.createElement('div');
@@ -151,6 +179,7 @@ export class EventList {
       this.list.appendChild(element);
       this.rows.push({ id: event.id, element });
     }
+    this.setActive(this.activeId);
   }
 
   private updateLabel(): void {

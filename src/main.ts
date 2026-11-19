@@ -12,7 +12,7 @@ import { decodeSceneState, encodeSceneState } from './core/sceneState';
 import type { BodyView, SceneState } from './core/sceneState';
 import { AU, DEG, dateFromJulianDay } from './core/units';
 import { SCENARIOS, scenarioById } from './data/scenarios';
-import { EVENT_WINDOW_YEARS, upcomingEvents } from './data/events';
+import { EVENT_WINDOW_YEARS, upcomingEventsInBackground } from './data/events';
 import { GREETING_TIME_SCALE, greetingById, greetingLayout, greetingView } from './data/greetings';
 import type { EventRow } from './data/events';
 import { kindOf, listOrder } from './data/targets';
@@ -743,24 +743,41 @@ const datePanelContainer = document.getElementById('date-panel-container');
 const datePanel = datePanelContainer ? new DatePanel(datePanelContainer, clock) : null;
 
 /**
- * Ближайшие события. Список считается при первом открытии и держится, пока
- * дата сцены не ушла за край окна поиска: пересчитывать его на каждый шаг
- * времени незачем, а четверть секунды при загрузке страницы - незачем тем более.
+ * Ближайшие события. Список считается в фоновом потоке при первом открытии и
+ * держится, пока дата сцены не ушла за край окна поиска: пересчитывать его на
+ * каждый шаг времени незачем, а тратить поиск при загрузке страницы - незачем
+ * тем более.
  */
 let eventWindowStart = clock.jd;
 let eventCache: readonly EventRow[] | null = null;
+/** Поиск, который идёт сейчас: второй такой же, пока он не кончился, не нужен. */
+let eventSearch: Promise<readonly EventRow[]> | null = null;
+/** Когда начат последний поиск, мс настенного времени. */
+let eventSearchStarted = -Infinity;
 
-const eventList: EventList = new EventList(
-  bodyList.column,
-  () => {
-    if (!eventCache) {
-      eventWindowStart = clock.jd;
-      eventCache = upcomingEvents(eventWindowStart);
-    }
-    return eventCache;
-  },
-  showEvent,
-);
+/**
+ * Чаще этого список не пересчитывается, мс. На скорости 20 лет в секунду
+ * пятилетнее окно проходится за четверть секунды, и без предела поиск шёл бы
+ * непрерывно, а строки менялись бы быстрее, чем их можно прочесть.
+ */
+const EVENT_RESEARCH_MS = 3000;
+
+function loadEvents(): Promise<readonly EventRow[]> {
+  if (eventCache) return Promise.resolve(eventCache);
+  if (!eventSearch) {
+    const start = clock.jd;
+    eventSearchStarted = performance.now();
+    eventSearch = upcomingEventsInBackground(start).then((rows) => {
+      eventWindowStart = start;
+      eventCache = rows;
+      eventSearch = null;
+      return rows;
+    });
+  }
+  return eventSearch;
+}
+
+const eventList: EventList = new EventList(bodyList.column, loadEvents, showEvent);
 
 /**
  * Список событий устарел, если дата сцены вышла за окно, по которому он
@@ -772,6 +789,7 @@ function refreshEventsIfOutOfWindow(): void {
   const behind = clock.jd < eventWindowStart;
   const ahead = clock.jd > eventWindowStart + 365.25 * EVENT_WINDOW_YEARS;
   if (!behind && !ahead) return;
+  if (performance.now() - eventSearchStarted < EVENT_RESEARCH_MS) return;
 
   eventCache = null;
   eventList.reload();

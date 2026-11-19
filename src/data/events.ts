@@ -4,6 +4,7 @@ import { strings } from '../i18n';
 import type { ParadeSky } from '../i18n/ru';
 import type { AstronomicalEvent } from '../physics/events';
 import { findEvents, geocentricLongitude, heliocentric } from '../physics/events';
+import { searchEvents } from './eventSearch';
 
 /**
  * События списком: как их назвать и куда за ними лететь.
@@ -303,17 +304,32 @@ export function describeEvent(event: AstronomicalEvent): EventRow {
 /**
  * Ближайшие события начиная с заданного момента.
  *
- * Считается около четверти секунды на пять лет вперёд, поэтому список берётся
- * один раз - когда его впервые открыли, - и держится, пока дата сцены не ушла
- * за его край. Считать это каждый кадр было бы нечем оправдать: события не
- * меняются от того, что камера повернулась.
+ * Поиск на пять лет вперёд идёт сотни миллисекунд на настольной машине и
+ * секунды на телефоне, поэтому сцена зовёт не эту функцию, а
+ * upcomingEventsInBackground, и держит список, пока дата сцены не ушла за его
+ * край. Считать это каждый кадр было бы нечем оправдать: события не меняются
+ * от того, что камера повернулась.
  *
  * Поиск начинается на ONGOING_DAYS раньше даты сцены: событие, максимум
  * которого был час назад, ещё идёт, и человек открыл сайт, может быть, ровно
  * ради него.
  */
 export function upcomingEvents(fromJd: number, years = EVENT_WINDOW_YEARS): EventRow[] {
-  return findEvents(fromJd - ONGOING_DAYS, fromJd + DAYS_PER_YEAR * years).map(describeEvent);
+  const [from, to] = searchWindow(fromJd, years);
+  return findEvents(from, to).map(describeEvent);
+}
+
+/** То же, но поиск в фоновом потоке: кадр в это время не стоит. */
+export async function upcomingEventsInBackground(
+  fromJd: number,
+  years = EVENT_WINDOW_YEARS,
+): Promise<EventRow[]> {
+  const [from, to] = searchWindow(fromJd, years);
+  return (await searchEvents(from, to)).map(describeEvent);
+}
+
+function searchWindow(fromJd: number, years: number): [number, number] {
+  return [fromJd - ONGOING_DAYS, fromJd + DAYS_PER_YEAR * years];
 }
 
 /**

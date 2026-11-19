@@ -92,23 +92,54 @@ function angle(a: Vec, b: Vec): number {
 export function heliocentric(id: string, jd: number): Vec {
   if (id === SUN.id) return { x: 0, y: 0, z: 0 };
 
-  const earthOrbit = bodyById('earth')?.orbit;
-
   if (id === 'earth' || id === MOON.id) {
-    if (!earthOrbit) return { x: 0, y: 0, z: 0 };
-    const barycentre = scaled(positionAt(earthOrbit, jd), AU);
-    const toMoon = moonPositionAt(jd);
-    const earth = {
-      x: barycentre.x - toMoon.x * MOON_MASS_FRACTION,
-      y: barycentre.y - toMoon.y * MOON_MASS_FRACTION,
-      z: barycentre.z - toMoon.z * MOON_MASS_FRACTION,
-    };
-    return id === 'earth' ? earth : { x: earth.x + toMoon.x, y: earth.y + toMoon.y, z: earth.z + toMoon.z };
+    const system = earthSystemAt(jd);
+    // Копия: кеш общий, а вызывающий волен менять полученный вектор.
+    return { ...(id === 'earth' ? system.earth : system.moon) };
   }
 
   const orbit = bodyById(id)?.orbit;
   if (!orbit) return { x: 0, y: 0, z: 0 };
   return scaled(positionAt(orbit, jd), AU);
+}
+
+interface EarthSystem {
+  earth: Vec;
+  moon: Vec;
+}
+
+/**
+ * Земля и Луна по моментам, пока идёт один поиск событий (см. findEvents).
+ *
+ * Ряд Луны - самое дорогое во всём поиске, а нужен он почти каждой функции, и
+ * не по разу: геоцентрическое положение берёт и тело, и Землю, тень - Солнце,
+ * Луну и Землю, парад - пять планет относительно Земли. К тому же каждый род
+ * событий проходит свою сетку моментов от одного начала, и сетки совпадают:
+ * узлы суточной - каждый четвёртый узел сетки затмений. Без кеша ряд на один
+ * и тот же момент считался десятки раз.
+ *
+ * Кеш живёт только внутри поиска: вне его моменты не повторяются, и копить
+ * их было бы некуда девать.
+ */
+let earthSystems: Map<number, EarthSystem> | null = null;
+
+function earthSystemAt(jd: number): EarthSystem {
+  const known = earthSystems?.get(jd);
+  if (known) return known;
+
+  const earthOrbit = bodyById('earth')?.orbit;
+  if (!earthOrbit) return { earth: { x: 0, y: 0, z: 0 }, moon: { x: 0, y: 0, z: 0 } };
+
+  const barycentre = scaled(positionAt(earthOrbit, jd), AU);
+  const toMoon = moonPositionAt(jd);
+  const earth = {
+    x: barycentre.x - toMoon.x * MOON_MASS_FRACTION,
+    y: barycentre.y - toMoon.y * MOON_MASS_FRACTION,
+    z: barycentre.z - toMoon.z * MOON_MASS_FRACTION,
+  };
+  const system = { earth, moon: { x: earth.x + toMoon.x, y: earth.y + toMoon.y, z: earth.z + toMoon.z } };
+  earthSystems?.set(jd, system);
+  return system;
 }
 
 function scaled(v: Vec, k: number): Vec {
@@ -708,19 +739,24 @@ const CONJUNCTION_PAIRS: [string, string][] = [
  * противостояний Нептуна стал бы в сорок раз дороже без всякой пользы.
  */
 export function findEvents(from: number, to: number): AstronomicalEvent[] {
-  const events: AstronomicalEvent[] = [
-    ...solarEclipses(from, to),
-    ...lunarEclipses(from, to),
-    ...ringPlaneCrossings(from, to),
-    ...ringMaximumOpening(from, to),
-    ...planetParades(from, to),
-  ];
+  earthSystems = new Map();
+  try {
+    const events: AstronomicalEvent[] = [
+      ...solarEclipses(from, to),
+      ...lunarEclipses(from, to),
+      ...ringPlaneCrossings(from, to),
+      ...ringMaximumOpening(from, to),
+      ...planetParades(from, to),
+    ];
 
-  for (const id of OUTER) events.push(...oppositions(id, from, to));
-  for (const id of INNER) events.push(...transits(id, from, to));
-  for (const [a, b] of CONJUNCTION_PAIRS) events.push(...conjunctions(a, b, from, to));
+    for (const id of OUTER) events.push(...oppositions(id, from, to));
+    for (const id of INNER) events.push(...transits(id, from, to));
+    for (const [a, b] of CONJUNCTION_PAIRS) events.push(...conjunctions(a, b, from, to));
 
-  return events.sort((x, y) => x.jd - y.jd);
+    return events.sort((x, y) => x.jd - y.jd);
+  } finally {
+    earthSystems = null;
+  }
 }
 
 /** Тела, у которых бывают противостояния и прохождения: для списка и проверок. */
