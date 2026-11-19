@@ -10,6 +10,7 @@
  * действие - берутся из словаря интерфейса на текущем языке.
  */
 
+import { buildVersion } from '../core/buildInfo';
 import { onLanguageChange, strings, type Dictionary } from '../i18n';
 import { isTouchPrimary } from './pointerKind';
 
@@ -216,6 +217,13 @@ export class HelpPanel {
     this.footer = document.createElement('p');
     this.footer.className = 'help-footer';
     card.appendChild(this.footer);
+
+    // Какая сборка перед глазами - чтобы замечание с телефона можно было
+    // привязать к выпуску, не открывая инструменты разработчика.
+    const version = document.createElement('p');
+    version.className = 'help-version';
+    version.textContent = buildVersion();
+    card.appendChild(version);
 
     this.root.appendChild(card);
     container.appendChild(this.root);
