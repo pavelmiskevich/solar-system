@@ -1,6 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { expectNoErrors, frameLight, openScene, waitForArrival } from './helpers';
+import {
+  EVENT_ROWS_TIMEOUT_MS,
+  expectNoErrors,
+  frameLight,
+  openScene,
+  waitForArrival,
+} from './helpers';
 
 /**
  * Ближайшие события.
@@ -64,7 +70,7 @@ test.describe('ближайшие события', () => {
     await page.keyboard.press('KeyE');
     // Список считается при первом открытии: пять лет поиска занимают доли
     // секунды, и до появления строк проходит заметное время.
-    await expect(rows.first()).toBeVisible({ timeout: 20_000 });
+    await expect(rows.first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
     const count = await rows.count();
     // За пять лет событий этих родов набирается несколько десятков. Точное
@@ -98,7 +104,7 @@ test.describe('ближайшие события', () => {
       await openScene(page);
 
       await page.keyboard.press('KeyE');
-      await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
       expect(await page.locator(panel).count()).toBeGreaterThan(20);
     });
   }
@@ -117,7 +123,7 @@ test.describe('ближайшие события', () => {
     await openScene(page);
 
     await page.keyboard.press('KeyE');
-    await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
     const log = await workerLog(page);
     expect(log.created.some((url) => url.includes('eventsWorker'))).toBe(true);
@@ -138,7 +144,7 @@ test.describe('ближайшие события', () => {
     // список - сколько раз он собран заново.
     await openScene(page);
     await page.keyboard.press('KeyE');
-    await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
     await page.evaluate(() => {
       const list = document.querySelector(`[data-panel="events"] .panel-list`)!;
@@ -158,13 +164,13 @@ test.describe('ближайшие события', () => {
     expect(rebuilds).toBeGreaterThan(0);
     expect(rebuilds).toBeLessThanOrEqual(4);
     // И список при этом живой: в нём строки, а не вечное «ищу».
-    await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
   });
 
   test('в списке есть затмения, противостояния и сближения, и все впереди', async ({ page }) => {
     await openScene(page);
     await page.keyboard.press('KeyE');
-    await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
     const kinds = await page.locator(panel).evaluateAll((nodes) =>
       nodes.map((n) => (n as HTMLElement).dataset.event ?? ''),
@@ -191,7 +197,7 @@ test.describe('ближайшие события', () => {
   test('переход к полному затмению приводит туда, где видна тень', async ({ page }) => {
     const errors = await openScene(page);
     await page.keyboard.press('KeyE');
-    await expect(page.locator(panel).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
     // Полное солнечное затмение: у него тень доходит до поверхности целиком, и
     // на кадре обязано быть чёрное пятно. У кольцеобразного его не бывает

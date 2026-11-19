@@ -1,6 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { expectEqualPickers, expectNoErrors, openScene, waitForArrival, waitForFrames } from './helpers';
+import {
+  EVENT_ROWS_TIMEOUT_MS,
+  expectEqualPickers,
+  expectNoErrors,
+  openScene,
+  waitForArrival,
+  waitForFrames,
+} from './helpers';
 
 /**
  * Язык интерфейса: переключатель, ссылка и выбор по браузеру.
@@ -161,9 +168,13 @@ test.describe('язык интерфейса', () => {
 
     // События считаются по эфемеридам - строки у них собираются из слов
     // словаря, и русских среди них быть не должно.
+    // Ждём самих событий: строка «Searching for events…», пока идёт поиск,
+    // тоже строка списка, и проверка прошла бы на ней одной.
     await page.keyboard.press('KeyE');
+    await expect(page.locator('.views:not(.closed) [data-event]').first()).toBeVisible({
+      timeout: EVENT_ROWS_TIMEOUT_MS,
+    });
     const events = page.locator('.views:not(.closed) .views-row');
-    await expect(events.first()).toBeVisible();
     for (const row of await events.allTextContents()) expect(row).not.toMatch(CYRILLIC);
 
     expect(await russianLeftovers(page)).toEqual([]);
