@@ -187,6 +187,14 @@ viewport.scene.add(milkyWay.mesh);
 const starfield = new Starfield();
 viewport.scene.add(starfield.points);
 
+// Звёзды и астероиды - точки, размер которых задан в пикселях буфера. Без
+// этого после переезда окна на экран с другой плотностью или после среза
+// разрешения качеством они оставались в прежнем масштабе.
+viewport.onPixelRatio((ratio) => {
+  starfield.setPixelRatio(ratio);
+  asteroids.setPixelRatio(ratio);
+});
+
 // Разметка неба: линии созвездий и имена звёзд. По умолчанию выключена -
 // небо сначала показывают как небо, а разбирают по фигурам уже потом.
 const constellations = new ConstellationLines();

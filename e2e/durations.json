@@ -12,6 +12,7 @@
   "moons.spec.ts": 75,
   "navigation.spec.ts": 421,
   "parade.spec.ts": 41,
+  "pixelRatio.spec.ts": 40,
   "rendering.spec.ts": 215,
   "scenarios.spec.ts": 456,
   "scene.spec.ts": 93,

@@ -79,6 +79,10 @@ export class Viewport {
   private bloomEnabled = true;
   private msaaEnabled = true;
   private resolutionScale = 1;
+  /** Кому нужна плотность пикселей буфера: размер точек звёзд задаётся в пикселях. */
+  private readonly pixelRatioListeners = new Set<(ratio: number) => void>();
+  /** Запрос на нынешнюю плотность экрана: сработает, когда она сменится. */
+  private densityQuery: MediaQueryList | null = null;
 
   constructor({ container, fov = 55 }: ViewportOptions) {
     this.baseFov = fov;
@@ -132,6 +136,36 @@ export class Viewport {
 
     this.resize();
     window.addEventListener('resize', this.resize);
+    this.watchDensity();
+  }
+
+  /**
+   * Плотность пикселей меняется и без смены размера окна: окно перетащили на
+   * другой монитор, браузер масштабировали. Событие resize тогда приходит не
+   * всегда, а запрос по плотности срабатывает. Он задан на одно значение,
+   * поэтому после каждой смены ставится заново.
+   */
+  private watchDensity(): void {
+    this.densityQuery?.removeEventListener('change', this.onDensityChange);
+    if (typeof window.matchMedia !== 'function') return;
+    this.densityQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    this.densityQuery.addEventListener('change', this.onDensityChange);
+  }
+
+  private readonly onDensityChange = (): void => {
+    this.resize();
+    this.watchDensity();
+  };
+
+  /**
+   * Сообщать плотность пикселей буфера - сразу и при каждой её смене. В неё
+   * входит и срез разрешения адаптивным качеством: точка звезды задаётся в
+   * пикселях буфера, и в буфере помельче ей нужно меньше пикселей, чтобы на
+   * экране остаться того же размера.
+   */
+  onPixelRatio(listener: (ratio: number) => void): void {
+    this.pixelRatioListeners.add(listener);
+    listener(this.renderer.getPixelRatio());
   }
 
   /** Плотность пикселей: 2 - потолок, выше неё разницы не видно, а цена квадратичная. */
@@ -147,11 +181,17 @@ export class Viewport {
     this.renderer.setSize(w, h);
     this.setSamples(this.msaaEnabled ? msaaSamples(this.pixelRatio) : 0);
     this.composer.setPixelRatio(this.pixelRatio);
+    // Композитор сам раздаёт размер буфера всем проходам, и bloom тоже. Свой
+    // размер bloom здесь не задаётся: прежний вызов с половиной размера в
+    // точках CSS шёл следом и перебивал верный, и свечение считалось вдвое
+    // грубее задуманного, а на плотности 2 - вчетверо.
     this.composer.setSize(w, h);
-    this.bloom.setSize(w / 2, h / 2);
 
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+
+    const ratio = this.renderer.getPixelRatio();
+    for (const listener of this.pixelRatioListeners) listener(ratio);
   };
 
   /**
@@ -228,6 +268,7 @@ export class Viewport {
 
   dispose(): void {
     window.removeEventListener('resize', this.resize);
+    this.densityQuery?.removeEventListener('change', this.onDensityChange);
     this.composer.dispose();
     this.renderer.dispose();
   }

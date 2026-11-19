@@ -226,4 +226,9 @@ export class AsteroidBelt {
   compensateExposure(exposure: number): void {
     this.points.material.uniforms.uIntensity!.value = this.intensity / Math.max(exposure, 1e-4);
   }
+
+  /** Плотность пикселей буфера: размер точки в шейдере задан в его пикселях. */
+  setPixelRatio(ratio: number): void {
+    this.points.material.uniforms.uPixelRatio!.value = ratio;
+  }
 }
