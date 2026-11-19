@@ -53,6 +53,7 @@ import { LabelLayer } from './ui/labels';
 import { SkyLabels } from './ui/skyLabels';
 import { bindSceneInput } from './ui/input';
 import { createSourceLink } from './ui/sourceLink';
+import { StartupGuard, watchContextLoss } from './ui/startup';
 
 const container = document.getElementById('viewport');
 const hudElement = document.getElementById('hud');
@@ -61,11 +62,15 @@ const panelElement = document.getElementById('panel');
 const loaderElement = document.getElementById('loader');
 const hintElement = document.getElementById('hint');
 
+/**
+ * Сторож запуска - первым делом: исключение где угодно ниже, до первого
+ * кадра, иначе оставило бы заставку на экране навсегда.
+ */
+const startup = new StartupGuard(loaderElement);
+
 if (!container || !hudElement || !overlayElement || !panelElement) {
   throw new Error('Разметка страницы не найдена');
 }
-
-const viewport = new Viewport({ container });
 
 /**
  * Состояние из адреса страницы читается до всего остального.
@@ -107,6 +112,13 @@ function applyDocumentLanguage(): void {
 
 applyDocumentLanguage();
 onLanguageChange(applyDocumentLanguage);
+
+/**
+ * Рендерер - после выбора языка: без WebGL он бросает исключение, и сторож
+ * запуска должен объяснить это на языке посетителя.
+ */
+const viewport = new Viewport({ container });
+watchContextLoss(viewport.renderer.domElement, document.body);
 
 /**
  * Язык, выбранный переключателем. Запоминается только он: язык из ссылки -
@@ -1076,6 +1088,9 @@ loop.start();
 // машине видно чёрное окно между исчезновением заставки и появлением картинки.
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
+    // Сцена упала на первых кадрах: заставка с причиной остаётся.
+    if (startup.failed) return;
+    startup.finish();
     loaderElement?.classList.add('done');
     setTimeout(() => loaderElement?.remove(), 900);
   });

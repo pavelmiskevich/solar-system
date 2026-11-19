@@ -84,6 +84,18 @@ export const EN: Dictionary = {
     description: 'A simulation of the Solar System: real distances, Keplerian orbits, free flight',
   },
 
+  startup: {
+    webgl:
+      'The scene needs WebGL 2, and the browser did not provide it. Turn on hardware ' +
+      'acceleration in the browser settings or open the page in a recent Chrome, Firefox or Safari.',
+    error: 'The scene failed to start. Reload the page; if that does not help, try another browser.',
+  },
+
+  contextLost: {
+    text: 'The browser took the graphics card away from the page; the picture will return when it gives it back.',
+    reload: 'Reload',
+  },
+
   languageSwitch: 'Interface language',
 
   bodies: BODIES,
