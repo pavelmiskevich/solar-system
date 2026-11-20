@@ -465,12 +465,15 @@ function bindPointer(options: SceneInputOptions): void {
   canvas.addEventListener('pointercancel', endDrag);
 
   // Колесо в орбитальном режиме приближает и отдаляет; в свободном полёте оно
-  // по-прежнему подстраивает скорость - там приближать нечего.
+  // по-прежнему подстраивает скорость - там приближать нечего. Подписка на
+  // колесо одна, здесь: раньше полёт слушал его сам и менял скорость и в
+  // орбитальном режиме, заодно с приближением.
   canvas.addEventListener(
     'wheel',
     (event) => {
       if (tour.isActive) tour.cancel();
       if (orbit.isActive && !flight.isLocked) orbit.zoom(event.deltaY);
+      else flight.adjustSpeed(event.deltaY);
     },
     { passive: true },
   );

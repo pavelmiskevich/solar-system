@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   coverOfLabel,
   distanceInRadii,
+  emptyScreenPoint,
   expectNoErrors,
   openScene,
   pauseAt,
@@ -198,6 +199,51 @@ test.describe('перелёты', () => {
     // движению, возвращаясь каждый кадр на свою окружность.
     await page.keyboard.press('KeyW');
     expect(await page.evaluate(() => window.sim.orbit.isActive)).toBe(false);
+  });
+
+  /*
+   * Колесо одно, а режимов два (#164). Раньше полёт слушал колесо сам и о
+   * режиме не знал: шесть щелчков у Земли приближали камеру и заодно сбивали
+   * скорость свободного полёта с 1 до 0,41.
+   */
+  test('колесо на орбите приближает тело и не трогает скорость полёта', async ({ page }) => {
+    const errors = await openScene(page);
+    await pauseAt(page, '2032-01-01T00:00:00Z');
+    await page.evaluate(() => window.sim.travelTo('earth'));
+    await waitForArrival(page, 'earth');
+    expect(await page.evaluate(() => window.sim.orbit.isActive)).toBe(true);
+
+    const point = await emptyScreenPoint(page);
+    await page.mouse.move(point.x, point.y);
+    const before = await page.evaluate(() => window.sim.orbit.radius as number);
+    for (let i = 0; i < 6; i += 1) {
+      await page.mouse.wheel(0, -100);
+      await waitForFrames(page, 1);
+    }
+
+    await expect
+      .poll(() => page.evaluate(() => window.sim.orbit.radius as number))
+      .toBeLessThan(before * 0.9);
+    expect(await page.evaluate(() => window.sim.flight.speedMultiplier as number)).toBe(1);
+    expectNoErrors(errors);
+  });
+
+  test('в свободном полёте колесо по-прежнему подстраивает скорость', async ({ page }) => {
+    const errors = await openScene(page);
+    expect(await page.evaluate(() => window.sim.orbit.isActive)).toBe(false);
+
+    const point = await emptyScreenPoint(page);
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.wheel(0, -100);
+    await page.mouse.wheel(0, -100);
+    await waitForFrames(page, 1);
+
+    // Прокрутка от себя замедляет: два щелчка - множитель e^-0,3.
+    expect(await page.evaluate(() => window.sim.flight.speedMultiplier as number)).toBeCloseTo(
+      Math.exp(-0.3),
+      6,
+    );
+    expectNoErrors(errors);
   });
 });
 
