@@ -123,14 +123,15 @@ function bindKeyboard(options: SceneInputOptions): void {
     // Esc выводит из поля: иначе фокус остался бы в нём, почти невидимый, и
     // следующая клавиша снова досталась бы полю. Кнопку он не трогает: она
     // забирает себе только пробел и Enter, а фокус на ней - то место, куда
-    // человек с клавиатуры вернётся.
-    if (
+    // человек с клавиатуры вернётся. Выводит после того, как закрылись
+    // карточки: поля даты и скорости стоят в справке, и закрываясь, она сама
+    // вернёт фокус туда, откуда её открыли.
+    const leaveField =
       (field === 'text' || field === 'range') &&
       event.code === 'Escape' &&
       event.target instanceof HTMLElement
-    ) {
-      event.target.blur();
-    }
+        ? event.target
+        : null;
 
     if (TAKEOVER_KEYS.has(event.code)) {
       if (tour.isActive) tour.cancel();
@@ -189,6 +190,7 @@ function bindKeyboard(options: SceneInputOptions): void {
         help.setOpen(false);
         support.setOpen(false);
         if (tour.isActive) tour.cancel();
+        if (leaveField && document.activeElement === leaveField) leaveField.blur();
         break;
       case 'KeyP':
         clock.paused = !clock.paused;

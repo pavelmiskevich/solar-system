@@ -12,6 +12,7 @@
 
 import { buildVersion } from '../core/buildInfo';
 import { onLanguageChange, strings, type Dictionary } from '../i18n';
+import { DialogFocus, linkToggle, setExpanded } from './a11y';
 import { isTouchPrimary } from './pointerKind';
 
 type Words = Dictionary['help'];
@@ -141,6 +142,7 @@ export class HelpPanel {
   private readonly button: HTMLButtonElement;
   private readonly title: HTMLElement;
   private readonly close: HTMLButtonElement;
+  private readonly dialog: DialogFocus;
   private readonly columns: HTMLElement;
   private readonly footer: HTMLElement;
   /**
@@ -197,6 +199,8 @@ export class HelpPanel {
     this.close.addEventListener('click', () => this.setOpen(false));
 
     header.append(this.title, this.close);
+    this.dialog = new DialogFocus(this.root, card, this.title, 'help-title');
+    linkToggle(this.button, this.root, 'help');
     card.appendChild(header);
 
     this.columns = document.createElement('div');
@@ -248,6 +252,7 @@ export class HelpPanel {
     this.button.title = words.buttonTitle;
     this.title.textContent = words.title;
     this.close.title = words.closeTitle;
+    this.close.setAttribute('aria-label', words.closeTitle);
     this.footer.textContent = words.footer;
     this.updateLabel();
 
@@ -292,13 +297,19 @@ export class HelpPanel {
 
   setOpen(open: boolean): void {
     if (open === this.open) return;
+    // Фокус возвращается, пока карточка ещё не инертна.
+    if (!open) this.dialog.closed();
     this.open = open;
     this.root.classList.toggle('closed', !open);
     this.root.inert = !open;
     this.button.classList.toggle('active', open);
+    setExpanded(this.button, open);
     this.updateLabel();
     // Справку читают мышью и глазами: захват мыши на это время отпускается.
     if (open && document.pointerLockElement) document.exitPointerLock();
+    // Фокус уходит в карточку раньше, чем соседняя закроется: иначе та
+    // вернула бы его к себе на кнопку.
+    if (open) this.dialog.opened();
     if (open) this.onOpen?.();
   }
 
