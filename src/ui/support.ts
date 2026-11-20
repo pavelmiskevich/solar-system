@@ -12,6 +12,7 @@
  */
 
 import { onLanguageChange, strings, type Dictionary } from '../i18n';
+import { DialogFocus, linkToggle, setExpanded } from './a11y';
 
 /**
  * Страница приёма чаевых. Тот же адрес закодирован в `public/donate-qr.svg`;
@@ -27,6 +28,7 @@ type Words = Dictionary['support'];
 export class SupportPanel {
   private readonly root: HTMLElement;
   private readonly button: HTMLButtonElement;
+  private readonly dialog: DialogFocus;
   private readonly copyButton: HTMLButtonElement;
   private copiedTimer = 0;
   private open = false;
@@ -83,10 +85,13 @@ export class SupportPanel {
     close.textContent = '✕';
     this.writers.push((words) => {
       close.title = words.closeTitle;
+      close.setAttribute('aria-label', words.closeTitle);
     });
     close.addEventListener('click', () => this.setOpen(false));
 
     header.append(title, close);
+    this.dialog = new DialogFocus(this.root, card, title, 'support-title');
+    linkToggle(this.button, this.root, 'support');
     card.appendChild(header);
 
     const lead = this.text('p', (words) => words.lead);
@@ -241,13 +246,19 @@ export class SupportPanel {
 
   setOpen(open: boolean): void {
     if (open === this.open) return;
+    // Фокус возвращается, пока карточка ещё не инертна.
+    if (!open) this.dialog.closed();
     this.open = open;
     this.root.classList.toggle('closed', !open);
     this.root.inert = !open;
     this.button.classList.toggle('active', open);
+    setExpanded(this.button, open);
     this.updateLabel();
     // Карточку читают мышью и глазами: захват мыши на это время отпускается.
     if (open && document.pointerLockElement) document.exitPointerLock();
+    // Фокус уходит в карточку раньше, чем справка закроется: иначе та
+    // вернула бы его к себе на кнопку.
+    if (open) this.dialog.opened();
     if (open) this.onOpen?.();
   }
 

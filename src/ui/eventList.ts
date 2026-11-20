@@ -1,5 +1,6 @@
 import type { EventRow } from '../data/events';
 import { formatDateTime, onLanguageChange, strings } from '../i18n';
+import { linkToggle, setExpanded } from './a11y';
 
 /**
  * Список ближайших астрономических событий.
@@ -61,6 +62,7 @@ export class EventList {
     // Свёрнутый список гаснет, но остаётся в разметке: без `inert` Tab
     // проходил бы по его невидимым строкам.
     this.list.inert = true;
+    linkToggle(this.toggleButton, this.list, 'events-list');
 
     this.root.append(this.toggleButton, this.list);
     container.prepend(this.root);
@@ -94,6 +96,7 @@ export class EventList {
     this.open = open;
     this.root.classList.toggle('closed', !open);
     this.list.inert = !open;
+    setExpanded(this.toggleButton, open);
     this.updateLabel();
     if (open) this.opened();
 
