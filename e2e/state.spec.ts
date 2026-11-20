@@ -111,6 +111,11 @@ test.describe('ссылка на вид', () => {
     const date = new URL(shared).searchParams.get('d');
     expect(date, 'дата не попала в адрес').not.toBeNull();
 
+    // Первая вкладка больше не нужна, а рисовать Сатурн она продолжала бы.
+    // Две сцены у Сатурна на программном рендерере делят одни и те же ядра,
+    // и вторая открывалась так долго, что тест упирался в свой предел.
+    await page.close();
+
     const opened = await context.newPage();
     await openScene(opened, { url: shared });
 

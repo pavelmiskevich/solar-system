@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * Общая часть сквозных тестов.
@@ -508,6 +508,35 @@ export async function recordCaptions(page: Page): Promise<() => Promise<string[]
 export const EVENT_ROWS_TIMEOUT_MS = 60_000;
 
 /**
+ * Дождаться конца CSS-переходов у элемента и всех его потомков.
+ *
+ * Окна выбора раскрываются переходом по max-height от нуля, а min-height
+ * встаёт сразу. Пока переход не перерос нижний предел, высота окна стоит на
+ * месте, и «два замера подряд совпали» срабатывало посреди раскрытия. На
+ * редких кадрах программного рендерера совпадали и замеры уже растущего окна:
+ * оба попадали в один кадр анимации. Поэтому ждём не неподвижности, а конца
+ * самих переходов. `getAnimations` пересчитывает стили, так что переход,
+ * который ещё не начался после нажатия, здесь начинается и тоже ждётся.
+ *
+ * Ждутся только переходы: бесконечная анимация где-нибудь в поддереве
+ * повесила бы ожидание навсегда.
+ */
+export async function waitForTransitions(locator: Locator): Promise<void> {
+  await locator.evaluate(async (element) => {
+    // Конец одного перехода может начать следующий: раскрытое окно сдвигает
+    // соседей. Кругов с запасом, но не бесконечно.
+    for (let round = 0; round < 20; round += 1) {
+      const running = element
+        .getAnimations({ subtree: true })
+        .filter((animation) => animation instanceof CSSTransition);
+      if (running.length === 0) return;
+      await Promise.allSettled(running.map((animation) => animation.finished));
+    }
+    throw new Error('переходы не кончаются');
+  });
+}
+
+/**
  * Три окна выбора в колонке - виды, события и тела - одного размера, и ни
  * одно, открывшись, не выталкивает кнопки колонки за край экрана.
  *
@@ -541,21 +570,13 @@ export async function expectEqualPickers(page: Page): Promise<void> {
     await page.keyboard.press(key);
     if (rows) await expect(page.locator(rows).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
     const locator = page.locator(list);
-    // Раскрытие идёт переходом по max-height: высоту берём, когда она
-    // перестала меняться.
-    let previous = -1;
-    await expect
-      .poll(async () => {
-        const height = await locator.evaluate((element) => element.getBoundingClientRect().height);
-        const settled = height === previous;
-        previous = height;
-        return settled;
-      })
-      .toBe(true);
-    const scrolls = await locator.evaluate(
-      (element) => element.scrollHeight > element.clientHeight + 1,
-    );
-    (scrolls ? heights : whole)[name] = previous;
+    // Раскрытие идёт переходом по max-height: высоту берём после него.
+    await waitForTransitions(page.locator('#bodies'));
+    const { height, scrolls } = await locator.evaluate((element) => ({
+      height: element.getBoundingClientRect().height,
+      scrolls: element.scrollHeight > element.clientHeight + 1,
+    }));
+    (scrolls ? heights : whole)[name] = height;
 
     const overflow = await page.evaluate(() => {
       const bottom = Math.max(

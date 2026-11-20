@@ -250,37 +250,46 @@ test.describe('экскурсия на сенсорном экране', () => {
     await cdp.detach();
   }
 
-  test('горизонтальные свайпы переводят по остановкам, не досматривая их', async ({ page }) => {
-    const errors = await openScene(page);
-
+  /** Начать экскурсию, в которой сама она дальше первой остановки не пойдёт. */
+  async function startEndlessTour(page: Page): Promise<void> {
+    // Раньше «перевёл свайп» и «пришла сама, досмотрев» различали по срокам
+    // и подписям: подпись показывается по прибытии, и у перемотанной
+    // остановки её быть не должно. Но на загруженной машине каждый свайп
+    // через CDP шёл дольше перелёта к Меркурию, его подпись успевала
+    // показаться, и проверка падала при исправных свайпах. С бесконечной
+    // стоянкой сроки не нужны: любой шаг вперёд сделал свайп.
+    await page.evaluate(() => {
+      window.sim.tour.dwellSeconds = Infinity;
+    });
     await page.keyboard.press('KeyT');
     await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
+  }
 
-    const captionsSeen = await recordCaptions(page);
-
-    // Одного свайпа для проверки мало: к Меркурию экскурсия придёт и сама,
-    // досмотрев Солнце, и по подписям эти два случая не различить. Три свайпа
-    // подряд различаются: своим чередом за это время не пройти и одной
-    // остановки.
-    //
-    // Свайп срабатывает на первом же сдвиге сверх порога и на этом тратится,
-    // так что каждый перевод - отдельное касание, отдельный вызов drag.
-    for (let i = 0; i < 3; i += 1) {
-      await drag(page, { x: 320, y: 380 }, { x: 80, y: 386 });
+  /**
+   * Три свайпа подряд ведут на три остановки вперёд, каждый - сразу, не
+   * дожидаясь ни прибытия, ни конца рассказа.
+   *
+   * Свайп срабатывает на первом же сдвиге сверх порога и на этом тратится,
+   * так что каждый перевод - отдельное касание, отдельный вызов drag.
+   */
+  async function swipeThreeStops(page: Page, from: Point): Promise<void> {
+    for (const stop of ['mercury', 'venus', 'earth']) {
+      await drag(page, from, { x: 80, y: 386 });
+      await expect
+        .poll(() => page.evaluate(() => window.sim.tour.stop), {
+          message: `после свайпа экскурсия должна идти к ${stop}`,
+        })
+        .toBe(stop);
     }
 
     await expect(caption(page)).toContainText('Земля', { timeout: 60_000 });
     expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
+  }
 
-    const shown = (await captionsSeen()).join(' | ');
-    // Сначала - что список вообще собрался: пустой прошёл бы любые проверки
-    // на отсутствие, ничего не проверив.
-    expect(shown).toContain('Солнце');
-    expect(shown).toContain('Земля');
-    // И главное: Меркурий и Венера перемотаны, а не досмотрены.
-    expect(shown).not.toContain('Меркурий');
-    expect(shown).not.toContain('Венера');
-
+  test('горизонтальные свайпы переводят по остановкам, не досматривая их', async ({ page }) => {
+    const errors = await openScene(page);
+    await startEndlessTour(page);
+    await swipeThreeStops(page, { x: 320, y: 380 });
     expectNoErrors(errors);
   });
 
@@ -295,9 +304,7 @@ test.describe('экскурсия на сенсорном экране', () => {
     // отличает подпись от холста, туда, где начинается свайп. Сцена его не
     // двигает, и все три свайпа начинаются на нём.
     const errors = await openScene(page);
-
-    await page.keyboard.press('KeyT');
-    await expect(caption(page)).toContainText('Солнце', { timeout: 60_000 });
+    await startEndlessTour(page);
 
     const from = { x: 320, y: 380 };
     const onLabel = await page.evaluate(({ x, y }) => {
@@ -320,21 +327,7 @@ test.describe('экскурсия на сенсорном экране', () => {
     }, from);
     expect(onLabel, 'под пальцем должна оказаться подпись, а не холст').toBe(true);
 
-    const captionsSeen = await recordCaptions(page);
-
-    for (let i = 0; i < 3; i += 1) {
-      await drag(page, from, { x: 80, y: 386 });
-    }
-
-    await expect(caption(page)).toContainText('Земля', { timeout: 60_000 });
-    expect(await page.evaluate(() => window.sim.tour.isActive)).toBe(true);
-
-    const shown = (await captionsSeen()).join(' | ');
-    expect(shown).toContain('Солнце');
-    expect(shown).toContain('Земля');
-    expect(shown).not.toContain('Меркурий');
-    expect(shown).not.toContain('Венера');
-
+    await swipeThreeStops(page, from);
     expectNoErrors(errors);
   });
 

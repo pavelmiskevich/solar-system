@@ -8,6 +8,7 @@ import {
   pauseAt,
   waitForArrival,
   waitForFrames,
+  waitForTransitions,
 } from './helpers';
 import packageJson from '../package.json' with { type: 'json' };
 
@@ -195,9 +196,7 @@ test.describe('интерфейс', () => {
       // его, 148 px без рамок, хотя места в колонке хватает на девять строк с
       // лихвой. Попадёт ли кадр между нажатием и замером, решает загрузка
       // машины, поэтому ждём не срок, а конца самих переходов.
-      await list.evaluate(async (element) => {
-        await Promise.all(element.getAnimations().map((animation) => animation.finished));
-      });
+      await waitForTransitions(page.locator('#bodies'));
 
       const visibleRows = () =>
         list.evaluate((element) => {
@@ -213,6 +212,8 @@ test.describe('интерфейс', () => {
       await list.locator('.bodies-row').nth(1).click();
       const card = page.locator('.body-card');
       await expect(card.locator('.body-card-header b')).toHaveText('Меркурий');
+      // Карточка проявляется переходом, и список уступает ей место не сразу.
+      await waitForTransitions(page.locator('#bodies'));
 
       const after = await visibleRows();
       expect(after.rows, `тело выбрано, видно ${after.px} px`).toBeGreaterThanOrEqual(withCard);
@@ -270,15 +271,7 @@ test.describe('интерфейс', () => {
         await page.keyboard.press(key);
         if (rows) await expect(page.locator(rows).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
         const list = page.locator('.views:not(.closed) .views-list');
-        let previous = -1;
-        await expect
-          .poll(async () => {
-            const box = await list.evaluate((element) => element.getBoundingClientRect().height);
-            const settled = box === previous;
-            previous = box;
-            return settled;
-          })
-          .toBe(true);
+        await waitForTransitions(page.locator('#bodies'));
 
         const covered = await list.evaluate((element) => {
           const own = element.getBoundingClientRect();
@@ -674,19 +667,11 @@ test.describe('низкий экран', () => {
         });
 
       const check = async (state: string) => {
-        // Раскрытие идёт переходом: ждём, пока раскладка перестанет меняться.
-        let previous = '';
-        await expect
-          .poll(async () => {
-            const now = JSON.stringify(await layout());
-            const settled = now === previous;
-            previous = now;
-            return settled;
-          })
-          .toBe(true);
-        const { toggles, panels, obstacles, width: w, height: h } = JSON.parse(previous) as Awaited<
-          ReturnType<typeof layout>
-        >;
+        // Раскрытие идёт переходом: раскладку берём после него. Подсказка
+        // внизу тоже гаснет и проявляется переходом.
+        await waitForTransitions(page.locator('#bodies'));
+        await waitForTransitions(page.locator('#hint'));
+        const { toggles, panels, obstacles, width: w, height: h } = await layout();
 
         for (const item of [...toggles, ...panels]) {
           expect(item.top, `${state}: «${item.name}» выше кадра`).toBeGreaterThanOrEqual(-1);

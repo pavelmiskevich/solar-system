@@ -48,6 +48,14 @@ export class TourController {
   private state: 'traveling' | 'arrived' = 'traveling';
   private timer = 0;
 
+  /**
+   * Сколько стоим у тела, секунды. Полем, а не константой, ради проверок:
+   * сделав стоянку бесконечной, проверка знает, что любой шаг вперёд сделал
+   * зритель, а не сама экскурсия. Иначе их различают только по срокам, а
+   * сроки на загруженной машине плывут.
+   */
+  dwellSeconds = WAIT_TIME;
+
   constructor(
     private readonly travel: TravelController,
     private readonly orbit: OrbitControls,
@@ -64,11 +72,18 @@ export class TourController {
 
   get isActive() { return this.active; }
 
+  /** Остановка, к которой летим или у которой стоим; `null` вне экскурсии. */
+  get stop(): TourStop | null {
+    return this.active ? (TOUR_STOPS[this.step] ?? null) : null;
+  }
+
   start() {
     this.active = true;
     this.step = -1;
+    // Перед первой остановкой стоять не у чего: «досмотрено» сразу, и первый
+    // же кадр отправляет к Солнцу.
     this.state = 'arrived';
-    this.timer = WAIT_TIME;
+    this.timer = Infinity;
   }
 
   /**
@@ -135,7 +150,7 @@ export class TourController {
 
       this.timer += dt;
       // Досмотрели - дальше по маршруту тем же ходом, что и по стрелке.
-      if (this.timer >= WAIT_TIME) this.next();
+      if (this.timer >= this.dwellSeconds) this.next();
     }
   }
 
