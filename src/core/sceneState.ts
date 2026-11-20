@@ -87,12 +87,46 @@ const MAX_YEAR = 2600;
 const SLOWEST = TIME_SCALES[0]!;
 const FASTEST = TIME_SCALES[TIME_SCALES.length - 1]!;
 
+/**
+ * Значащих цифр в записи скорости.
+ *
+ * Раньше скорость писалась шестью знаками после запятой. Для медленных
+ * ступеней это грубо: реальное время, 1/86400 = 0.0000115741 суток в
+ * секунду, уходило в адрес как 0.000012 и шло на 3,7 % быстрее настоящего.
+ * Адрес переписывается каждые полсекунды, так что ошибка возникала и на
+ * простой перезагрузке.
+ */
+const SCALE_DIGITS = 6;
+
+/**
+ * Насколько записанная скорость может отличаться от ступени лестницы и всё же
+ * означать её, сут/с.
+ *
+ * Покрывает погрешность обеих записей: прежней, шесть знаков после запятой,
+ * - до 5·10⁻⁷ по абсолютной величине, - и нынешней, шесть значащих цифр, -
+ * до 5·10⁻⁶ от значения. Ступени отстоят друг от друга в разы, а промежуточные
+ * скорости с ползунка этот допуск почти не задевает.
+ */
+function onStep(value: number, step: number): boolean {
+  return Math.abs(value - step) <= 5e-7 + step * 1e-5;
+}
+
+/**
+ * Скорость из адреса: ступень лестницы, если записана она, иначе как есть.
+ * Привязка к ступени чинит и ссылки, уже разосланные с прежней записью.
+ */
+function scaleFromQuery(value: number): number {
+  return TIME_SCALES.find((step) => onStep(value, step)) ?? value;
+}
+
 /** Состояние сцены строкой запроса - читаемой, а не упакованной. */
 export function encodeSceneState(state: SceneState): string {
   const search = new URLSearchParams();
 
   if (state.jd !== undefined) search.set('d', isoFromJulianDay(state.jd));
-  if (state.timeScale !== undefined) search.set('t', round(state.timeScale, 6));
+  if (state.timeScale !== undefined) {
+    search.set('t', String(Number(state.timeScale.toPrecision(SCALE_DIGITS))));
+  }
   if (state.paused) search.set('p', '1');
 
   const { view } = state;
@@ -131,7 +165,7 @@ export function decodeSceneState(search: string): SceneState {
 
   const timeScale = number(query.get('t'));
   if (timeScale !== null && timeScale > 0) {
-    state.timeScale = clamp(timeScale, SLOWEST, FASTEST);
+    state.timeScale = scaleFromQuery(clamp(timeScale, SLOWEST, FASTEST));
   }
 
   if (query.get('p') === '1') state.paused = true;
