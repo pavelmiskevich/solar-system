@@ -273,7 +273,6 @@ export class FlightControls {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
-    this.domElement.addEventListener('wheel', this.onWheel, { passive: true });
   }
 
   /**
@@ -291,7 +290,6 @@ export class FlightControls {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
-    this.domElement.removeEventListener('wheel', this.onWheel);
   }
 
   private readonly onPointerLockChange = (): void => {
@@ -322,10 +320,21 @@ export class FlightControls {
     this.keys.clear();
   };
 
-  private readonly onWheel = (e: WheelEvent): void => {
-    const step = Math.exp(-Math.sign(e.deltaY) * -0.15);
+  /**
+   * Подстроить скорость свободного полёта щелчком колеса.
+   *
+   * Своей подписки на колесо у полёта нет: колесо одно, а режимов два, и
+   * решает, чьё оно, обработчик ввода. Раньше полёт слушал колесо сам и о
+   * режиме не знал: приближая планету в орбитальном режиме, человек заодно
+   * незаметно сбивал скорость полёта, и после пары осмотров она упиралась в
+   * край.
+   *
+   * @param deltaY сдвиг колеса из события: важен только знак
+   */
+  adjustSpeed(deltaY: number): void {
+    const step = Math.exp(-Math.sign(deltaY) * -0.15);
     this.speedMultiplier = clamp(this.speedMultiplier * step, 0.02, 40);
-  };
+  }
 }
 
 function clamp(v: number, lo: number, hi: number): number {
