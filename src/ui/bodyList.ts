@@ -1,5 +1,6 @@
 import { onLanguageChange, strings } from '../i18n';
 import { formatDistance, onDistanceUnitChange } from './distanceUnits';
+import { linkToggle, setExpanded } from './a11y';
 
 /**
  * Список тел для быстрого перелёта.
@@ -64,6 +65,7 @@ export class BodyList {
     // - кнопки. Без `inert` Tab проходил по ним, и фокус пропадал с экрана
     // на двадцать пять нажатий подряд.
     list.inert = true;
+    linkToggle(this.toggleButton, list, 'bodies-list');
 
     for (const entry of entries) {
       const element = document.createElement('button');
@@ -129,6 +131,7 @@ export class BodyList {
     this.open = open;
     this.root.classList.toggle('closed', !open);
     this.list.inert = !open;
+    setExpanded(this.toggleButton, open);
     this.updateToggleLabel();
     // Панель бесполезна, пока мышь захвачена полётом: курсора нет, кликать
     // нечем. Поэтому открытие панели захват отпускает.
