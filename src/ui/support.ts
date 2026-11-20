@@ -65,6 +65,9 @@ export class SupportPanel {
     this.root = document.createElement('div');
     this.root.id = 'support';
     this.root.className = 'overlay closed';
+    // Закрытая карточка гаснет прозрачностью и остаётся в разметке: без
+    // `inert` Tab проходил бы по её кнопкам, которых не видно.
+    this.root.inert = true;
 
     const card = document.createElement('div');
     card.className = 'overlay-card';
@@ -240,6 +243,7 @@ export class SupportPanel {
     if (open === this.open) return;
     this.open = open;
     this.root.classList.toggle('closed', !open);
+    this.root.inert = !open;
     this.button.classList.toggle('active', open);
     this.updateLabel();
     // Карточку читают мышью и глазами: захват мыши на это время отпускается.

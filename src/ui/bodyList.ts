@@ -36,6 +36,8 @@ interface Row {
 export class BodyList {
   private readonly root: HTMLElement;
   private readonly toggleButton: HTMLButtonElement;
+  /** Сам список: свёрнутый, он остаётся в разметке, но фокус на него не встаёт. */
+  private readonly list: HTMLElement;
   private readonly rows: Row[] = [];
   private age = REFRESH_SECONDS;
   private open = false;
@@ -57,6 +59,11 @@ export class BodyList {
 
     const list = document.createElement('div');
     list.className = 'panel-list bodies-list';
+    this.list = list;
+    // Свёрнутый список гаснет прозрачностью и нулевой высотой, а его строки
+    // - кнопки. Без `inert` Tab проходил по ним, и фокус пропадал с экрана
+    // на двадцать пять нажатий подряд.
+    list.inert = true;
 
     for (const entry of entries) {
       const element = document.createElement('button');
@@ -121,6 +128,7 @@ export class BodyList {
     if (open === this.open) return;
     this.open = open;
     this.root.classList.toggle('closed', !open);
+    this.list.inert = !open;
     this.updateToggleLabel();
     // Панель бесполезна, пока мышь захвачена полётом: курсора нет, кликать
     // нечем. Поэтому открытие панели захват отпускает.

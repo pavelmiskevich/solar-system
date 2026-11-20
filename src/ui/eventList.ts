@@ -58,6 +58,9 @@ export class EventList {
 
     this.list = document.createElement('div');
     this.list.className = 'panel-list views-list';
+    // Свёрнутый список гаснет, но остаётся в разметке: без `inert` Tab
+    // проходил бы по его невидимым строкам.
+    this.list.inert = true;
 
     this.root.append(this.toggleButton, this.list);
     container.prepend(this.root);
@@ -90,6 +93,7 @@ export class EventList {
 
     this.open = open;
     this.root.classList.toggle('closed', !open);
+    this.list.inert = !open;
     this.updateLabel();
     if (open) this.opened();
 

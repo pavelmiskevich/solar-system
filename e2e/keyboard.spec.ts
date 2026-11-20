@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-import { expectNoErrors, openScene, waitForArrival } from './helpers';
+import { expectNoErrors, openScene, waitForArrival, waitForFrames } from './helpers';
 
 /**
  * Чья клавиша: сцены, поля в фокусе или браузера.
@@ -133,5 +133,131 @@ test.describe('сочетания с модификаторами', () => {
     await page.keyboard.up('KeyP');
 
     expect(await paused(page)).toBe(!before);
+  });
+});
+
+/*
+ * Интерфейс с клавиатуры (#159).
+ *
+ * Справка обещает управление с клавиатуры, а дойти до кнопок было нельзя:
+ * свёрнутые списки и закрытые карточки гаснут прозрачностью и остаются в
+ * разметке, и Tab проходил по их невидимым кнопкам. Пробел на кнопке в фокусе
+ * её не нажимал, а поднимал камеру.
+ */
+
+/** Остановка Tab: что в фокусе и видно ли это. */
+interface Stop {
+  name: string;
+  visible: boolean;
+}
+
+/** Где фокус сейчас. `null` - фокуса на странице нет. */
+async function focusedStop(page: Page): Promise<Stop | null> {
+  return page.evaluate(() => {
+    const element = document.activeElement;
+    if (!(element instanceof HTMLElement) || element === document.body) return null;
+    const box = element.getBoundingClientRect();
+    const onScreen =
+      box.width > 0 &&
+      box.height > 0 &&
+      box.bottom > 0 &&
+      box.right > 0 &&
+      box.top < innerHeight &&
+      box.left < innerWidth;
+    return {
+      name: `${element.tagName.toLowerCase()}.${element.className} «${(element.textContent ?? '')
+        .trim()
+        .slice(0, 30)}»`,
+      // Прозрачность и visibility учитываются по всей цепочке предков:
+      // свёрнутый список гаснет прозрачностью своей обёртки.
+      visible:
+        onScreen && element.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+    };
+  });
+}
+
+/** Сколько на странице видимых элементов, на которые встаёт фокус. */
+async function visibleFocusables(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      [...document.querySelectorAll<HTMLElement>('button, a[href], input, select, [tabindex]')].filter(
+        (element) =>
+          element.tabIndex >= 0 &&
+          !element.closest('[inert]') &&
+          element.getBoundingClientRect().height > 0 &&
+          element.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+      ).length,
+  );
+}
+
+test.describe('проход с клавиатуры', () => {
+  test('Tab проходит только по видимому, пока списки свёрнуты', async ({ page }) => {
+    const errors = await openScene(page);
+    // Сцена стоит: подписи тел - тоже кнопки, и пусть они не уезжают за край
+    // посреди обхода.
+    await page.evaluate(() => (window.sim.clock.paused = true));
+
+    const stops: Stop[] = [];
+    // Обход до первого повтора: страница кончилась, и фокус пошёл по кругу.
+    for (let i = 0; i < 120; i += 1) {
+      await page.keyboard.press('Tab');
+      const stop = await focusedStop(page);
+      if (stop === null) break;
+      if (stops.length > 0 && stop.name === stops[0]!.name) break;
+      stops.push(stop);
+    }
+
+    // Обход вообще был: пустой прошёл бы любые проверки ниже.
+    expect(stops.length).toBeGreaterThan(5);
+    const hidden = stops.filter((stop) => !stop.visible).map((stop) => stop.name);
+    expect(hidden, 'фокус вставал на невидимое').toEqual([]);
+    expect(stops.length).toBeLessThanOrEqual(await visibleFocusables(page));
+
+    expectNoErrors(errors);
+  });
+
+  test('пробел на кнопке «Тела» открывает список и не двигает камеру', async ({ page }) => {
+    const errors = await openScene(page);
+
+    const toggle = page.locator('#bodies > .bodies-toggle', { hasText: 'Тела' });
+    await toggle.focus();
+    const before = await page.evaluate(() => window.sim.flight.worldPosition.toArray() as number[]);
+
+    // Удержание, как у человека, который нажимает кнопку: раньше за эти
+    // 0,6 секунды камера поднималась на миллионы километров.
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(600);
+    await page.keyboard.up('Space');
+    await waitForFrames(page, 3);
+
+    await expect(page.locator('#bodies')).not.toHaveClass(/closed/);
+    const after = await page.evaluate(() => window.sim.flight.worldPosition.toArray() as number[]);
+    const moved = Math.hypot(...after.map((value, i) => value - before[i]!));
+    expect(moved, `камера сдвинулась на ${Math.round(moved)} км`).toBeLessThan(1);
+
+    expectNoErrors(errors);
+  });
+
+  test('Enter на кнопке «Тела» тоже открывает список', async ({ page }) => {
+    const errors = await openScene(page);
+    await page.locator('#bodies > .bodies-toggle', { hasText: 'Тела' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#bodies')).not.toHaveClass(/closed/);
+    expectNoErrors(errors);
+  });
+
+  test('без фокуса на кнопке пробел по-прежнему поднимает камеру', async ({ page }) => {
+    const errors = await openScene(page);
+    const before = await page.evaluate(() => window.sim.flight.worldPosition.toArray() as number[]);
+
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(600);
+    await page.keyboard.up('Space');
+    await waitForFrames(page, 3);
+
+    const after = await page.evaluate(() => window.sim.flight.worldPosition.toArray() as number[]);
+    const moved = Math.hypot(...after.map((value, i) => value - before[i]!));
+    expect(moved, 'пробел должен поднимать камеру').toBeGreaterThan(1000);
+    expectNoErrors(errors);
   });
 });

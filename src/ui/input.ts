@@ -121,8 +121,14 @@ function bindKeyboard(options: SceneInputOptions): void {
     if (!belongsToScene({ ...pressOf(event), field })) return;
 
     // Esc выводит из поля: иначе фокус остался бы в нём, почти невидимый, и
-    // следующая клавиша снова досталась бы полю.
-    if (field && event.code === 'Escape' && event.target instanceof HTMLElement) {
+    // следующая клавиша снова досталась бы полю. Кнопку он не трогает: она
+    // забирает себе только пробел и Enter, а фокус на ней - то место, куда
+    // человек с клавиатуры вернётся.
+    if (
+      (field === 'text' || field === 'range') &&
+      event.code === 'Escape' &&
+      event.target instanceof HTMLElement
+    ) {
       event.target.blur();
     }
 
