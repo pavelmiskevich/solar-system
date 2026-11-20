@@ -152,3 +152,33 @@ describe('состояние сцены в адресе', () => {
     expect(decodeSceneState('?greeting=no-such&p=1').paused).toBe(true);
   });
 });
+
+describe('скорость времени в адресе (#166)', () => {
+  it('каждая ступень лестницы возвращается бит в бит', () => {
+    for (const step of TIME_SCALES) {
+      const decoded = decodeSceneState(encodeSceneState({ timeScale: step }));
+      expect(decoded.timeScale, `ступень ${step}`).toBe(step);
+    }
+  });
+
+  it('реальное время пишется так, что и без привязки ошибка меньше миллионной', () => {
+    const written = Number(new URLSearchParams(encodeSceneState({ timeScale: 1 / 86400 })).get('t'));
+    expect(Math.abs(written * 86400 - 1)).toBeLessThan(1e-5);
+  });
+
+  it('ссылки с прежней записью открываются на своих ступенях', () => {
+    // Прежняя запись - шесть знаков после запятой.
+    expect(decodeSceneState('?t=0.000012').timeScale).toBe(1 / 86400);
+    expect(decodeSceneState('?t=0.000116').timeScale).toBe(10 / 86400);
+    expect(decodeSceneState('?t=0.000694').timeScale).toBe(60 / 86400);
+  });
+
+  it('скорость между ступенями к ступени не привязывается', () => {
+    // С ползунка приходят и промежуточные скорости: их искажать нельзя.
+    for (const scale of [0.5, 2, 0.00002, 100]) {
+      const decoded = decodeSceneState(encodeSceneState({ timeScale: scale }));
+      expect(decoded.timeScale, `скорость ${scale}`).toBeCloseTo(scale, 9);
+      expect(TIME_SCALES as readonly number[]).not.toContain(decoded.timeScale);
+    }
+  });
+});
