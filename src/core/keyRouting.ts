@@ -16,8 +16,11 @@
  * разойдись они, камера летела бы от клавиши, которую сцена сочла чужой.
  */
 
-/** Какое поле в фокусе. Различие одно: ползунку нужны немногие клавиши. */
-export type FocusedField = 'range' | 'text' | null;
+/**
+ * Что в фокусе. Ползунку нужны немногие клавиши, полю даты - почти все,
+ * кнопке - две, которыми её нажимают.
+ */
+export type FocusedField = 'range' | 'text' | 'button' | null;
 
 export interface KeyPress {
   code: string;
@@ -42,6 +45,9 @@ const RANGE_KEYS = new Set([
   'PageDown',
 ]);
 
+/** Клавиши, которыми нажимают кнопку. */
+const BUTTON_KEYS = new Set(['Space', 'Enter', 'NumpadEnter']);
+
 /** Достаётся ли нажатие сцене. */
 export function belongsToScene(press: KeyPress): boolean {
   // Shift здесь не считается: он сам клавиша сцены (ускорение), и Shift+W - это
@@ -53,6 +59,11 @@ export function belongsToScene(press: KeyPress): boolean {
   if (press.code === 'Escape') return true;
 
   if (press.field === 'range') return !RANGE_KEYS.has(press.code);
+  // Кнопку с клавиатуры нажимают пробелом и Enter. Пробел у сцены - подъём,
+  // и раньше он доставался ей: кнопка в фокусе (а фокус остаётся на ней и
+  // после щелчка мышью) не нажималась, а камера уходила вверх на миллионы
+  // километров. Остальные клавиши кнопке ни к чему.
+  if (press.field === 'button') return !BUTTON_KEYS.has(press.code);
   // Поле даты набирается целиком с клавиатуры: цифры, стрелки по частям даты,
   // а в английской записи ещё и буквы A и P для половины суток. Свою клавишу
   // из этого набора сцена отняла бы у человека посреди набора.
@@ -74,6 +85,15 @@ export function repeats(code: string): boolean {
 
 /** Какое поле в фокусе у события - по его цели. */
 export function focusedField(target: EventTarget | null): FocusedField {
-  if (typeof HTMLInputElement === 'undefined' || !(target instanceof HTMLInputElement)) return null;
-  return target.type === 'range' ? 'range' : 'text';
+  if (typeof HTMLElement === 'undefined' || !(target instanceof HTMLElement)) return null;
+  if (target instanceof HTMLInputElement) {
+    if (target.type === 'range') return 'range';
+    // Кнопка в виде поля - всё та же кнопка.
+    if (['button', 'submit', 'reset', 'checkbox', 'radio'].includes(target.type)) return 'button';
+    return 'text';
+  }
+  if (target instanceof HTMLButtonElement) return 'button';
+  if (target instanceof HTMLAnchorElement && target.hasAttribute('href')) return 'button';
+  if (target.getAttribute('role') === 'button') return 'button';
+  return null;
 }

@@ -15,6 +15,8 @@ import { onLanguageChange, strings } from '../i18n';
 export class ScenarioList {
   private readonly root: HTMLElement;
   private readonly toggleButton: HTMLButtonElement;
+  /** Сам список: свёрнутый, он остаётся в разметке, но фокус на него не встаёт. */
+  private readonly list: HTMLElement;
   private readonly rows: {
     id: string;
     element: HTMLButtonElement;
@@ -45,6 +47,10 @@ export class ScenarioList {
 
     const list = document.createElement('div');
     list.className = 'panel-list views-list';
+    this.list = list;
+    // Свёрнутый список гаснет, но остаётся в разметке: без `inert` Tab
+    // проходил бы по его невидимым строкам.
+    list.inert = true;
 
     for (const scenario of scenarios) {
       const element = document.createElement('button');
@@ -94,6 +100,7 @@ export class ScenarioList {
     if (open === this.open) return;
     this.open = open;
     this.root.classList.toggle('closed', !open);
+    this.list.inert = !open;
     this.updateLabel();
     if (open) this.onOpen();
 

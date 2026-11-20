@@ -60,6 +60,20 @@ describe('фокус в поле даты', () => {
   });
 });
 
+describe('фокус на кнопке', () => {
+  it('пробел и Enter - кнопке: ими её нажимают', () => {
+    for (const code of ['Space', 'Enter', 'NumpadEnter']) {
+      expect(belongsToScene(press(code, 'button')), code).toBe(false);
+    }
+  });
+
+  it('прочие клавиши, полёт и Esc в том числе, - сцене', () => {
+    for (const code of ['KeyW', 'KeyC', 'KeyB', 'KeyH', 'Escape', 'ArrowRight', 'Comma']) {
+      expect(belongsToScene(press(code, 'button')), code).toBe(true);
+    }
+  });
+});
+
 describe('автоповтор', () => {
   it('переключатели не повторяются, шаг скорости времени - повторяется', () => {
     for (const code of ['KeyP', 'KeyB', 'KeyL', 'KeyM', 'KeyH', 'KeyT', 'ArrowRight']) {
