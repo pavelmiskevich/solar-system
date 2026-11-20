@@ -261,3 +261,112 @@ test.describe('проход с клавиатуры', () => {
     expectNoErrors(errors);
   });
 });
+
+/*
+ * Состояние кнопок и карточки-диалоги (#159).
+ *
+ * Раскрыта панель или нет, раньше было слышно только по смене подписи, а
+ * фокусом при открытии справки и поддержки никто не управлял.
+ */
+test.describe('кнопки и карточки для диктора', () => {
+  /** Кнопки-переключатели: клавиша сцены и то, что раскрывается. */
+  const toggles = [
+    { name: 'Тела', key: 'KeyB', panel: 'bodies-list' },
+    { name: 'Виды', key: 'KeyV', panel: 'views-list' },
+    { name: 'События', key: 'KeyE', panel: 'events-list' },
+    { name: 'Справка', key: 'KeyH', panel: 'help' },
+  ];
+
+  test('aria-expanded у каждой кнопки совпадает с состоянием панели', async ({ page }) => {
+    const errors = await openScene(page);
+
+    for (const { name, key, panel } of toggles) {
+      const button = page.locator(`button[aria-controls="${panel}"]`);
+      await expect(button, `${name}: кнопка связана с панелью`).toHaveCount(1);
+      await expect(page.locator(`#${panel}`), `${name}: панель на месте`).toHaveCount(1);
+      await expect(button).toHaveAttribute('aria-expanded', 'false');
+      await page.keyboard.press(key);
+      await expect(button, `${name} открыты`).toHaveAttribute('aria-expanded', 'true');
+      await page.keyboard.press(key);
+      await expect(button, `${name} закрыты`).toHaveAttribute('aria-expanded', 'false');
+    }
+
+    // Поддержке своей клавиши нет: только кнопка.
+    const support = page.locator('button[aria-controls="support"]');
+    await expect(support).toHaveAttribute('aria-expanded', 'false');
+    await support.click();
+    await expect(support).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#support [role="dialog"][aria-modal="true"]')).toHaveCount(1);
+
+    expectNoErrors(errors);
+  });
+
+  test('справка, открытая кнопкой: фокус внутри, Tab по кругу, после Esc - на кнопке', async ({
+    page,
+  }) => {
+    const errors = await openScene(page);
+    const button = page.locator('button[aria-controls="help"]');
+
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#help')).not.toHaveClass(/closed/);
+
+    const insideHelp = () =>
+      page.evaluate(() => document.getElementById('help')!.contains(document.activeElement));
+    expect(await insideHelp(), 'фокус в карточке справки').toBe(true);
+    // Диктор читает заголовок карточки.
+    await expect(page.locator('#help [role="dialog"]')).toHaveAttribute(
+      'aria-labelledby',
+      'help-title',
+    );
+
+    // Кнопок в справке немного: за тридцать нажатий Tab круг пройден не раз,
+    // и фокус ни разу не ушёл из карточки.
+    for (let i = 0; i < 30; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await insideHelp(), `Tab №${i + 1} увёл фокус из справки`).toBe(true);
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#help')).toHaveClass(/closed/);
+    await expect(button).toBeFocused();
+
+    expectNoErrors(errors);
+  });
+
+  test('справка, открытая клавишей H: после Esc фокуса нет, и пробел поднимает камеру', async ({
+    page,
+  }) => {
+    // Возвращать фокус на кнопку здесь нельзя: пробел, которым сразу после
+    // Esc поднимаются над плоскостью, нажимал бы её и открывал справку снова.
+    const errors = await openScene(page);
+
+    await page.keyboard.press('KeyH');
+    await expect(page.locator('#help')).not.toHaveClass(/closed/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#help')).toHaveClass(/closed/);
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+
+    const before = await page.evaluate(() => window.sim.flight.worldPosition.toArray() as number[]);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(600);
+    await page.keyboard.up('Space');
+    await waitForFrames(page, 3);
+    const after = await page.evaluate(() => window.sim.flight.worldPosition.toArray() as number[]);
+    expect(Math.hypot(...after.map((value, i) => value - before[i]!))).toBeGreaterThan(1000);
+    await expect(page.locator('#help')).toHaveClass(/closed/);
+
+    expectNoErrors(errors);
+  });
+
+  test('справка на старте: фокус в ней, после Esc фокуса нет', async ({ page }) => {
+    const errors = await openScene(page, { keepHelp: true });
+    expect(
+      await page.evaluate(() => document.getElementById('help')!.contains(document.activeElement)),
+    ).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#help')).toHaveClass(/closed/);
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+    expectNoErrors(errors);
+  });
+});

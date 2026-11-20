@@ -1,5 +1,6 @@
 import type { Scenario } from '../data/scenarios';
 import { onLanguageChange, strings } from '../i18n';
+import { linkToggle, setExpanded } from './a11y';
 
 /**
  * Список готовых видов.
@@ -51,6 +52,7 @@ export class ScenarioList {
     // Свёрнутый список гаснет, но остаётся в разметке: без `inert` Tab
     // проходил бы по его невидимым строкам.
     list.inert = true;
+    linkToggle(this.toggleButton, list, 'views-list');
 
     for (const scenario of scenarios) {
       const element = document.createElement('button');
@@ -101,6 +103,7 @@ export class ScenarioList {
     this.open = open;
     this.root.classList.toggle('closed', !open);
     this.list.inert = !open;
+    setExpanded(this.toggleButton, open);
     this.updateLabel();
     if (open) this.onOpen();
 

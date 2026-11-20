@@ -628,6 +628,20 @@
         will-change: transform;
       }
 
+      /*
+       * Рамка фокуса с клавиатуры. Браузерная на тёмном полупрозрачном фоне
+       * почти не видна, и тот, кто идёт клавишей Tab, терял, где он. :where
+       * не добавляет веса: свои рамки переключателя единиц и кнопок видов в
+       * карточке тела остаются как были.
+       */
+      :where(button, a[href], input, select, [tabindex]):focus-visible {
+        outline: 2px solid rgba(150, 180, 255, 0.85);
+        outline-offset: 2px;
+      }
+
+      /* Карточка получает фокус при открытии ради диктора, а не глаз. */
+      .overlay-card:focus { outline: none; }
+
       .bodies-toggle {
         pointer-events: auto;
         padding: 8px 12px;
