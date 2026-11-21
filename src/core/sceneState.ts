@@ -1,4 +1,4 @@
-import { TIME_SCALES } from './clock';
+import { FIRST_YEAR, LAST_YEAR, TIME_SCALES } from './clock';
 import { dateFromJulianDay, julianDayFromDate } from './units';
 import { bodyById } from '../data/bodies';
 import { GREETING_ID, greetingById } from '../data/greetings';
@@ -80,9 +80,7 @@ const MAX_DISTANCE = 1e11;
  */
 const MAX_ELEVATION = 89;
 
-/** Ниже 1600 и выше 2600 года разговор о положениях планет теряет смысл. */
-const MIN_YEAR = 1600;
-const MAX_YEAR = 2600;
+// Диапазон годов - общий для всей сцены, см. FIRST_YEAR и LAST_YEAR в clock.ts.
 
 const SLOWEST = TIME_SCALES[0]!;
 const FASTEST = TIME_SCALES[TIME_SCALES.length - 1]!;
@@ -231,7 +229,7 @@ export function julianDayFromIso(iso: string | null): number | null {
   if (Number.isNaN(date.getTime())) return null;
 
   const year = date.getUTCFullYear();
-  if (year < MIN_YEAR || year > MAX_YEAR) return null;
+  if (year < FIRST_YEAR || year > LAST_YEAR) return null;
 
   return julianDayFromDate(date);
 }

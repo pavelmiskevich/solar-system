@@ -239,6 +239,7 @@ export const EN: Dictionary = {
 
   timeScale: {
     paused: 'paused',
+    atEdge: (first: number, last: number) => `paused: dates ${first}-${last} only`,
     stopped: 'stopped',
     realTime: 'real time',
     seconds: (value: string) => `${value} s/s`,
@@ -377,6 +378,8 @@ export const EN: Dictionary = {
 
   date: {
     title: 'Scene date and time, Universal Time',
+    range: (first: number, last: number) =>
+      `years ${first}-${last}, most accurate 1800-2050`,
     yearBack: { text: '−year', title: 'One year back' },
     dayBack: { text: '−day', title: 'One day back' },
     now: { text: 'now', title: 'The present moment' },

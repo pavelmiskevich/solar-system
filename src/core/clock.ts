@@ -2,6 +2,29 @@ import { strings } from '../i18n';
 import { SECONDS_PER_DAY, dateFromJulianDay, julianDayFromDate } from './units';
 
 /**
+ * Годы, в которых живёт сцена, включительно.
+ *
+ * Элементы орбит экстраполируются линейно, и за этими пределами разговор о
+ * положениях планет теряет смысл, а очень далеко они ломаются вовсе:
+ * эксцентриситет уходит за единицу. Один диапазон на всё - часы, поле даты,
+ * адрес страницы. Раньше адрес принимал только эти годы, а поле и течение
+ * времени уводили дальше, и дата, которую удалось поставить, терялась при
+ * перезагрузке.
+ */
+export const FIRST_YEAR = 1600;
+export const LAST_YEAR = 2600;
+
+/** Первый момент диапазона: начало первого года. */
+export const EARLIEST_JD = julianDayFromDate(new Date(Date.UTC(FIRST_YEAR, 0, 1)));
+
+/**
+ * Последний момент диапазона: полдень последнего дня последнего года. Не
+ * полночь: дата в адресе пишется с округлением, и запись в последнюю секунду
+ * года могла бы выйти уже следующим годом.
+ */
+export const LATEST_JD = julianDayFromDate(new Date(Date.UTC(LAST_YEAR, 11, 31, 12)));
+
+/**
  * Симуляционное время.
  *
  * Кеплеровские орбиты - аналитическая функция времени, а не численное
@@ -10,8 +33,7 @@ import { SECONDS_PER_DAY, dateFromJulianDay, julianDayFromDate } from './units';
  * Это заодно избавляет от интерполяции и от дрожания при просадке кадров.
  */
 export class SimClock {
-  /** Текущая юлианская дата. */
-  jd: number;
+  private current = 0;
 
   /** Сколько суток симуляции проходит за одну реальную секунду. */
   timeScale: number;
@@ -23,9 +45,41 @@ export class SimClock {
     this.timeScale = timeScale;
   }
 
-  /** Продвинуть время на `dt` реальных секунд. */
+  /**
+   * Текущая юлианская дата, всегда внутри диапазона сцены.
+   *
+   * Зажимается здесь, а не в поле даты: дату ставят и поле, и стрелки «год
+   * назад, год вперёд», и ссылка, и само течение времени, и только часы видят
+   * их все.
+   */
+  get jd(): number {
+    return this.current;
+  }
+
+  set jd(value: number) {
+    this.current = Math.min(LATEST_JD, Math.max(EARLIEST_JD, value));
+  }
+
+  /**
+   * Часы стоят на краю диапазона. По этому HUD говорит, почему время встало:
+   * дата, которая молча перестала меняться, выглядит как зависание.
+   */
+  get atEdge(): boolean {
+    return this.paused && (this.current <= EARLIEST_JD || this.current >= LATEST_JD);
+  }
+
+  /**
+   * Продвинуть время на `dt` реальных секунд.
+   *
+   * Дойдя до края диапазона, время встаёт на паузу. На верхней ступени, 20
+   * лет в секунду, сцена доходит от сегодняшнего дня до 2600 года за
+   * полминуты.
+   */
   advance(dt: number): void {
-    if (!this.paused) this.jd += dt * this.timeScale;
+    if (this.paused) return;
+    const next = this.current + dt * this.timeScale;
+    this.jd = next;
+    if (next <= EARLIEST_JD || next >= LATEST_JD) this.paused = true;
   }
 
   get date(): Date {
@@ -38,7 +92,9 @@ export class SimClock {
 
   /** Человекочитаемая скорость течения времени. */
   describeScale(): string {
-    return this.paused ? strings().timeScale.paused : describeTimeScale(this.timeScale);
+    const words = strings().timeScale;
+    if (this.atEdge) return words.atEdge(FIRST_YEAR, LAST_YEAR);
+    return this.paused ? words.paused : describeTimeScale(this.timeScale);
   }
 
   /**
