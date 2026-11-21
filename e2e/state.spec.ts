@@ -132,3 +132,62 @@ test.describe('ссылка на вид', () => {
     await opened.close();
   });
 });
+
+/*
+ * Край диапазона дат (#167).
+ *
+ * Адрес хранит только 1600-2600 годы, а поле, стрелки и течение времени
+ * уводили дальше: дата, которую удалось поставить, терялась при перезагрузке,
+ * и человек получал прежний кадр с другим расположением планет.
+ */
+test.describe('край диапазона дат', () => {
+  test('«+год» на краю дату не меняет', async ({ page }) => {
+    await openScene(page, { keepHelp: true });
+    await page.keyboard.press('KeyP');
+
+    const field = page.locator('.date-input');
+    await field.fill('2600-12-31T12:00');
+    await waitForFrames(page, 2);
+    await page.getByRole('button', { name: '+год' }).click();
+    await waitForFrames(page, 2);
+
+    await expect(field).toHaveValue(/^2600-12-31T12:00/);
+    expect(await page.evaluate(() => window.sim.clock.date.getUTCFullYear())).toBe(2600);
+  });
+
+  test('дата за краем, набранная в поле, зажимается и переживает перезагрузку', async ({ page }) => {
+    await openScene(page, { keepHelp: true });
+    await page.keyboard.press('KeyP');
+
+    await page.locator('.date-input').fill('2800-01-07T12:00');
+    await waitForFrames(page, 2);
+    expect(await page.evaluate(() => window.sim.clock.date.getUTCFullYear())).toBe(2600);
+
+    // Адрес переписывается раз в полсекунды.
+    await page.waitForFunction(() => window.location.search.includes('d=2600-'), null, {
+      timeout: 15_000,
+    });
+    await page.reload();
+    await page.waitForFunction(() => typeof window.sim === 'object' && window.sim !== null, null, {
+      timeout: 60_000,
+    });
+    expect(await page.evaluate(() => window.sim.clock.date.toISOString())).toBe(
+      '2600-12-31T12:00:00.000Z',
+    );
+  });
+
+  test('на высшей скорости время встаёт на краю, и HUD говорит почему', async ({ page }) => {
+    await openScene(page);
+    await page.evaluate(() => {
+      window.sim.clock.date = new Date('2600-06-01T00:00:00Z');
+      window.sim.clock.timeScale = 365.25 * 20;
+      window.sim.clock.paused = false;
+    });
+
+    await expect(page.locator('#hud')).toContainText('даты только 1600-2600', { timeout: 15_000 });
+    expect(await page.evaluate(() => window.sim.clock.paused)).toBe(true);
+    expect(await page.evaluate(() => window.sim.clock.date.toISOString())).toBe(
+      '2600-12-31T12:00:00.000Z',
+    );
+  });
+});

@@ -1,4 +1,5 @@
-import type { SimClock } from '../core/clock';
+import { EARLIEST_JD, FIRST_YEAR, LAST_YEAR, LATEST_JD, type SimClock } from '../core/clock';
+import { dateFromJulianDay } from '../core/units';
 import { onLanguageChange, strings, type Dictionary } from '../i18n';
 
 /**
@@ -17,7 +18,7 @@ import { onLanguageChange, strings, type Dictionary } from '../i18n';
 /** Шаг стрелок: сутки и календарный год. */
 const DAY = 1;
 
-type StepWord = Exclude<keyof Dictionary['date'], 'title'>;
+type StepWord = Exclude<keyof Dictionary['date'], 'title' | 'range'>;
 
 export class DatePanel {
   private readonly input: HTMLInputElement;
@@ -33,6 +34,10 @@ export class DatePanel {
     this.input.type = 'datetime-local';
     this.input.step = '1';
     this.input.className = 'date-input';
+    // Календарь браузера не даст выбрать дату за краем диапазона. Набрать её
+    // руками всё же можно - её зажмут часы.
+    this.input.min = fieldValue(EARLIEST_JD);
+    this.input.max = fieldValue(LATEST_JD);
     this.input.addEventListener('change', () => this.applyInput());
 
     const label = document.createElement('span');
@@ -65,7 +70,7 @@ export class DatePanel {
     // Подписи - отдельно от постройки: их переписывает смена языка.
     const writeWords = () => {
       const words = strings().date;
-      this.input.title = words.title;
+      this.input.title = `${words.title}; ${words.range(FIRST_YEAR, LAST_YEAR)}`;
       for (const { button, word } of buttons) {
         button.textContent = words[word].text;
         button.title = words[word].title;
@@ -92,7 +97,7 @@ export class DatePanel {
 
   private write(): void {
     // `datetime-local` понимает ровно этот вид, без буквы Z и без смещения.
-    this.input.value = this.clock.date.toISOString().slice(0, 19);
+    this.input.value = fieldValue(this.clock.jd);
   }
 
   private applyInput(): void {
@@ -126,4 +131,9 @@ export class DatePanel {
   private now(): void {
     this.clock.date = new Date();
   }
+}
+
+/** Момент в виде, который понимает `datetime-local`: без буквы Z и смещения. */
+function fieldValue(jd: number): string {
+  return dateFromJulianDay(jd).toISOString().slice(0, 19);
 }

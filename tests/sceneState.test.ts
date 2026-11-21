@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { TIME_SCALES } from '../src/core/clock';
+import { EARLIEST_JD, LATEST_JD, TIME_SCALES } from '../src/core/clock';
 import { decodeSceneState, encodeSceneState } from '../src/core/sceneState';
 import { julianDayFromDate } from '../src/core/units';
 
@@ -179,6 +179,15 @@ describe('скорость времени в адресе (#166)', () => {
       const decoded = decodeSceneState(encodeSceneState({ timeScale: scale }));
       expect(decoded.timeScale, `скорость ${scale}`).toBeCloseTo(scale, 9);
       expect(TIME_SCALES as readonly number[]).not.toContain(decoded.timeScale);
+    }
+  });
+});
+
+describe('край диапазона дат в адресе (#167)', () => {
+  it('любая дата, до которой доходят часы, переживает запись в адрес', () => {
+    for (const jd of [EARLIEST_JD, LATEST_JD]) {
+      const decoded = decodeSceneState(encodeSceneState({ jd }));
+      expect(decoded.jd, `юлианская дата ${jd}`).toBeCloseTo(jd, 4);
     }
   });
 });

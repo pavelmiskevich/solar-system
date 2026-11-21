@@ -286,6 +286,8 @@ export const RU = {
   /** Скорость течения времени: число уже округлено, дело словаря - единица. */
   timeScale: {
     paused: 'пауза',
+    // Время встало само: дошло до края диапазона дат.
+    atEdge: (first: number, last: number) => `пауза: даты только ${first}-${last}`,
     stopped: 'остановлено',
     realTime: 'реальное время',
     seconds: (value: string) => `${value} с/с`,
@@ -436,6 +438,9 @@ export const RU = {
 
   date: {
     title: 'Дата и время сцены, всемирное время',
+    // Край диапазона: дальше сцена не идёт, а точнее всего она в середине.
+    range: (first: number, last: number) =>
+      `годы ${first}-${last}, точнее всего 1800-2050`,
     yearBack: { text: '−год', title: 'На год назад' },
     dayBack: { text: '−сутки', title: 'На сутки назад' },
     now: { text: 'сейчас', title: 'Текущий момент' },

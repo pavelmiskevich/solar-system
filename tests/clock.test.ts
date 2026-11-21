@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_TIME_SCALE,
+  EARLIEST_JD,
+  FIRST_YEAR,
+  LAST_YEAR,
+  LATEST_JD,
   SimClock,
   TIME_SCALES,
   describeTimeScale,
 } from '../src/core/clock';
-import { SECONDS_PER_DAY } from '../src/core/units';
+import { SECONDS_PER_DAY, dateFromJulianDay } from '../src/core/units';
 
 describe('describeTimeScale', () => {
   it('реальное время называется реальным временем', () => {
@@ -154,5 +158,54 @@ describe('шаг по лестнице скоростей', () => {
     const clock = new SimClock(new Date(), TIME_SCALES[0]! * 1.1);
 
     expect(clock.stepScale(1)).toBe(TIME_SCALES[1]);
+  });
+});
+
+describe('диапазон дат (#167)', () => {
+  it('часы не выходят за край ни при каком шаге', () => {
+    for (const scale of TIME_SCALES) {
+      for (const dt of [1 / 60, 1, 1e3, 1e9]) {
+        const forward = new SimClock(new Date('2026-01-01T00:00:00Z'), scale);
+        forward.advance(dt);
+        expect(forward.jd, `вперёд ${scale} сут/с за ${dt} с`).toBeLessThanOrEqual(LATEST_JD);
+
+        const back = new SimClock(new Date('2026-01-01T00:00:00Z'), -scale);
+        back.advance(dt);
+        expect(back.jd, `назад ${scale} сут/с за ${dt} с`).toBeGreaterThanOrEqual(EARLIEST_JD);
+      }
+    }
+  });
+
+  it('дата, поставленная за краем, зажимается', () => {
+    const clock = new SimClock(new Date('2026-01-01T00:00:00Z'));
+    clock.date = new Date('2800-01-07T12:00:00Z');
+    expect(clock.jd).toBe(LATEST_JD);
+    clock.jd = -1e9;
+    expect(clock.jd).toBe(EARLIEST_JD);
+    // В пределах диапазона - как есть.
+    clock.date = new Date('1700-03-01T00:00:00Z');
+    expect(clock.date.toISOString()).toBe('1700-03-01T00:00:00.000Z');
+  });
+
+  it('дойдя до края, время встаёт на паузу и говорит почему', () => {
+    const clock = new SimClock(new Date('2600-12-01T00:00:00Z'), TIME_SCALES.at(-1)!);
+    expect(clock.atEdge).toBe(false);
+    clock.advance(1);
+    expect(clock.jd).toBe(LATEST_JD);
+    expect(clock.paused).toBe(true);
+    expect(clock.atEdge).toBe(true);
+    expect(clock.describeScale()).toContain('1600-2600');
+  });
+
+  it('пауза посреди диапазона - обычная пауза', () => {
+    const clock = new SimClock(new Date('2026-01-01T00:00:00Z'));
+    clock.paused = true;
+    expect(clock.atEdge).toBe(false);
+    expect(clock.describeScale()).not.toContain('1600');
+  });
+
+  it('края диапазона - те самые годы', () => {
+    expect(dateFromJulianDay(EARLIEST_JD).getUTCFullYear()).toBe(FIRST_YEAR);
+    expect(dateFromJulianDay(LATEST_JD).getUTCFullYear()).toBe(LAST_YEAR);
   });
 });
