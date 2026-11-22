@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 
-import { DEG, JD_J2000 } from '../core/units';
+import { DEG, JD_J2000, OBLIQUITY_J2000 } from '../core/units';
 import { solveKepler } from './kepler';
 
 /**
@@ -140,4 +140,68 @@ export function sampleSatelliteOrbit(
   }
 
   return points;
+}
+
+/**
+ * Нормаль к плоскости орбиты спутника в экваториальной системе планеты.
+ *
+ * Направлена по моменту импульса: та сторона, с которой обращение видно
+ * против часовой стрелки. Те же оси, что у `satellitePosition`: x - узел
+ * экватора планеты, z - её северный полюс.
+ */
+export function orbitNormalInHost(elements: SatelliteElements, out = new Vector3()): Vector3 {
+  const node = elements.node * DEG;
+  const inclination = elements.i * DEG;
+  return out.set(
+    Math.sin(inclination) * Math.sin(node),
+    -Math.sin(inclination) * Math.cos(node),
+    Math.cos(inclination),
+  );
+}
+
+/**
+ * Полюс вращения синхронного спутника, перпендикулярный его орбите, в виде
+ * прямого восхождения и склонения ICRF.
+ *
+ * Обычно полюс спутника берётся равным полюсу планеты: близкий спутник
+ * обращается в её экваторе, и разница - доли градуса. Тритону это не годится:
+ * он ходит вспять, и его орбита наклонена к экватору Нептуна на 157°. С
+ * полюсом Нептуна его ось отстояла бы от нормали к орбите на 23°, а у
+ * синхронного спутника они совпадают.
+ *
+ * Северным полюсом, как принято в МАС, берётся тот, что смотрит к северу от
+ * эклиптики. Если обращение вокруг него идёт по часовой стрелке, вращение
+ * обратное, и об этом говорит `retrograde`.
+ */
+export function poleAlongOrbit(
+  host: { poleRa: number; poleDec: number },
+  elements: SatelliteElements,
+): { poleRa: number; poleDec: number; retrograde: boolean } {
+  const alpha = host.poleRa * DEG;
+  const delta = host.poleDec * DEG;
+  const pole = new Vector3(
+    Math.cos(delta) * Math.cos(alpha),
+    Math.cos(delta) * Math.sin(alpha),
+    Math.sin(delta),
+  );
+  const node = new Vector3(-Math.sin(alpha), Math.cos(alpha), 0);
+  const third = new Vector3().crossVectors(pole, node);
+
+  const local = orbitNormalInHost(elements);
+  const normal = new Vector3()
+    .addScaledVector(node, local.x)
+    .addScaledVector(third, local.y)
+    .addScaledVector(pole, local.z)
+    .normalize();
+
+  // Северный полюс эклиптики в экваториальных координатах ICRF.
+  const eclipticNorth = new Vector3(0, -Math.sin(OBLIQUITY_J2000), Math.cos(OBLIQUITY_J2000));
+  const retrograde = normal.dot(eclipticNorth) < 0;
+  if (retrograde) normal.negate();
+
+  return {
+    poleRa: (((Math.atan2(normal.y, normal.x) / DEG) % 360) + 360) % 360,
+    poleDec: Math.asin(Math.max(-1, Math.min(1, normal.z))) / DEG,
+    retrograde,
+  };
 }

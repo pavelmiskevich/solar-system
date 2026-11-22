@@ -165,6 +165,28 @@ function equatorialToWorld(equatorial: Vector3, out: Vector3): Vector3 {
  * Без элементов орбиты (у Солнца их нет) остаётся отсчёт от эклиптики.
  */
 export function axialTilt(elements: RotationElements, orbit?: OrbitalElements): number {
+  if (!orbit) {
+    // Ось Y сцены - северный полюс эклиптики.
+    return tiltFrom(elements, referenceAxis.set(0, 1, 0));
+  }
+
+  const normal = orbitNormal(orbit);
+  // Тот же переход в координаты сцены, что и для полюса: (x, y, z) → (x, z, −y).
+  return tiltFrom(elements, referenceAxis.set(normal.x, normal.z, -normal.y).normalize());
+}
+
+/**
+ * Наклон оси вращения к заданному направлению сцены, градусы.
+ *
+ * Отсчитывается от оси вращения по правилу буравчика, а не от северного
+ * полюса МАС: у обратных вращателей это противоположные направления. Отсюда
+ * и берутся справочные 177° у Венеры и 98° у Урана - они больше прямого угла
+ * ровно потому, что тела вращаются «не в ту сторону».
+ *
+ * @param reference единичный вектор в координатах сцены, например нормаль к
+ *   орбите спутника вокруг его планеты
+ */
+export function tiltFrom(elements: RotationElements, reference: Vector3): number {
   const alpha = elements.poleRa * DEG;
   const delta = elements.poleDec * DEG;
   poleEquatorial.set(
@@ -173,23 +195,9 @@ export function axialTilt(elements: RotationElements, orbit?: OrbitalElements): 
     Math.sin(delta),
   );
   equatorialToWorld(poleEquatorial, poleWorld).normalize();
-
-  // Наклон отсчитывается к оси вращения по правилу буравчика, а не к северному
-  // полюсу МАС: у обратных вращателей это противоположные направления. Отсюда
-  // и берутся справочные 177° у Венеры и 98° у Урана - они больше прямого угла
-  // ровно потому, что тела вращаются «не в ту сторону».
   if (elements.rotationRate < 0) poleWorld.negate();
 
-  if (!orbit) {
-    // Ось Y сцены - северный полюс эклиптики.
-    return Math.acos(clampUnit(poleWorld.y)) / DEG;
-  }
-
-  const normal = orbitNormal(orbit);
-  // Тот же переход в координаты сцены, что и для полюса: (x, y, z) → (x, z, −y).
-  referenceAxis.set(normal.x, normal.z, -normal.y).normalize();
-
-  return Math.acos(clampUnit(poleWorld.dot(referenceAxis))) / DEG;
+  return Math.acos(clampUnit(poleWorld.dot(reference))) / DEG;
 }
 
 function clampUnit(value: number): number {

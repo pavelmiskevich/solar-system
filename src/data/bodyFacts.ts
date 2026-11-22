@@ -1,6 +1,9 @@
+import { Vector3 } from 'three';
+
 import { DEG } from '../core/units';
-import { axialTilt } from '../physics/rotation';
-import type { BodyDefinition } from './bodies';
+import { axialTilt, equatorialBasis, tiltFrom } from '../physics/rotation';
+import { orbitNormalInHost } from '../physics/satellite';
+import { bodyById, type BodyDefinition } from './bodies';
 
 /**
  * Справочные величины тела - то, что стоит в карточке.
@@ -15,7 +18,11 @@ export interface BodyFacts {
   /** Экваториальный радиус, км. */
   radiusKm: number;
   massKg: number;
-  /** Наклон оси вращения к плоскости эклиптики, градусы. */
+  /**
+   * Наклон оси вращения к плоскости своей орбиты, градусы: у планеты - орбиты
+   * вокруг Солнца, у спутника - вокруг планеты. У Солнца и Луны, у которых
+   * кеплеровых элементов нет, - к эклиптике.
+   */
   axialTiltDeg: number;
   /** Большая полуось орбиты, а.е. У Солнца и спутников отсутствует. */
   semiMajorAxisAu: number | null;
@@ -52,12 +59,36 @@ export function bodyFacts(definition: BodyDefinition): BodyFacts {
   return {
     radiusKm: definition.radius,
     massKg: definition.mass,
-    axialTiltDeg: axialTilt(rotation, orbit),
+    axialTiltDeg: tiltOf(definition),
     semiMajorAxisAu: orbit?.a ?? null,
     orbitalPeriodDays,
     // Скорость вращения задана в градусах за сутки; знак сохраняется.
     rotationPeriodDays: 360 / rotation.rotationRate,
   };
+}
+
+/**
+ * Наклон оси для карточки.
+ *
+ * У спутника - от нормали к его собственной орбите вокруг планеты. Раньше
+ * своей орбиты у спутника в расчёт не попадало, и в карточке стоял наклон
+ * полюса планеты к эклиптике: 28° у спутников Сатурна, 152° у Тритона. Нормаль
+ * строится в том же экваториальном базисе планеты, которым сцена ставит
+ * спутник на место, поэтому число описывает ровно то, что нарисовано.
+ */
+function tiltOf(definition: BodyDefinition): number {
+  const { rotation, orbit, satellite, parent } = definition;
+  const host = satellite && parent ? bodyById(parent) : undefined;
+  if (!satellite || !host) return axialTilt(rotation, orbit);
+
+  const basis = equatorialBasis(host.rotation);
+  const local = orbitNormalInHost(satellite);
+  const normal = new Vector3()
+    .addScaledVector(basis.node, local.x)
+    .addScaledVector(basis.third, local.y)
+    .addScaledVector(basis.pole, local.z)
+    .normalize();
+  return tiltFrom(rotation, normal);
 }
 
 /** Сколько раз тело больше Земли по радиусу и по массе. */
