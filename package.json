@@ -1,6 +1,6 @@
 {
   "name": "solar-system",
-  "version": "0.17.5",
+  "version": "0.17.6",
   "private": true,
   "type": "module",
   "description": "Симуляция Солнечной системы: реальные расстояния, кеплеровские орбиты, свободный полёт",
