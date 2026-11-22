@@ -1,5 +1,5 @@
 import type { OrbitalElements } from '../physics/kepler';
-import type { SatelliteElements } from '../physics/satellite';
+import { poleAlongOrbit, type SatelliteElements } from '../physics/satellite';
 
 /**
  * Ориентация оси вращения и фаза вращения по отчёту рабочей группы МАС
@@ -314,8 +314,30 @@ const PLUTO_POLE = { poleRa: 132.993, poleDec: -6.163 };
  * отрицательные.
  */
 function synchronous(pole: { poleRa: number; poleDec: number }, periodDays: number) {
-  return { ...pole, primeMeridian: 0, rotationRate: 360 / periodDays };
+  return { poleRa: pole.poleRa, poleDec: pole.poleDec, primeMeridian: 0, rotationRate: 360 / periodDays };
 }
+
+const TRITON_ORBIT: SatelliteElements = {
+  a: 354759,
+  e: 0.000016,
+  // Больше прямого угла: единственный крупный спутник системы, идущий
+  // вокруг планеты вспять. Так ходят захваченные тела, а не выросшие
+  // рядом, и Тритон - пойманный объект пояса Койпера. Приливы за это
+  // берут своё: орбита медленно сжимается, и когда-нибудь он разорвётся
+  // в кольцо.
+  i: 156.865,
+  node: 177.608,
+  peri: 66.142,
+  meanAnomaly: 352.257,
+  period: 5.876854,
+};
+
+/**
+ * Полюс Тритона - по нормали к его орбите. С полюсом Нептуна, как у прочих
+ * спутников, ось Тритона отстояла бы от нормали к орбите на 23°: орбита
+ * наклонена к экватору Нептуна на 157°.
+ */
+const TRITON_POLE = poleAlongOrbit(NEPTUNE_POLE, TRITON_ORBIT);
 
 export const MOONS: BodyDefinition[] = [
   {
@@ -565,22 +587,10 @@ export const MOONS: BodyDefinition[] = [
     color: 0xd3cdc6,
     parent: 'neptune',
     tidallyLocked: true,
+    // Полюс - по нормали к орбите, а не полюс Нептуна: см. `poleAlongOrbit`.
     // Знак минус - обратное вращение вслед за обратной орбитой, см. `synchronous`.
-    rotation: synchronous(NEPTUNE_POLE, -5.876854),
-    satellite: {
-      a: 354759,
-      e: 0.000016,
-      // Больше прямого угла: единственный крупный спутник системы, идущий
-      // вокруг планеты вспять. Так ходят захваченные тела, а не выросшие
-      // рядом, и Тритон - пойманный объект пояса Койпера. Приливы за это
-      // берут своё: орбита медленно сжимается, и когда-нибудь он разорвётся
-      // в кольцо.
-      i: 156.865,
-      node: 177.608,
-      peri: 66.142,
-      meanAnomaly: 352.257,
-      period: 5.876854,
-    },
+    rotation: synchronous(TRITON_POLE, TRITON_POLE.retrograde ? -TRITON_ORBIT.period : TRITON_ORBIT.period),
+    satellite: TRITON_ORBIT,
   },
   {
     id: 'charon',
