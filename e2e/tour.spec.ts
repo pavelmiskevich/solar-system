@@ -5,14 +5,11 @@ import {
   openScene,
   pauseAt,
   recordCaptions,
+  touchGesture,
   waitForArrival,
   waitForFrames,
+  type Point,
 } from './helpers';
-
-interface Point {
-  x: number;
-  y: number;
-}
 
 /** Подпись остановки: она же подсказка внизу экрана. */
 const caption = (page: Page) => page.locator('#hint:not(.hidden)');
@@ -229,26 +226,8 @@ test.describe('экскурсия уступает зрителю', () => {
 test.describe('экскурсия на сенсорном экране', () => {
   test.use({ hasTouch: true, viewport: { width: 420, height: 760 } });
 
-  async function drag(page: Page, from: Point, to: Point): Promise<void> {
-    const cdp = await page.context().newCDPSession(page);
-    const send = (type: string, x?: number, y?: number) =>
-      cdp.send('Input.dispatchTouchEvent', {
-        type,
-        touchPoints: x === undefined ? [] : [{ x, y: y as number }],
-      });
-
-    await send('touchStart', from.x, from.y);
-    const STEPS = 8;
-    for (let i = 1; i <= STEPS; i += 1) {
-      await send(
-        'touchMove',
-        from.x + ((to.x - from.x) * i) / STEPS,
-        from.y + ((to.y - from.y) * i) / STEPS,
-      );
-    }
-    await send('touchEnd');
-    await cdp.detach();
-  }
+  /** Провести одним пальцем из `from` в `to`. */
+  const drag = (page: Page, from: Point, to: Point) => touchGesture(page, [from], [to], 8);
 
   /** Начать экскурсию, в которой сама она дальше первой остановки не пойдёт. */
   async function startEndlessTour(page: Page): Promise<void> {
