@@ -24,6 +24,47 @@ export const EARLIEST_JD = julianDayFromDate(new Date(Date.UTC(FIRST_YEAR, 0, 1)
  */
 export const LATEST_JD = julianDayFromDate(new Date(Date.UTC(LAST_YEAR, 11, 31, 12)));
 
+/** Насколько дата может разойтись с часами и ещё считаться «сейчас», мс. */
+export const IN_STEP_TOLERANCE_MS = 5 * 60 * 1000;
+
+/**
+ * Подтягивание к часам после фоновой вкладки.
+ *
+ * Пока вкладка скрыта, кадров нет и время сцены стоит, а первый кадр после
+ * возврата ограничен долей секунды. Сцена в реальном времени после этого шла
+ * с отставанием на всё время, пока вкладка была скрыта, и HUD при этом писал
+ * «реальное время». Решение задачи #201: часы, которые шли вровень с
+ * настоящими, после возврата ставятся на «сейчас»; остальные не трогаются.
+ *
+ * Вровень или нет, решается в момент скрытия: после возврата отставание уже
+ * набежало и любые часы выглядят отставшими.
+ */
+export class WallClockFollower {
+  private wasInStep = false;
+
+  constructor(private readonly clock: SimClock) {}
+
+  /** Вкладку скрыли. */
+  hidden(nowMs: number): void {
+    this.wasInStep = this.clock.inStepWithWallClock(nowMs);
+  }
+
+  /** Вкладку вернули. Возвращает, подтянуты ли часы. */
+  shown(nowMs: number): boolean {
+    const follow = this.wasInStep;
+    this.wasInStep = false;
+    // Пока вкладка была скрыта, кадров не было, и поменять скорость или
+    // дату было некому. Но проверка дешёвая и спасает от сюрприза, если
+    // кадры в фоне всё-таки шли: часы, ушедшие с реального времени, не
+    // подтягиваются.
+    if (!follow || this.clock.paused || Math.abs(this.clock.timeScale * SECONDS_PER_DAY - 1) > 1e-6) {
+      return false;
+    }
+    this.clock.date = new Date(nowMs);
+    return true;
+  }
+}
+
 /**
  * Симуляционное время.
  *
@@ -80,6 +121,24 @@ export class SimClock {
     const next = this.current + dt * this.timeScale;
     this.jd = next;
     if (next <= EARLIEST_JD || next >= LATEST_JD) this.paused = true;
+  }
+
+  /**
+   * Часы идут вровень с настоящими: в реальном времени, без паузы, и дата не
+   * дальше `IN_STEP_TOLERANCE_MS` от `nowMs`.
+   *
+   * Это сцена, открытая «сейчас»: без даты в ссылке или кнопкой «сейчас».
+   * Ей пропуск времени в фоновой вкладке ломает смысл, и такие часы после
+   * возврата подтягиваются (#201). Сцену, поставленную на другую дату, -
+   * хотя бы на час раньше, - подтягивать нельзя: её дату выбрали нарочно.
+   *
+   * Допуск в минуты, а не в секунды: и в открытой вкладке шаг кадра
+   * ограничен, и на медленной машине реальное время понемногу отстаёт.
+   */
+  inStepWithWallClock(nowMs: number): boolean {
+    if (this.paused) return false;
+    if (Math.abs(this.timeScale * SECONDS_PER_DAY - 1) > 1e-6) return false;
+    return Math.abs(this.date.getTime() - nowMs) <= IN_STEP_TOLERANCE_MS;
   }
 
   get date(): Date {
