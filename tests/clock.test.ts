@@ -6,8 +6,10 @@ import {
   FIRST_YEAR,
   LAST_YEAR,
   LATEST_JD,
+  IN_STEP_TOLERANCE_MS,
   SimClock,
   TIME_SCALES,
+  WallClockFollower,
   describeTimeScale,
 } from '../src/core/clock';
 import { SECONDS_PER_DAY, dateFromJulianDay } from '../src/core/units';
@@ -207,5 +209,79 @@ describe('диапазон дат (#167)', () => {
   it('края диапазона - те самые годы', () => {
     expect(dateFromJulianDay(EARLIEST_JD).getUTCFullYear()).toBe(FIRST_YEAR);
     expect(dateFromJulianDay(LATEST_JD).getUTCFullYear()).toBe(LAST_YEAR);
+  });
+});
+
+describe('подтягивание к часам после фоновой вкладки (#201)', () => {
+  const NOW = Date.UTC(2026, 10, 26, 12, 0, 0);
+  const REAL_TIME = 1 / SECONDS_PER_DAY;
+  const HIDDEN_MS = 40 * 60 * 1000;
+
+  const clockAt = (ms: number, timeScale = REAL_TIME) => new SimClock(new Date(ms), timeScale);
+
+  it('сцена «сейчас» в реальном времени - вровень с часами', () => {
+    expect(clockAt(NOW).inStepWithWallClock(NOW)).toBe(true);
+    // Небольшое отставание от медленных кадров не мешает.
+    expect(clockAt(NOW - 30_000).inStepWithWallClock(NOW)).toBe(true);
+  });
+
+  it('другая дата, другая скорость или пауза - не вровень', () => {
+    expect(clockAt(NOW - IN_STEP_TOLERANCE_MS - 1000).inStepWithWallClock(NOW)).toBe(false);
+    expect(clockAt(Date.UTC(1969, 6, 20)).inStepWithWallClock(NOW)).toBe(false);
+    expect(clockAt(NOW, TIME_SCALES[1]).inStepWithWallClock(NOW)).toBe(false);
+    expect(clockAt(NOW, -REAL_TIME).inStepWithWallClock(NOW)).toBe(false);
+
+    const paused = clockAt(NOW);
+    paused.paused = true;
+    expect(paused.inStepWithWallClock(NOW)).toBe(false);
+  });
+
+  it('часы, шедшие вровень, после возврата встают на «сейчас»', () => {
+    const clock = clockAt(NOW);
+    const follower = new WallClockFollower(clock);
+
+    follower.hidden(NOW);
+    // Пока вкладка скрыта, кадров нет: время сцены стоит.
+    expect(follower.shown(NOW + HIDDEN_MS)).toBe(true);
+    expect(clock.date.getTime()).toBe(NOW + HIDDEN_MS);
+  });
+
+  it('сцена на выбранной дате остаётся на ней', () => {
+    const apollo = Date.UTC(1969, 6, 20, 20, 17);
+    const clock = clockAt(apollo);
+    const follower = new WallClockFollower(clock);
+
+    follower.hidden(NOW);
+    expect(follower.shown(NOW + HIDDEN_MS)).toBe(false);
+    expect(clock.date.getTime()).toBe(apollo);
+  });
+
+  it('решение принимается в момент скрытия, а не возврата', () => {
+    // К возврату отставание уже набежало: проверка «вровень» по нему
+    // отказала бы любым часам.
+    const clock = clockAt(NOW);
+    const follower = new WallClockFollower(clock);
+    follower.hidden(NOW);
+    expect(clock.inStepWithWallClock(NOW + HIDDEN_MS)).toBe(false);
+    expect(follower.shown(NOW + HIDDEN_MS)).toBe(true);
+  });
+
+  it('возврат без скрытия ничего не трогает, второй возврат тоже', () => {
+    const clock = clockAt(NOW);
+    const follower = new WallClockFollower(clock);
+    expect(follower.shown(NOW + HIDDEN_MS)).toBe(false);
+
+    follower.hidden(NOW);
+    follower.shown(NOW + HIDDEN_MS);
+    expect(follower.shown(NOW + 2 * HIDDEN_MS)).toBe(false);
+    expect(clock.date.getTime()).toBe(NOW + HIDDEN_MS);
+  });
+
+  it('часы, поставленные в фоне на паузу, не подтягиваются', () => {
+    const clock = clockAt(NOW);
+    const follower = new WallClockFollower(clock);
+    follower.hidden(NOW);
+    clock.paused = true;
+    expect(follower.shown(NOW + HIDDEN_MS)).toBe(false);
   });
 });
