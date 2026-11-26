@@ -31,4 +31,36 @@ solar-system.example.com {
   # заголовка не было вовсе.
   @html path / /index.html
   header @html Cache-Control "no-cache"
+
+  # Заголовки безопасности - на все ответы.
+  #
+  # Политика содержимого описывает всё, что страница грузит, и ничего сверх:
+  # свой бандл и свой обработчик (eventsWorker), картинки свои и data: (значок
+  # вкладки вшит в index.html), стили свои и встроенные - блок <style> лежит
+  # прямо в index.html. Хеш вместо 'unsafe-inline' менялся бы с каждой
+  # сборкой, а чужого текста в разметку страница не вставляет. Положение
+  # подписей задаётся через element.style, это политика не ограничивает.
+  #
+  # Снимок кадра скачивается переходом по blob:-ссылке, буфер обмена в
+  # карточке поддержки пишется через navigator.clipboard, захват мыши - через
+  # requestPointerLock: ничего из этого здесь разрешать не нужно.
+  #
+  # Если в сборку однажды попадёт чужой код, он не подгрузит скрипт со
+  # стороны и ничего не отправит наружу; frame-ancestors не даст показать
+  # сцену в чужой рамке и перехватить щелчок по кнопке поддержки.
+  #
+  # Новую политику сначала включать как Content-Security-Policy-Report-Only
+  # и смотреть консоль на живом сайте: нарушения там видны, а сайт работает.
+  header {
+    Content-Security-Policy "default-src 'none'; script-src 'self'; worker-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    X-Content-Type-Options "nosniff"
+    # В адресе страницы записано состояние сцены. Наружу, по ссылкам на
+    # исходники и поддержку, уходит только имя сайта.
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    # Ошибка здесь не откатывается, пока не истечёт срок: браузер помнит
+    # заголовок и не пустит на сайт по http. Поэтому начинать с суток, без
+    # includeSubDomains и preload, и удлинять, когда всё устоялось.
+    Strict-Transport-Security "max-age=86400"
+  }
 }
