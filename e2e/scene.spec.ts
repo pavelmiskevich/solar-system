@@ -252,6 +252,35 @@ test.describe('ожидание кадров', () => {
     expect(error!.message).toContain('кадры не идут');
     expect(error!.message).toContain('получено 0 из 3');
   });
+
+  test('падает раньше предела теста, когда встал весь главный поток', async ({ page }) => {
+    // Короткий предел, чтобы проверка не держала долю CI две минуты.
+    test.setTimeout(45_000);
+    await openScene(page);
+
+    // Синхронный цикл занимает главный поток целиком, дольше предела теста:
+    // встают и кадры, и таймер сторожа в странице (случай #100). Его ловит
+    // только внешний сторож, и полный срок для 30 кадров - пять минут.
+    await page.evaluate(() => {
+      window.setTimeout(() => {
+        const until = Date.now() + 60_000;
+        while (Date.now() < until) {
+          // занят
+        }
+      }, 0);
+    });
+
+    let error: Error | null = null;
+    try {
+      await waitForFrames(page, 30);
+    } catch (caught) {
+      error = caught as Error;
+    }
+
+    expect(error, 'ожидание обязано было упасть само, раньше предела теста').not.toBeNull();
+    expect(error!.message).toContain('страница не отвечает');
+    expect(error!.message).toContain('столько оставалось до предела теста');
+  });
 });
 
 /**

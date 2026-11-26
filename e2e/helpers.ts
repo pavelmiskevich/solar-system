@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import type { DebugAccess } from '../src/main';
 
@@ -43,6 +43,7 @@ export interface OpenOptions {
 
 /** Открыть сцену и дождаться первого кадра. */
 export async function openScene(page: Page, options: OpenOptions = {}): Promise<string[]> {
+  markTestStart();
   const errors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(message.text());
@@ -81,6 +82,47 @@ const FRAME_STALL_MS = 10_000;
  * ответ, миллисекунды.
  */
 const PAGE_REPLY_MARGIN_MS = 5_000;
+
+/**
+ * За сколько до предела теста срабатывает внешний сторож, миллисекунды:
+ * столько нужно, чтобы его ошибка успела дойти до отчёта раньше таймаута.
+ */
+const TEST_LIMIT_MARGIN_MS = 5_000;
+
+/**
+ * Когда начался тест - по первому `openScene` в нём.
+ *
+ * Playwright не отдаёт ни время начала теста, ни остаток его предела: у
+ * TestInfo есть только сам предел. А сцену открывает первым делом почти каждый
+ * тест, и то, что ушло до неё (контекст браузера, хуки), - секунды. Остаток
+ * от этого выходит чуть больше настоящего, и запас выше его покрывает.
+ */
+const testStartedAt = new Map<string, number>();
+
+function testKey(): string | undefined {
+  try {
+    const info = test.info();
+    return `${info.testId}#${info.retry}#${info.repeatEachIndex}`;
+  } catch {
+    // Вне теста, например в beforeAll: предела теста там нет.
+    return undefined;
+  }
+}
+
+function markTestStart(): void {
+  const key = testKey();
+  if (key !== undefined && !testStartedAt.has(key)) testStartedAt.set(key, Date.now());
+}
+
+/** Сколько осталось до предела теста, или `undefined`, если неизвестно. */
+function testTimeLeftMs(): number | undefined {
+  const key = testKey();
+  const started = key === undefined ? undefined : testStartedAt.get(key);
+  // Предел 0 значит «без предела»: тогда и подрезать сторожа не к чему.
+  const limit = key === undefined ? 0 : test.info().timeout;
+  if (started === undefined || limit === 0) return undefined;
+  return limit - (Date.now() - started);
+}
 
 /**
  * Дождаться, пока сцена отрисует несколько кадров подряд.
@@ -138,7 +180,16 @@ export async function waitForFrames(
   // упавшей проверки. Необработанным он быть не должен.
   reply.catch(() => undefined);
 
-  const deadlineMs = count * stallMs + PAGE_REPLY_MARGIN_MS;
+  // Полный срок - на случай, когда каждый кадр шёл бы почти до срока
+  // внутреннего сторожа. Для 30 кадров это пять минут при пределе теста в
+  // две, и раньше сторож при таком сроке не успевал никогда: первым рвался
+  // тест, и в отчёте оставался голый таймаут (#181). Поэтому срок подрезается
+  // по остатку предела теста.
+  const fullDeadlineMs = count * stallMs + PAGE_REPLY_MARGIN_MS;
+  const timeLeftMs = testTimeLeftMs();
+  const cappedMs = timeLeftMs === undefined ? Infinity : Math.max(timeLeftMs - TEST_LIMIT_MARGIN_MS, 1_000);
+  const deadlineMs = Math.min(fullDeadlineMs, cappedMs);
+  const cutByTestLimit = deadlineMs < fullDeadlineMs;
   const started = Date.now();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const silence = new Promise<'silence'>((resolve) => {
@@ -158,10 +209,14 @@ export async function waitForFrames(
   // строки проверки, и видно, какое из ожиданий встало.
   if (seen === 'silence') {
     const lateMs = Date.now() - started - deadlineMs;
+    // Подрезанный срок короче законного ожидания, и сообщение говорит, какой
+    // из сроков вышел: в подрезанный не уложились бы и медленные кадры.
+    const limit = cutByTestLimit
+      ? `${(deadlineMs / 1000).toFixed(1)} с (столько оставалось до предела теста)`
+      : `${deadlineMs / 1000} с`;
     throw new Error(
-      `страница не отвечает: ожидание ${count} кадров не вернулось за ` +
-        `${deadlineMs / 1000} с, и сторож внутри неё тоже молчит; ` +
-        `таймер теста опоздал на ${(lateMs / 1000).toFixed(1)} с`,
+      `страница не отвечает: ожидание ${count} кадров не вернулось за ${limit}, ` +
+        `и сторож внутри неё тоже молчит; таймер теста опоздал на ${(lateMs / 1000).toFixed(1)} с`,
     );
   }
 
