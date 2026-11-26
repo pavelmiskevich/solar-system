@@ -23,16 +23,77 @@ on:
 permissions:
   contents: read
 
+# Два прогона одного тега (push и ручной перезапуск) идут по очереди, а не
+# вперемешку. Обрывать начатый выпуск нельзя: оборванный посреди выкладки, он
+# оставит на сервере полузалитый каталог. Разные теги эта группа не разводит,
+# для них ниже своя группа у задания deploy.
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   # Тег ставится вручную и может уехать на коммит, который никто не проверял.
   # Поэтому выпуск начинается с той же проверки, что и обычный push.
   verify:
     name: verify
     runs-on: ubuntu-latest
+    # Обычно минута-две. Без предела зависший шаг держит задание шесть часов.
+    timeout-minutes: 10
     steps:
+      # Имя тега дальше становится частью путей и команд на сервере
+      # (mkdir, rsync --delete, ln). Поставить тег может только владелец, так
+      # что это предохранитель от опечатки, а не от злоумышленника. Проверка
+      # идёт до checkout: строка с кавычкой или пробелом уронила бы его с
+      # невнятной ошибкой, а здесь видно, что не так.
+      #
+      # Предвыпускные теги вида v1.0.0-rc.1 шаблон не пропускает нарочно:
+      # понадобятся - расширять его осознанно.
+      - name: Имя тега
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        # Сверка средствами bash, а не grep: grep смотрит строки по одной, и
+        # значение «v1.2.3, перевод строки, что угодно» прошло бы по первой.
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::тег '$TAG' не похож на vX.Y.Z"
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag || github.ref_name }}
+          # Вся история нужна для проверки «тег лежит на main»: на обрезанной
+          # до одного коммита merge-base не найдёт предка никогда.
+          fetch-depth: 0
+
+      # Порядок выпуска держится на том, что тег ставят руками на коммит
+      # «Версия X» в main. Ошибиться коммитом легко, и тогда выложится либо
+      # сборка со старой версией в package.json, либо ветка, не прошедшая
+      # сквозных тестов: здесь гоняются только типы и юнит-тесты.
+      - name: Тег совпадает с версией и лежит на main
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # Ручной запуск принимает любую строку, в том числе имя ветки,
+          # совпавшее с шаблоном. Выпускается только настоящий тег.
+          git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
+            || { echo "::error::тега $TAG нет в репозитории"; exit 1; }
+
+          PKG=$(node -p "require('./package.json').version")
+          if [ "v$PKG" != "$TAG" ]; then
+            echo "::error::тег $TAG, а в package.json версия $PKG"
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "refs/tags/$TAG" origin/main; then
+            echo "::error::коммит тега $TAG не лежит на main"
+            exit 1
+          fi
+
+          echo "тег $TAG: версия совпадает, коммит на main"
+
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -45,6 +106,7 @@ jobs:
     name: release
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       # Единственное задание, которому нужна запись: оно создаёт Release.
       contents: write
@@ -106,6 +168,20 @@ jobs:
     name: deploy
     needs: release
     runs-on: ubuntu-latest
+    # Выкладка с проверкой занимает около минуты. Пять попыток проверки сайта
+    # по 30 секунд и бандл на 60 укладываются с запасом.
+    timeout-minutes: 15
+    # Ресурс здесь - сервер с одним симлинком current, а не тег. Два разных
+    # тега, выпущенных подряд, без этой группы выкладывались бы одновременно,
+    # и их mkdir, rsync и перестановки симлинка перемешались бы.
+    #
+    # Очередь у GitHub на одно место: третий прогон, пришедший следом,
+    # вытеснит из ожидания второй. Для выкладки это и нужно - дойдёт самый
+    # новый. Порядок тегов при этом не гарантирован: кто раньше дошёл до
+    # deploy, тот и выкладывается первым.
+    concurrency:
+      group: production
+      cancel-in-progress: false
     # Секреты лежат в окружении, а не в репозитории: обычным прогонам CI они
     # недоступны, их видит только это задание.
     environment:
@@ -155,7 +231,11 @@ jobs:
           # $HOME, а не тильда: строка уходит в rsync через -e, тот разбивает
           # её по пробелам и передаёт ssh как есть - раскрывать тильду там
           # некому. Оболочка же раскрывает $HOME до вызова rsync.
-          SSH="ssh -i $HOME/.ssh/deploy -p ${PORT:-22} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          #
+          # Таймауты соединения, а не только задания: сервер, замолчавший
+          # посреди сессии, рвётся за минуту с понятной ошибкой ssh, а не через
+          # пятнадцать минут невнятным «задание превысило время».
+          SSH="ssh -i $HOME/.ssh/deploy -p ${PORT:-22} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
 
           # Каждый выпуск кладётся в свой каталог. Перестановка симлинка
           # атомарна: пользователь не застанет сайт в полусобранном виде.
@@ -188,7 +268,7 @@ jobs:
           VERSION: ${{ needs.release.outputs.version }}
         run: |
           set -euo pipefail
-          SSH="ssh -i $HOME/.ssh/deploy -p ${PORT:-22} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          SSH="ssh -i $HOME/.ssh/deploy -p ${PORT:-22} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
 
           # Путь обязан быть абсолютным: относительный молча уложит выкладку
           # в домашний каталог, и снаружи это выглядит как успех.
