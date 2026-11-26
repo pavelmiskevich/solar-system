@@ -341,3 +341,38 @@ jobs:
           # Сцена со всеми каталогами весит под мегабайт. Сотня килобайт - это
           # не «немного меньше», это страница с ошибкой вместо бандла.
           [ "$SIZE" -gt 100000 ] || { echo "бандл подозрительно мал"; exit 1; }
+
+      # Настройка Caddy живёт на сервере, а не в репозитории, и однажды уже
+      # разошлась с образцом deploy/Caddyfile.example: страница шла без
+      # Cache-Control и без единого заголовка безопасности (#171). Снаружи
+      # этого не видно, сайт открывается как обычно. Поэтому каждый выпуск
+      # сверяет заголовки страницы с образцом.
+      #
+      # Политика содержимого - строгая, не Report-Only: та только пишет о
+      # нарушениях в консоль и ничего не запрещает. Report-Only годится на
+      # время проверки новой политики, но выпуск с ней считается неполным.
+      - name: Сайт отдаёт заголовки из образца
+        env:
+          SITE: ${{ vars.SITE_URL }}
+        run: |
+          set -euo pipefail
+
+          HEADERS=$(curl -fsS --max-time 20 -o /dev/null -D - "${SITE%/}/" | tr -d '\r' | tr 'A-Z' 'a-z')
+
+          MISSING=
+          for expected in \
+            'cache-control: no-cache' \
+            'x-content-type-options: nosniff' \
+            'referrer-policy: strict-origin-when-cross-origin' \
+            'permissions-policy: ' \
+            'strict-transport-security: max-age=' \
+            "content-security-policy: default-src 'none'"; do
+            printf '%s\n' "$HEADERS" | grep -q "^$expected" || MISSING="$MISSING
+            $expected"
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo "::error::на странице нет заголовков (сверить /etc/caddy/Caddyfile с deploy/Caddyfile.example):$MISSING"
+            exit 1
+          fi
+          echo "заголовки на месте"
