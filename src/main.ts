@@ -1148,8 +1148,11 @@ bindSceneInput({
 
 // Отладочный доступ из консоли: позволяет ставить камеру и время программно,
 // без чего невозможна проверка сцены скриншотами.
-if (import.meta.env.DEV) {
-  (window as unknown as Record<string, unknown>).sim = {
+//
+// Функцией, а не литералом прямо в условии: так у объекта есть тип, который
+// можно вынести наружу. В сборке функция не вызывается и выпадает целиком.
+function debugAccess() {
+  return {
     flight,
     clock,
     viewport,
@@ -1199,4 +1202,15 @@ if (import.meta.env.DEV) {
       orbits.rebuild(clock.jd);
     },
   };
+}
+
+/**
+ * Состав `window.sim`. По нему сквозные тесты сверяют имена полей: поле,
+ * переименованное или убранное здесь, ловит `npm run typecheck`, а не
+ * получасовой прогон Playwright.
+ */
+export type DebugAccess = ReturnType<typeof debugAccess>;
+
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).sim = debugAccess();
 }
