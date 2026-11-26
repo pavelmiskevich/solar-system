@@ -4,7 +4,9 @@ import { Vector3 } from 'three';
 import { satellitePosition } from '../src/physics/satellite';
 import { equatorialBasis, tidalOrientation } from '../src/physics/rotation';
 import { MOONS, bodyById } from '../src/data/bodies';
-import { JD_J2000, SECONDS_PER_DAY } from '../src/core/units';
+import { JD_J2000, SECONDS_PER_DAY, julianDayFromDate } from '../src/core/units';
+import { positionAt } from '../src/physics/kepler';
+import { eclipticToScene } from '../src/scene/system';
 
 const moon = (id: string) => MOONS.find((m) => m.id === id)!;
 
@@ -256,5 +258,74 @@ describe('крупные спутники планет', () => {
       if (id === 'triton') continue;
       expect(bodyById(id)!.rotation.rotationRate, id).toBeGreaterThan(0);
     }
+  });
+});
+
+/*
+ * Фаза по наблюдениям.
+ *
+ * Проверки выше ловят форму орбиты и опечатку в периоде, но не то, где на
+ * орбите спутник стоит: средняя аномалия на эпоху ни с чем внутри таблицы не
+ * связана, и ошибка в ней видна только на небе. Так Титан с самого начала
+ * проекта стоял не на той стороне орбиты, и ни одна проверка этого не
+ * заметила.
+ *
+ * Мера - тень: прошла ли ось тени спутника через диск планеты в момент,
+ * когда тень на диске видели. Время наблюдения с Земли позже геометрического
+ * на путь света от планеты, и он здесь вычтен.
+ */
+describe('фаза спутников по наблюдениям', () => {
+  /** Гелиоцентрическое положение, км, в осях сцены - как в SolarSystem.update. */
+  function place(id: string, jd: number): Vector3 {
+    const definition = bodyById(id)!;
+    if (!definition.parent) {
+      const p = positionAt(definition.orbit!, jd);
+      return eclipticToScene(p, new Vector3());
+    }
+    const host = place(definition.parent, jd);
+    const local = satellitePosition(definition.satellite!, jd);
+    const basis = equatorialBasis(bodyById(definition.parent)!.rotation);
+    return host
+      .addScaledVector(basis.node, local.x)
+      .addScaledVector(basis.third, local.y)
+      .addScaledVector(basis.pole, local.z);
+  }
+
+  /** Расстояние от центра планеты до оси тени спутника, в радиусах планеты. */
+  function shadowOffset(id: string, jd: number): number {
+    const definition = bodyById(id)!;
+    const satellite = place(id, jd);
+    const planet = place(definition.parent!, jd);
+    const axis = satellite.clone().normalize();
+    const offset = planet.sub(satellite);
+    const along = offset.dot(axis);
+    if (along <= 0) return Infinity;
+    return offset.sub(axis.multiplyScalar(along)).length() / bodyById(definition.parent!)!.radius;
+  }
+
+  const moment = (iso: string, lightMinutes: number) =>
+    julianDayFromDate(new Date(iso)) - lightMinutes / (24 * 60);
+
+  it('тройная тень на Юпитере 24 января 2015 года', () => {
+    // С Земли тени Ио, Европы и Каллисто были на диске разом с 06:27 до
+    // 06:52 UT. Свет от Юпитера шёл 36 минут.
+    const jd = moment('2015-01-24T06:40:00Z', 36);
+    for (const id of ['io', 'europa', 'callisto']) {
+      expect(shadowOffset(id, jd), id).toBeLessThan(1);
+    }
+  });
+
+  it('тень Титана на Сатурне в день снимка Хаббла, 24 февраля 2009 года', () => {
+    // Снимок сделан около равноденствия Сатурна, когда тени спутников
+    // ложатся на диск; часа съёмки здесь нет, поэтому берётся ближайший к
+    // оси тени час тех суток. Свет от Сатурна шёл 73 минуты. С прежними
+    // элементами Титан в эти сутки стоял по другую сторону Сатурна, и тени
+    // на диске не было вовсе.
+    let closest = Infinity;
+    for (let hour = 0; hour < 24; hour += 1) {
+      const iso = `2009-02-24T${String(hour).padStart(2, '0')}:00:00Z`;
+      closest = Math.min(closest, shadowOffset('titan', moment(iso, 73)));
+    }
+    expect(closest).toBeLessThan(1);
   });
 });
