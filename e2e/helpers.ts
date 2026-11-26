@@ -603,3 +603,36 @@ export async function expectEqualPickers(page: Page): Promise<void> {
     expect(height, `высоты окон выбора: ${report}`).toBeLessThanOrEqual(tallest + 2);
   }
 }
+
+/** Точка экрана в пикселях окна. */
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * Подать жест настоящими касаниями: каждый палец идёт по прямой из своей
+ * точки `from` в свою точку `to` за `steps` шагов, затем все отпускаются.
+ *
+ * Через CDP, а не через `page.touchscreen`: тот умеет только одиночное
+ * касание без движения, а щипок - это два пальца сразу, свайп - движение
+ * пальца, и по движению код и отличает перемотку от осмотра.
+ */
+export async function touchGesture(page: Page, from: Point[], to: Point[], steps = 10): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: Point[]) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+
+  await send('touchStart', from);
+  for (let i = 1; i <= steps; i += 1) {
+    await send(
+      'touchMove',
+      from.map((point, index) => ({
+        x: point.x + ((to[index]!.x - point.x) * i) / steps,
+        y: point.y + ((to[index]!.y - point.y) * i) / steps,
+      })),
+    );
+  }
+  await send('touchEnd', []);
+  await cdp.detach();
+}

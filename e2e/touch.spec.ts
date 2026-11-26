@@ -7,41 +7,11 @@ import {
   openScene,
   pauseAt,
   screenPositionOf,
+  touchGesture as gesture,
   waitForArrival,
   waitForFrames,
+  type Point,
 } from './helpers';
-
-interface Point {
-  x: number;
-  y: number;
-}
-
-/**
- * Подать жест настоящими касаниями.
- *
- * Через CDP, а не через `page.touchscreen`: тот умеет одно касание, а щипок -
- * это два пальца сразу, и подменить его ничем нельзя. Пальцев может быть
- * сколько угодно; каждый идёт из своей точки в свою.
- */
-async function gesture(page: Page, from: Point[], to: Point[]): Promise<void> {
-  const cdp = await page.context().newCDPSession(page);
-  const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: Point[]) =>
-    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
-
-  await send('touchStart', from);
-  const STEPS = 10;
-  for (let i = 1; i <= STEPS; i += 1) {
-    await send(
-      'touchMove',
-      from.map((point, index) => ({
-        x: point.x + ((to[index]!.x - point.x) * i) / STEPS,
-        y: point.y + ((to[index]!.y - point.y) * i) / STEPS,
-      })),
-    );
-  }
-  await send('touchEnd', []);
-  await cdp.detach();
-}
 
 /**
  * Чем занята точка кадра - или `null`, если палец попадёт в сцену.
