@@ -2,7 +2,7 @@ import { Euler, Quaternion, Vector3 } from 'three';
 
 import { FlightControls } from './camera/flight';
 import { framingPosition } from './camera/framing';
-import { DEFAULT_TIME_SCALE, SimClock } from './core/clock';
+import { DEFAULT_TIME_SCALE, SimClock, WallClockFollower } from './core/clock';
 import { FloatingOrigin } from './core/floatingOrigin';
 import { RenderLoop } from './core/loop';
 import { AdaptiveQuality } from './core/quality';
@@ -135,6 +135,15 @@ const clock = new SimClock(
   initialState.timeScale ?? DEFAULT_TIME_SCALE,
 );
 clock.paused = initialState.paused ?? false;
+
+// Сцена «сейчас» в реальном времени не отстаёт от часов после фоновой
+// вкладки: пока вкладка скрыта, кадров нет и время сцены стоит (#201).
+const wallClock = new WallClockFollower(clock);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) wallClock.hidden(Date.now());
+  else wallClock.shown(Date.now());
+});
+
 const origin = new FloatingOrigin();
 const exposure = new AdaptiveExposure();
 /** Замер яркости кадра - им экспозиция узнаёт, на что направлена камера. */
@@ -1148,8 +1157,11 @@ bindSceneInput({
 
 // Отладочный доступ из консоли: позволяет ставить камеру и время программно,
 // без чего невозможна проверка сцены скриншотами.
-if (import.meta.env.DEV) {
-  (window as unknown as Record<string, unknown>).sim = {
+//
+// Функцией, а не литералом прямо в условии: так у объекта есть тип, который
+// можно вынести наружу. В сборке функция не вызывается и выпадает целиком.
+function debugAccess() {
+  return {
     flight,
     clock,
     viewport,
@@ -1199,4 +1211,15 @@ if (import.meta.env.DEV) {
       orbits.rebuild(clock.jd);
     },
   };
+}
+
+/**
+ * Состав `window.sim`. По нему сквозные тесты сверяют имена полей: поле,
+ * переименованное или убранное здесь, ловит `npm run typecheck`, а не
+ * получасовой прогон Playwright.
+ */
+export type DebugAccess = ReturnType<typeof debugAccess>;
+
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).sim = debugAccess();
 }

@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import type { DebugAccess } from '../src/main';
+
 /**
  * Общая часть сквозных тестов.
  *
@@ -12,12 +14,15 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 /**
  * Отладочный доступ к сцене - он есть только в режиме разработки.
  *
- * Тип нарочно нестрогий: описывать здесь половину модулей проекта значило бы
- * держать вторую копию их интерфейсов и править её при каждом изменении.
+ * Строгие здесь только имена полей, и берутся они из самого объекта в
+ * main.ts: поле, переименованное там, ловит typecheck. Значения нарочно
+ * нестрогие: тесты лезут во внутренности модулей (закрытые поля, значения в
+ * колбэках page.evaluate), и точные типы потребовали бы приведений на
+ * каждом шагу, не поймав ничего сверх имён.
  */
 declare global {
   interface Window {
-    sim: Record<string, any>;
+    sim: { [K in keyof DebugAccess]: any };
   }
 }
 
@@ -657,4 +662,37 @@ export async function expectEqualPickers(page: Page): Promise<void> {
   for (const height of Object.values(whole)) {
     expect(height, `высоты окон выбора: ${report}`).toBeLessThanOrEqual(tallest + 2);
   }
+}
+
+/** Точка экрана в пикселях окна. */
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * Подать жест настоящими касаниями: каждый палец идёт по прямой из своей
+ * точки `from` в свою точку `to` за `steps` шагов, затем все отпускаются.
+ *
+ * Через CDP, а не через `page.touchscreen`: тот умеет только одиночное
+ * касание без движения, а щипок - это два пальца сразу, свайп - движение
+ * пальца, и по движению код и отличает перемотку от осмотра.
+ */
+export async function touchGesture(page: Page, from: Point[], to: Point[], steps = 10): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: Point[]) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+
+  await send('touchStart', from);
+  for (let i = 1; i <= steps; i += 1) {
+    await send(
+      'touchMove',
+      from.map((point, index) => ({
+        x: point.x + ((to[index]!.x - point.x) * i) / steps,
+        y: point.y + ((to[index]!.y - point.y) * i) / steps,
+      })),
+    );
+  }
+  await send('touchEnd', []);
+  await cdp.detach();
 }

@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
-import { distanceInRadii, openScene, waitForArrival, waitForFrames } from './helpers';
+import { distanceInRadii, expectNoErrors, openScene, waitForArrival, waitForFrames } from './helpers';
 
 /**
  * Состояние сцены: дата и ссылка.
@@ -84,6 +84,81 @@ test.describe('часы сцены', () => {
     expect(hud, 'HUD показывает время не всемирное').toContain('12:00');
     expect(hud).toContain('2032');
     expect(hud).not.toContain('21:00');
+  });
+});
+
+/**
+ * Реальное время после фоновой вкладки (#201).
+ *
+ * Настоящую фоновую вкладку headless-браузер не даёт: кадры в нём идут и так.
+ * Поэтому фон изображается так, как его видит страница: document.hidden и
+ * событие visibilitychange, а кадры придерживаются, пока вкладка «скрыта», -
+ * именно остановка кадров и роняла время сцены.
+ */
+test.describe('реальное время после фоновой вкладки', () => {
+  const HIDDEN_MS = 10_000;
+
+  async function hideTabFor(page: Page, ms: number): Promise<void> {
+    await page.evaluate(() => {
+      const w = window as unknown as { heldFrames: FrameRequestCallback[]; realRaf: typeof requestAnimationFrame };
+      w.heldFrames = [];
+      w.realRaf = window.requestAnimationFrame;
+      window.requestAnimationFrame = (callback) => {
+        w.heldFrames.push(callback);
+        return 0;
+      };
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await page.waitForTimeout(ms);
+
+    await page.evaluate(() => {
+      const w = window as unknown as { heldFrames: FrameRequestCallback[]; realRaf: typeof requestAnimationFrame };
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      window.requestAnimationFrame = w.realRaf;
+      document.dispatchEvent(new Event('visibilitychange'));
+      for (const callback of w.heldFrames.splice(0)) window.requestAnimationFrame(callback);
+    });
+    await waitForFrames(page, 3);
+  }
+
+  test('сцена «сейчас» догоняет часы', async ({ page }) => {
+    const errors = await openScene(page);
+    await page.evaluate(() => {
+      const clock = window.sim.clock;
+      clock.timeScale = 1 / 86_400;
+      clock.paused = false;
+      clock.date = new Date();
+    });
+
+    await hideTabFor(page, HIDDEN_MS);
+
+    // Без подтягивания сцена отстала бы на все десять секунд фона. Допуск -
+    // на кадры после возврата: на runner без видеокарты кадр длится дольше
+    // своего ограниченного шага, и реальное время понемногу отстаёт.
+    const lagMs = await page.evaluate(() => Date.now() - window.sim.clock.date.getTime());
+    expect(Math.abs(lagMs), `отставание от часов, мс: ${lagMs}`).toBeLessThan(3_000);
+    expectNoErrors(errors);
+  });
+
+  test('сцена на выбранной дате на ней и остаётся', async ({ page }) => {
+    const errors = await openScene(page);
+    const apollo = Date.UTC(1969, 6, 20, 20, 17);
+    await page.evaluate((ms) => {
+      const clock = window.sim.clock;
+      clock.timeScale = 1 / 86_400;
+      clock.paused = false;
+      clock.date = new Date(ms);
+    }, apollo);
+
+    await hideTabFor(page, 3_000);
+
+    const shiftMs = await page.evaluate((ms) => window.sim.clock.date.getTime() - ms, apollo);
+    expect(Math.abs(shiftMs), `сдвиг от выбранной даты, мс: ${shiftMs}`).toBeLessThan(60_000);
+    expectNoErrors(errors);
   });
 });
 
