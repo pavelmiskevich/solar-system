@@ -348,8 +348,9 @@ jobs:
       # этого не видно, сайт открывается как обычно. Поэтому каждый выпуск
       # сверяет заголовки страницы с образцом.
       #
-      # Политика содержимого принимается и в режиме Report-Only: так её
-      # включают сначала, чтобы нарушения были видны, а сайт работал.
+      # Политика содержимого - строгая, не Report-Only: та только пишет о
+      # нарушениях в консоль и ничего не запрещает. Report-Only годится на
+      # время проверки новой политики, но выпуск с ней считается неполным.
       - name: Сайт отдаёт заголовки из образца
         env:
           SITE: ${{ vars.SITE_URL }}
@@ -365,7 +366,7 @@ jobs:
             'referrer-policy: strict-origin-when-cross-origin' \
             'permissions-policy: ' \
             'strict-transport-security: max-age=' \
-            'content-security-policy'; do
+            "content-security-policy: default-src 'none'"; do
             printf '%s\n' "$HEADERS" | grep -q "^$expected" || MISSING="$MISSING
             $expected"
           done
