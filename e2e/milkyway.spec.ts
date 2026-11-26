@@ -16,6 +16,7 @@ const basis = galacticBasis();
 
 /** Посмотреть в заданную сторону неба и дать экспозиции устояться. */
 async function lookTowards(page: Page, direction: Vector3): Promise<void> {
+  const towards: [number, number, number] = [direction.x, direction.y, direction.z];
   await page.evaluate(
     (at) => {
       const sim = window.sim;
@@ -25,7 +26,7 @@ async function lookTowards(page: Page, direction: Vector3): Promise<void> {
       const from: [number, number, number] = [3e8, 1e8, 2e8];
       sim.lookAt(from, [from[0] + at[0] * 1e12, from[1] + at[1] * 1e12, from[2] + at[2] * 1e12]);
     },
-    [direction.x, direction.y, direction.z],
+    towards,
   );
 
   await page.waitForTimeout(2500);
