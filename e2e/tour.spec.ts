@@ -231,7 +231,7 @@ test.describe('экскурсия на сенсорном экране', () => {
 
   async function drag(page: Page, from: Point, to: Point): Promise<void> {
     const cdp = await page.context().newCDPSession(page);
-    const send = (type: string, x?: number, y?: number) =>
+    const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number, y?: number) =>
       cdp.send('Input.dispatchTouchEvent', {
         type,
         touchPoints: x === undefined ? [] : [{ x, y: y as number }],

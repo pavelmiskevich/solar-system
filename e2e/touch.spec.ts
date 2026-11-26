@@ -25,7 +25,7 @@ interface Point {
  */
 async function gesture(page: Page, from: Point[], to: Point[]): Promise<void> {
   const cdp = await page.context().newCDPSession(page);
-  const send = (type: string, points: Point[]) =>
+  const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: Point[]) =>
     cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
 
   await send('touchStart', from);

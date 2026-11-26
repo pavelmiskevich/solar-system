@@ -540,7 +540,7 @@ UTC ось лунной тени проходит в 5 780 км от центр�
 ## Проверка
 
 ```bash
-npm run typecheck   # tsc --noEmit
+npm run typecheck   # tsc: код и юнит-тесты, затем сквозные тесты отдельным проходом
 npm test            # 516 юнит-тестов
 npm run e2e         # 173 сквозных теста, Playwright + Chromium
 ```
