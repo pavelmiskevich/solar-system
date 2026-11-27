@@ -334,7 +334,13 @@ jobs:
           # Страница может ссылаться на бандл, которого нет: тогда адрес
           # открывается, а сцена не появляется - и снаружи это выглядит как
           # чёрный экран, а не как сорванная выкладка.
-          curl -fsS --max-time 60 -o bundle.js "$BASE/$BUNDLE"
+          #
+          # Повторы - на обрыв, а не на отсутствие: однажды заголовки пришли,
+          # а за минуту не пришло ни байта из мегабайта, и выпуск упал, хотя
+          # сервер отдавал бандл за десятую долю секунды. Ответ 404 повтором
+          # не лечится и после трёх попыток роняет шаг, как и прежде.
+          curl -fsS --max-time 60 --retry 3 --retry-delay 10 --retry-all-errors \
+            -o bundle.js "$BASE/$BUNDLE"
           SIZE=$(wc -c < bundle.js)
           echo "бандл отдаётся, $SIZE байт"
 
@@ -357,7 +363,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          HEADERS=$(curl -fsS --max-time 20 -o /dev/null -D - "${SITE%/}/" | tr -d '\r' | tr 'A-Z' 'a-z')
+          HEADERS=$(curl -fsS --max-time 20 --retry 3 --retry-delay 10 --retry-all-errors \
+            -o /dev/null -D - "${SITE%/}/" | tr -d '\r' | tr 'A-Z' 'a-z')
 
           MISSING=
           for expected in \
