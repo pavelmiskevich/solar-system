@@ -298,6 +298,7 @@ export const EN: Dictionary = {
       close: 'Events ✕',
       empty: 'Nothing found in the coming years',
       loading: 'Searching for events…',
+      otherPlanets: 'Eclipses at other planets',
     },
     tour: { title: 'Start the tour (T)', start: 'Tour ▶', stop: 'Stop the tour ✕' },
     snapshot: { title: 'Save the frame as PNG (K)', label: 'Snapshot ⤓', done: 'Snapshot ✓' },

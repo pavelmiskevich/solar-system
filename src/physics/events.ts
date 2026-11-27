@@ -594,33 +594,43 @@ export function inSeason(id: string, from: number, to: number): boolean {
 }
 
 /**
- * Первое событие на отрезке: перебор кусками, до первой находки.
+ * Ближайшие события на COVER_DAYS вперёд: перебор кусками до первой находки,
+ * и от неё ещё столько кусков, чтобы набралось COVER_DAYS.
  *
  * Ио проходит тенью по Юпитеру каждые 42 часа, и за пять лет таких событий
- * тысяча. Список из тысячи строк про Ио не сообщает ничего сверх первой, а
- * следующую человек найдёт, сдвинув дату. Поэтому от каждого спутника в
- * список идёт одно, ближайшее. Искать дальше первого незачем: у частых
- * спутников оно находится в первом же куске.
+ * тысяча. Список из тысячи строк про Ио не сообщает ничего сверх первой,
+ * поэтому список показывает от каждого спутника одно, ближайшее ещё не
+ * прошедшее (см. visibleRows в data/events.ts). Отдаётся же запас: на сутках
+ * в секунду ближайшая тень Ио становится прошлым через пару секунд, и без
+ * запаса поиск пришлось бы повторять непрерывно. Запас - два месяца, а не
+ * месяц: у Каллисто в месяце одно-два затмения, и месячного куска хватало
+ * лишь на две недели.
  *
  * Куски вне сезона (см. inSeason) пропускаются, не перебираясь: у спутников
  * Урана сезон затмений бывает раз в 42 года, и пустой ответ для них -
  * правильный, но получить его можно и без пяти лет перебора.
  */
-export function firstOf(
+export function nearestChunk(
   search: (from: number, to: number) => AstronomicalEvent[],
   from: number,
   to: number,
   worth: (from: number, to: number) => boolean = () => true,
   chunk = SEASON_CHUNK_DAYS,
-): AstronomicalEvent | undefined {
-  for (let start = from; start < to; start += chunk) {
-    const end = Math.min(to, start + chunk);
+): AstronomicalEvent[] {
+  const found: AstronomicalEvent[] = [];
+  let until = to;
+  for (let start = from; start < until; start += chunk) {
+    const end = Math.min(until, start + chunk);
     if (!worth(start, end)) continue;
-    const [first] = search(start, end);
-    if (first) return first;
+    const events = search(start, end);
+    if (events.length > 0 && found.length === 0) until = Math.min(to, start + COVER_DAYS);
+    found.push(...events);
   }
-  return undefined;
+  return found;
 }
+
+/** На сколько вперёд от первой находки собираются события спутника, сут. */
+export const COVER_DAYS = 60;
 
 /** Кусок перебора спутниковых затмений, сут. */
 export const SEASON_CHUNK_DAYS = 30;
@@ -973,8 +983,9 @@ export function findEvents(from: number, to: number): AstronomicalEvent[] {
 
     for (const id of SATELLITE_IDS) {
       for (const search of [satelliteShadows, satelliteEclipses]) {
-        const first = firstOf((a, b) => search(id, a, b), from, to, (a, b) => inSeason(id, a, b));
-        if (first) events.push(first);
+        events.push(
+          ...nearestChunk((a, b) => search(id, a, b), from, to, (a, b) => inSeason(id, a, b)),
+        );
       }
     }
 

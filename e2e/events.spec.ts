@@ -172,26 +172,73 @@ test.describe('ближайшие события', () => {
     await page.keyboard.press('KeyE');
     await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
 
-    const kinds = await page.locator(panel).evaluateAll((nodes) =>
-      nodes.map((n) => (n as HTMLElement).dataset.event ?? ''),
+    const rows = await page.locator(panel).evaluateAll((nodes) =>
+      nodes.map((n) => ({
+        id: (n as HTMLElement).dataset.event ?? '',
+        group: (n as HTMLElement).dataset.group ?? '',
+      })),
     );
+    const kinds = rows.map((row) => row.id);
 
     expect(kinds.some((k) => k.startsWith('solar-eclipse'))).toBe(true);
     expect(kinds.some((k) => k.startsWith('lunar-eclipse'))).toBe(true);
     expect(kinds.some((k) => k.startsWith('opposition'))).toBe(true);
     expect(kinds.some((k) => k.startsWith('conjunction'))).toBe(true);
 
-    // Ключ строки кончается датой: список отсортирован по времени и начинается
-    // не раньше нынешнего часа. Ради этого он и называется «ближайшие».
-    // Исключение одно: событие, максимум которого прошёл не больше трёх часов
-    // назад, ещё идёт и стоит в списке первым. Ещё час - на то, что ключ
-    // обрезан до часа.
-    const dates = kinds.map((k) => /\d{4}-\d{2}-\d{2}T\d{2}$/.exec(k)?.[0] ?? '');
+    // Затмения у других планет - своей группой под всеми остальными: Ио и
+    // Фобос дают их каждые сутки-двое, и в общем порядке они заслонили бы
+    // ближайшее земное затмение.
+    const groups = rows.map((row) => row.group);
+    const firstPlanet = groups.indexOf('planets');
+    expect(firstPlanet, 'затмений у других планет в списке нет').toBeGreaterThan(0);
+    expect(groups.slice(0, firstPlanet).every((g) => g === 'sky')).toBe(true);
+    expect(groups.slice(firstPlanet).every((g) => g === 'planets')).toBe(true);
+    expect(kinds.slice(firstPlanet).every((k) => k.startsWith('satellite-'))).toBe(true);
+    await expect(page.locator(`${aside} .events-heading`)).toHaveText('Затмения у других планет');
 
-    expect(dates.every(Boolean)).toBe(true);
-    expect(dates).toEqual([...dates].sort());
-    const first = Date.parse(`${dates[0]}:00:00Z`);
-    expect(first).toBeGreaterThanOrEqual(Date.now() - 4 * 3_600_000);
+    // Ключ строки кончается датой: внутри каждой группы список отсортирован
+    // по времени и начинается не раньше нынешнего часа. Ради этого он и
+    // называется «ближайшие». Исключение одно: событие, максимум которого
+    // прошёл не больше трёх часов назад, ещё идёт и стоит в группе первым.
+    // Ещё час - на то, что ключ обрезан до часа.
+    for (const group of [kinds.slice(0, firstPlanet), kinds.slice(firstPlanet)]) {
+      const dates = group.map((k) => /\d{4}-\d{2}-\d{2}T\d{2}$/.exec(k)?.[0] ?? '');
+
+      expect(dates.every(Boolean)).toBe(true);
+      expect(dates).toEqual([...dates].sort());
+      const first = Date.parse(`${dates[0]}:00:00Z`);
+      expect(first).toBeGreaterThanOrEqual(Date.now() - 4 * 3_600_000);
+    }
+  });
+
+  test('прошедшие затмения у других планет из открытого списка уходят', async ({ page }) => {
+    // От каждого спутника в списке одно ближайшее затмение, у Ио - не дальше
+    // двух суток. Раньше список пересчитывался, только когда дата уходила за
+    // пятилетнее окно поиска, и строки про Ио висели прошлым годами.
+    await openScene(page);
+    await page.keyboard.press('KeyP');
+    await page.keyboard.press('KeyE');
+    await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
+
+    const ioRow = page.locator('[data-event^="satellite-shadow-io-jupiter"]');
+    const before = await ioRow.getAttribute('data-event');
+
+    const later = await page.evaluate(() => {
+      const date = new Date(window.sim.clock.date.getTime() + 3 * 86_400_000);
+      window.sim.clock.date = date;
+      return date.getTime();
+    });
+
+    // Пересчёт - не чаще раза в три секунды и в фоновом потоке.
+    await expect(ioRow).not.toHaveAttribute('data-event', before!, {
+      timeout: EVENT_ROWS_TIMEOUT_MS,
+    });
+    const dates = await page.locator('[data-group="planets"][data-event]').evaluateAll((nodes) =>
+      nodes.map((n) => /\d{4}-\d{2}-\d{2}T\d{2}$/.exec((n as HTMLElement).dataset.event ?? '')?.[0]),
+    );
+    for (const date of dates) {
+      expect(Date.parse(`${date}:00:00Z`)).toBeGreaterThanOrEqual(later - 4 * 3_600_000);
+    }
   });
 
   test('переход к полному затмению приводит туда, где видна тень', async ({ page }) => {

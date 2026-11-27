@@ -12,7 +12,7 @@ import { decodeSceneState, encodeSceneState } from './core/sceneState';
 import type { BodyView, SceneState } from './core/sceneState';
 import { AU, DEG, dateFromJulianDay } from './core/units';
 import { SCENARIOS, scenarioById } from './data/scenarios';
-import { EVENT_WINDOW_YEARS, upcomingEventsInBackground } from './data/events';
+import { EVENT_WINDOW_YEARS, coveredUntil, upcomingEventsInBackground } from './data/events';
 import { GREETING_TIME_SCALE, greetingById, greetingLayout, greetingView } from './data/greetings';
 import type { EventRow } from './data/events';
 import { kindOf, listOrder } from './data/targets';
@@ -759,6 +759,8 @@ const datePanel = datePanelContainer ? new DatePanel(datePanelContainer, clock) 
  */
 let eventWindowStart = clock.jd;
 let eventCache: readonly EventRow[] | null = null;
+/** До какого момента найденного хватает (см. coveredUntil). */
+let eventCoveredJd = Infinity;
 /** Поиск, который идёт сейчас: второй такой же, пока он не кончился, не нужен. */
 let eventSearch: Promise<readonly EventRow[]> | null = null;
 /** Когда начат последний поиск, мс настенного времени. */
@@ -779,6 +781,7 @@ function loadEvents(): Promise<readonly EventRow[]> {
     eventSearch = upcomingEventsInBackground(start).then((rows) => {
       eventWindowStart = start;
       eventCache = rows;
+      eventCoveredJd = coveredUntil(rows);
       eventSearch = null;
       return rows;
     });
@@ -786,18 +789,24 @@ function loadEvents(): Promise<readonly EventRow[]> {
   return eventSearch;
 }
 
-const eventList: EventList = new EventList(bodyList.column, loadEvents, showEvent);
+const eventList: EventList = new EventList(bodyList.column, loadEvents, showEvent, () => clock.jd);
 
 /**
  * Список событий устарел, если дата сцены вышла за окно, по которому он
  * считался: назад он не смотрит вовсе, а вперёд знает лишь на пять лет. Ввод
  * даты рукой или готовый вид на 2038 год уводят время как раз так далеко.
+ *
+ * Или если у какого-то спутника прошло последнее найденное затмение. Поиск
+ * отдаёт по спутнику месяц событий, и список сменяет их сам (см.
+ * EventList.update); когда месяц кончился, строка спутника опустела бы до
+ * выхода за пятилетнее окно.
  */
 function refreshEventsIfOutOfWindow(): void {
   if (!eventCache) return;
   const behind = clock.jd < eventWindowStart;
   const ahead = clock.jd > eventWindowStart + 365.25 * EVENT_WINDOW_YEARS;
-  if (!behind && !ahead) return;
+  const passed = clock.jd > eventCoveredJd;
+  if (!behind && !ahead && !passed) return;
   if (performance.now() - eventSearchStarted < EVENT_RESEARCH_MS) return;
 
   eventCache = null;
@@ -1090,6 +1099,7 @@ const loop = new RenderLoop((dt, elapsed, frameSeconds) => {
   updateAddress(dt);
 
   refreshEventsIfOutOfWindow();
+  eventList.update();
   datePanel?.update();
   timeSlider?.update();
   hud.update({
