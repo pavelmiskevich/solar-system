@@ -1,9 +1,13 @@
+import { Vector3 } from 'three';
+
 import { AU, DEG, OBLIQUITY_J2000, RAD, SUN_RADIUS } from '../core/units';
-import { MOON, MOON_MASS_FRACTION, SUN, bodyById } from '../data/bodies';
-import type { RotationElements } from '../data/bodies';
+import { MOON, MOONS, MOON_MASS_FRACTION, SUN, bodyById } from '../data/bodies';
+import type { BodyDefinition, RotationElements } from '../data/bodies';
 import type { EclipticVector } from './kepler';
 import { positionAt } from './kepler';
 import { moonPositionAt } from './moon';
+import { equatorialBasis, type EquatorialBasis } from './rotation';
+import { orbitNormalInHost, satellitePosition } from './satellite';
 
 /**
  * Поиск астрономических событий по времени.
@@ -38,7 +42,9 @@ export type EventKind =
   | 'transit'
   | 'ring-plane-crossing'
   | 'ring-opening'
-  | 'planet-parade';
+  | 'planet-parade'
+  | 'satellite-shadow'
+  | 'satellite-eclipse';
 
 /**
  * Насколько глубоко зашло затмение.
@@ -98,9 +104,44 @@ export function heliocentric(id: string, jd: number): Vec {
     return { ...(id === 'earth' ? system.earth : system.moon) };
   }
 
-  const orbit = bodyById(id)?.orbit;
+  const body = bodyById(id);
+  if (body?.satellite && body.parent) return satelliteHeliocentric(body, jd);
+
+  const orbit = body?.orbit;
   if (!orbit) return { x: 0, y: 0, z: 0 };
   return scaled(positionAt(orbit, jd), AU);
+}
+
+/**
+ * Спутник планеты: её положение плюс его положение в экваториальной системе
+ * планеты. Тот же расчёт, что в сцене (`SolarSystem.update`), и иначе нельзя:
+ * событие, найденное по другой модели, в сцене могло бы не случиться.
+ */
+function satelliteHeliocentric(body: BodyDefinition, jd: number): Vec {
+  const host = heliocentric(body.parent!, jd);
+  const basis = hostBasis(body.parent!);
+  const p = satellitePosition(body.satellite!, jd, scratchSatellite);
+
+  // Базис планеты задан в осях сцены (x, z, −y эклиптики); обратно в
+  // эклиптику: x = x, y = −z, z = y.
+  const x = basis.node.x * p.x + basis.third.x * p.y + basis.pole.x * p.z;
+  const y = basis.node.y * p.x + basis.third.y * p.y + basis.pole.y * p.z;
+  const z = basis.node.z * p.x + basis.third.z * p.y + basis.pole.z * p.z;
+  return { x: host.x + x, y: host.y - z, z: host.z + y };
+}
+
+const scratchSatellite = new Vector3();
+
+/** Экваториальный базис планеты не зависит от времени: считается раз на планету. */
+const hostBases = new Map<string, EquatorialBasis>();
+
+function hostBasis(id: string): EquatorialBasis {
+  let basis = hostBases.get(id);
+  if (!basis) {
+    basis = equatorialBasis(bodyById(id)!.rotation);
+    hostBases.set(id, basis);
+  }
+  return basis;
 }
 
 interface EarthSystem {
@@ -406,6 +447,183 @@ export function lunarEclipses(from: number, to: number): AstronomicalEvent[] {
             : ('penumbral' as const),
     }));
 }
+
+/* ── Затмения у других планет ─────────────────────────────────────────────── */
+
+/*
+ * Те же два рода, что у Земли, только с другими участниками. Тень спутника на
+ * планете - солнечное затмение для того, кто стоит под ней на облаках
+ * Юпитера или на песке Марса. Спутник в тени планеты - его лунное затмение.
+ *
+ * Момент здесь геометрический: тот, когда тень в самом деле лежит на
+ * облаках. Справочники дают время для земного наблюдателя, и оно позже на
+ * время пути света от планеты до Земли - у Юпитера это 35-50 минут. Сцена
+ * показывает события там, где они происходят, а не их запоздалое отражение,
+ * поэтому и список считает их так же.
+ */
+
+/** Спутники, у которых есть свои элементы орбиты: Луна считается отдельно. */
+export const SATELLITE_IDS: readonly string[] = MOONS.filter((m) => m.satellite && m.parent).map(
+  (m) => m.id,
+);
+
+/**
+ * Шаг перебора для спутника, сут: восьмая часть его периода.
+ *
+ * Расстояние до оси тени опускается и поднимается раз за оборот, и минимум
+ * занимает примерно половину периода: на другой половине цель перед
+ * заслоняющим телом, и тени нет вовсе. Восьмая часть оставляет на минимум
+ * четыре узла - с запасом против проскока, о котором предупреждает findMinima.
+ */
+function satelliteStep(id: string): number {
+  return (bodyById(id)?.satellite?.period ?? 1) / 8;
+}
+
+/** Родитель спутника: на него падает тень и он её отбрасывает. */
+function hostOf(id: string): string {
+  return bodyById(id)?.parent ?? '';
+}
+
+/**
+ * Тень спутника на планете: все случаи на отрезке.
+ *
+ * Полное - тень спутника дотягивается до облаков, как у Ио, Европы,
+ * Ганимеда и Титана. Кольцеобразное - тень сходится раньше, и с планеты
+ * спутник виден на фоне Солнца кружком мельче его диска: так у Фобоса и
+ * Деймоса. Частное - мимо прошла и тень, и её продолжение, задела только
+ * полутень.
+ */
+export function satelliteShadows(id: string, from: number, to: number): AstronomicalEvent[] {
+  const host = hostOf(id);
+  const distance = (jd: number) => shadowAxisDistance(id, host, jd);
+
+  return findMinima(distance, from, to, satelliteStep(id))
+    .map((jd) => ({ jd, g: eclipseGeometry(id, host, jd) }))
+    .filter(({ g }) => g.distance < g.targetRadius + g.penumbra)
+    .map(({ jd, g }) => ({
+      kind: 'satellite-shadow' as const,
+      jd,
+      bodies: [id, host],
+      value: g.distance / g.targetRadius,
+      phase:
+        g.distance >= g.targetRadius
+          ? ('partial' as const)
+          : g.umbra > 0
+            ? ('total' as const)
+            : ('annular' as const),
+    }));
+}
+
+/**
+ * Спутник в тени планеты: все случаи на отрезке. Фазы те же, что у лунного
+ * затмения, и мера та же - расстояние до оси тени в радиусах планеты.
+ */
+export function satelliteEclipses(id: string, from: number, to: number): AstronomicalEvent[] {
+  const host = hostOf(id);
+  const distance = (jd: number) => shadowAxisDistance(host, id, jd);
+  const hostRadius = bodyById(host)?.radius ?? 1;
+
+  return findMinima(distance, from, to, satelliteStep(id))
+    .map((jd) => ({ jd, g: eclipseGeometry(host, id, jd) }))
+    .filter(({ g }) => g.distance < g.penumbra + g.targetRadius)
+    .map(({ jd, g }) => ({
+      kind: 'satellite-eclipse' as const,
+      jd,
+      bodies: [host, id],
+      value: g.distance / hostRadius,
+      phase:
+        g.distance < g.umbra - g.targetRadius
+          ? ('total' as const)
+          : g.distance < g.umbra + g.targetRadius
+            ? ('partial' as const)
+            : ('penumbral' as const),
+    }));
+}
+
+/**
+ * Может ли на этом отрезке случиться хоть одно затмение у спутника.
+ *
+ * Тень спутника задевает планету, только когда Солнце стоит почти в
+ * плоскости его орбиты: иначе тень проходит выше или ниже. Расстояние от
+ * центра цели до оси тени не меньше `r · sin β`, где r - расстояние спутника
+ * от планеты, а β - высота Солнца над плоскостью орбиты. У Титана и спутников
+ * Урана β месяцами и годами держится выше предела, и перебирать эти годы
+ * оборот за оборотом - самое дорогое во всём поиске при пустом ответе.
+ *
+ * Отсев должен быть только с запасом: лишний перебор стоит миллисекунды, а
+ * потерянное затмение - неверный ответ. Поэтому β берётся в середине отрезка
+ * за вычетом того, на сколько Солнце успевает сместиться за половину отрезка
+ * (с двукратным запасом на эксцентриситет орбиты планеты), а досягаемость
+ * тени - с полутенью и с поправкой на то, что ось тени идёт от Солнца не
+ * параллельно направлению на планету.
+ */
+export function inSeason(id: string, from: number, to: number): boolean {
+  const body = bodyById(id);
+  const host = body?.parent ? bodyById(body.parent) : undefined;
+  if (!body?.satellite || !host?.orbit) return true;
+
+  const elements = body.satellite;
+  const middle = (from + to) / 2;
+  const toHost = heliocentric(host.id, middle);
+  const sunDistance = length(toHost);
+
+  const n = orbitNormalInHost(elements, scratchSatellite);
+  const basis = hostBasis(host.id);
+  // Нормаль из экваториальной системы планеты в оси сцены, оттуда в эклиптику.
+  const sx = basis.node.x * n.x + basis.third.x * n.y + basis.pole.x * n.z;
+  const sy = basis.node.y * n.x + basis.third.y * n.y + basis.pole.y * n.z;
+  const sz = basis.node.z * n.x + basis.third.z * n.y + basis.pole.z * n.z;
+  const normal = { x: sx, y: -sz, z: sy };
+  const sinBeta = Math.abs(dot(normal, toHost)) / (length(normal) * sunDistance);
+
+  const yearDays = 365.25 * host.orbit.a ** 1.5;
+  // Средняя угловая скорость планеты - 2π за год; у перигелия Плутона она в
+  // 1.7 раза выше, отсюда запас вдвое. Сдвиг за половину отрезка.
+  const halfSpan = (to - from) / 2;
+  const drift = Math.min(Math.PI / 2, (2 * 2 * Math.PI * halfSpan) / yearDays);
+  const lowest = Math.max(0, sinBeta - Math.sin(drift));
+
+  const r = elements.a * (1 + elements.e);
+  const reach =
+    host.radius +
+    body.radius +
+    (r * (SUN_RADIUS + host.radius)) / (sunDistance - r) +
+    (r * r) / sunDistance;
+
+  return elements.a * (1 - elements.e) * lowest < reach;
+}
+
+/**
+ * Первое событие на отрезке: перебор кусками, до первой находки.
+ *
+ * Ио проходит тенью по Юпитеру каждые 42 часа, и за пять лет таких событий
+ * тысяча. Список из тысячи строк про Ио не сообщает ничего сверх первой, а
+ * следующую человек найдёт, сдвинув дату. Поэтому от каждого спутника в
+ * список идёт одно, ближайшее. Искать дальше первого незачем: у частых
+ * спутников оно находится в первом же куске.
+ *
+ * Куски вне сезона (см. inSeason) пропускаются, не перебираясь: у спутников
+ * Урана сезон затмений бывает раз в 42 года, и пустой ответ для них -
+ * правильный, но получить его можно и без пяти лет перебора.
+ */
+export function firstOf(
+  search: (from: number, to: number) => AstronomicalEvent[],
+  from: number,
+  to: number,
+  worth: (from: number, to: number) => boolean = () => true,
+  chunk = SEASON_CHUNK_DAYS,
+): AstronomicalEvent | undefined {
+  for (let start = from; start < to; start += chunk) {
+    const end = Math.min(to, start + chunk);
+    if (!worth(start, end)) continue;
+    const [first] = search(start, end);
+    if (first) return first;
+  }
+  return undefined;
+}
+
+/** Кусок перебора спутниковых затмений, сут. */
+export const SEASON_CHUNK_DAYS = 30;
 
 /* ── Противостояния, соединения, транзиты ─────────────────────────────────── */
 
@@ -752,6 +970,13 @@ export function findEvents(from: number, to: number): AstronomicalEvent[] {
     for (const id of OUTER) events.push(...oppositions(id, from, to));
     for (const id of INNER) events.push(...transits(id, from, to));
     for (const [a, b] of CONJUNCTION_PAIRS) events.push(...conjunctions(a, b, from, to));
+
+    for (const id of SATELLITE_IDS) {
+      for (const search of [satelliteShadows, satelliteEclipses]) {
+        const first = firstOf((a, b) => search(id, a, b), from, to, (a, b) => inSeason(id, a, b));
+        if (first) events.push(first);
+      }
+    }
 
     return events.sort((x, y) => x.jd - y.jd);
   } finally {
