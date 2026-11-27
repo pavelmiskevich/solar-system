@@ -17,6 +17,7 @@ import {
   ringPlaneCrossings,
   SATELLITE_IDS,
   SEASON_CHUNK_DAYS,
+  COVER_DAYS,
   findEvents,
   inSeason,
   satelliteEclipses,
@@ -533,15 +534,23 @@ describe('затмения у других планет', () => {
     expect(inSeason('titania', jd('2028-01-01T00:00:00Z'), jd('2028-01-31T00:00:00Z'))).toBe(false);
   });
 
-  it('в общий список от каждого спутника идёт одно событие каждого рода', () => {
+  it('в общий список от каждого спутника идут два месяца событий, а не пять лет', () => {
     const from = jd('2026-11-27T00:00:00Z');
-    const events = findEvents(from, from + 365.25).filter((e) => e.kind.startsWith('satellite-'));
-    const keys = events.map((e) => `${e.kind} ${e.bodies.join(' ')}`);
-    expect(new Set(keys).size).toBe(keys.length);
+    const events = findEvents(from, from + 5 * 365.25).filter((e) => e.kind.startsWith('satellite-'));
+    const byKey = new Map<string, number[]>();
+    for (const e of events) {
+      const key = `${e.kind} ${e.bodies.join(' ')}`;
+      byKey.set(key, [...(byKey.get(key) ?? []), e.jd]);
+    }
+    // Все события одного спутника и рода - в пределах запаса от первого: Ио
+    // за пять лет дала бы тысячу строк.
+    for (const [key, moments] of byKey) {
+      expect(Math.max(...moments) - Math.min(...moments), key).toBeLessThanOrEqual(COVER_DAYS + SEASON_CHUNK_DAYS);
+    }
     // Галилеевы спутники - все четыре, и оба рода у каждого.
     for (const id of ['io', 'europa', 'ganymede', 'callisto']) {
-      expect(keys, id).toContain(`satellite-shadow ${id} jupiter`);
-      expect(keys, id).toContain(`satellite-eclipse jupiter ${id}`);
+      expect([...byKey.keys()], id).toContain(`satellite-shadow ${id} jupiter`);
+      expect([...byKey.keys()], id).toContain(`satellite-eclipse jupiter ${id}`);
     }
     // Луна считается своими родами, солнечным и лунным затмением.
     expect(events.some((e) => e.bodies.includes('moon'))).toBe(false);

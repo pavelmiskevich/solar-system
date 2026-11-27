@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { Euler, Quaternion, Vector3 } from 'three';
 
 import { DEG, julianDayFromDate } from '../src/core/units';
-import { describeEvent, upcomingEvents } from '../src/data/events';
+import {
+  ONGOING_DAYS,
+  coveredUntil,
+  describeEvent,
+  upcomingEvents,
+  visibleRows,
+  visibleUntil,
+} from '../src/data/events';
 import { setLanguage } from '../src/i18n';
 import {
   geocentricLongitude,
@@ -175,6 +182,13 @@ describe('затмения у других планет в списке', () => 
     expect(Math.asin(toIo.y) / DEG).toBeCloseTo(view.elevation, 6);
   });
 
+  it('стоят своей группой, отдельно от событий земного неба', () => {
+    expect(describeEvent(ioShadow).group).toBe('planets');
+    expect(describeEvent(ioEclipse).group).toBe('planets');
+    const earth = solarEclipses(jd('2026-08-01T00:00:00Z'), jd('2026-09-01T00:00:00Z'))[0]!;
+    expect(describeEvent(earth).group).toBe('sky');
+  });
+
   it('спутник в тени: камера у самого спутника', () => {
     expect(describeEvent(ioEclipse).body).toBe('io');
   });
@@ -182,5 +196,52 @@ describe('затмения у других планет в списке', () => 
   it('ключи строк различаются у двух теней в один и тот же час', () => {
     const europa = { ...ioShadow, bodies: ['europa', 'jupiter'] };
     expect(describeEvent(ioShadow).id).not.toBe(describeEvent(europa).id);
+  });
+});
+
+describe('что из найденного показать сейчас', () => {
+  const from = jd('2026-11-27T00:00:00Z');
+  const rows = upcomingEvents(from, 0.2);
+  const io = <T extends { key: string }>(list: readonly T[]) =>
+    list.filter((r) => r.key === 'satellite-shadow-io-jupiter');
+
+  it('от спутника одна строка - ближайшая', () => {
+    expect(io(rows).length).toBeGreaterThan(5);
+    const shown = io(visibleRows(rows, from));
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toBe(io(rows)[0]);
+  });
+
+  it('когда тень прошла, на её место встаёт следующая, без нового поиска', () => {
+    const [first, second] = io(rows);
+    const later = visibleRows(rows, first!.jd + ONGOING_DAYS + 0.01);
+    expect(io(later)).toEqual([second]);
+    // Земное событие, которое ещё впереди, при этом остаётся.
+    expect(later.some((r) => r.group === 'sky')).toBe(true);
+  });
+
+  it('идущее событие ещё стоит в списке, кончившееся уходит', () => {
+    const [first] = io(rows);
+    expect(io(visibleRows(rows, first!.jd + ONGOING_DAYS - 0.01))[0]).toBe(first);
+    expect(io(visibleRows(rows, first!.jd + ONGOING_DAYS + 0.01))[0]).not.toBe(first);
+  });
+
+  it('показанное устаревает, когда уходит первая из показанных строк', () => {
+    const shown = visibleRows(rows, from);
+    expect(visibleUntil(shown)).toBeCloseTo(Math.min(...shown.map((r) => r.jd)) + ONGOING_DAYS, 9);
+  });
+
+  it('новый поиск нужен, когда у какого-то спутника кончились найденные затмения', () => {
+    const covered = coveredUntil(rows);
+    // Когда уходит первая из показанных строк, найденного ещё хватает: её
+    // место займёт следующая из того же поиска. Раньше всех кончаются
+    // затмения Каллисто - у неё одно-два в месяц, но и их хватает больше
+    // чем на месяц.
+    expect(covered).toBeGreaterThan(visibleUntil(visibleRows(rows, from)));
+    expect(covered).toBeGreaterThan(from + 30);
+    // А после него строка какого-то спутника опустела бы.
+    const keys = new Set(rows.filter((r) => r.group === 'planets').map((r) => r.key));
+    const left = new Set(visibleRows(rows, covered + 0.01).filter((r) => r.group === 'planets').map((r) => r.key));
+    expect(left.size).toBeLessThan(keys.size);
   });
 });

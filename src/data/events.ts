@@ -27,6 +27,8 @@ export const EVENT_WINDOW_YEARS = 5;
 /** Средняя длина юлианского года, сут. */
 const DAYS_PER_YEAR = 365.25;
 
+export type EventGroup = 'sky' | 'planets';
+
 export interface EventRow {
   /** Устойчивый ключ: род события и дата. По нему строка находится в списке. */
   id: string;
@@ -38,6 +40,18 @@ export interface EventRow {
   date: Date;
   /** Тело, к которому летит камера. У парада его нет: камера смотрит с Земли. */
   body: string;
+  /**
+   * Группа в списке. Затмения у других планет стоят отдельно, ниже: Ио и
+   * Фобос дают их каждые сутки-двое, и в общем порядке по времени они
+   * заслоняли бы ближайшее земное затмение дюжиной строк.
+   */
+  group: EventGroup;
+  /**
+   * Чья это строка: у затмений спутников - род и участники, у остальных
+   * совпадает с id. Из строк с одним ключом список показывает одну,
+   * ближайшую (см. visibleRows).
+   */
+  key: string;
   state: SceneState & { view: BodyView | FreeView };
 }
 
@@ -297,9 +311,55 @@ function hintOf(event: AstronomicalEvent, sky: ParadeSky): string {
  */
 function rowId(event: AstronomicalEvent): string {
   const hour = dateFromJulianDay(event.jd).toISOString().slice(0, 13);
-  return event.kind === 'satellite-shadow' || event.kind === 'satellite-eclipse'
+  return isSatelliteKind(event.kind)
     ? `${event.kind}-${event.bodies.join('-')}-${hour}`
     : `${event.kind}-${hour}`;
+}
+
+function isSatelliteKind(kind: AstronomicalEvent['kind']): boolean {
+  return kind === 'satellite-shadow' || kind === 'satellite-eclipse';
+}
+
+/**
+ * Что из найденного показать на момент `nowJd`.
+ *
+ * Прошедшее уходит: событие, максимум которого был больше ONGOING_DAYS
+ * назад, уже кончилось. Из строк с одним ключом остаётся первая из
+ * оставшихся - у Ио это ближайшая тень, а следующая встанет на её место, как
+ * только эта пройдёт, без нового поиска.
+ *
+ * @param rows строки по возрастанию времени, как их отдаёт поиск
+ */
+export function visibleRows(rows: readonly EventRow[], nowJd: number): EventRow[] {
+  const seen = new Set<string>();
+  const visible: EventRow[] = [];
+  for (const row of rows) {
+    if (row.jd < nowJd - ONGOING_DAYS || seen.has(row.key)) continue;
+    seen.add(row.key);
+    visible.push(row);
+  }
+  return visible;
+}
+
+/**
+ * Когда показанное устареет: первая из показанных строк уйдёт в прошлое, и
+ * на её место встанет другая или никакой.
+ */
+export function visibleUntil(visible: readonly EventRow[]): number {
+  return Math.min(Infinity, ...visible.map((row) => row.jd + ONGOING_DAYS));
+}
+
+/**
+ * До какого момента найденного хватает: у какого-то спутника пройдёт
+ * последнее найденное затмение, и его строка опустеет. После этого нужен
+ * новый поиск, хотя окно в пять лет ещё не пройдено.
+ */
+export function coveredUntil(rows: readonly EventRow[]): number {
+  const last = new Map<string, number>();
+  for (const row of rows) {
+    if (row.group === 'planets') last.set(row.key, Math.max(last.get(row.key) ?? -Infinity, row.jd));
+  }
+  return Math.min(Infinity, ...[...last.values()].map((jd) => jd + ONGOING_DAYS));
 }
 
 /** Событие как строка списка и как готовое состояние сцены. */
@@ -325,6 +385,8 @@ export function describeEvent(event: AstronomicalEvent): EventRow {
     jd: event.jd,
     date: dateFromJulianDay(event.jd),
     body,
+    group: isSatelliteKind(event.kind) ? 'planets' : 'sky',
+    key: isSatelliteKind(event.kind) ? `${event.kind}-${event.bodies.join('-')}` : rowId(event),
     state: {
       jd: event.jd,
       timeScale: timeScaleOf(event.kind),
@@ -373,4 +435,4 @@ function searchWindow(fromJd: number, years: number): [number, number] {
  * середину. Противостояние или сближение длятся сутками, и для них три часа
  * назад - это всё ещё сегодня.
  */
-const ONGOING_DAYS = 3 / 24;
+export const ONGOING_DAYS = 3 / 24;

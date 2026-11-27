@@ -1,7 +1,7 @@
 {
   "atmosphere.spec.ts": 75,
   "eclipse.spec.ts": 91,
-  "events.spec.ts": 96,
+  "events.spec.ts": 106,
   "greeting.spec.ts": 146,
   "hover-locked.spec.ts": 28,
   "hover.spec.ts": 84,
