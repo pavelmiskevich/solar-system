@@ -491,6 +491,10 @@ export const EN: Dictionary = {
     parade: (count: number) => `Planet parade: ${PARADE_COUNTS[count] ?? 'several at once'}`,
     ringPlaneCrossing: "Saturn's rings edge-on",
     ringOpening: "Saturn's rings at their widest",
+    satelliteShadow: (satellite: string, planet: string) =>
+      `${name(satellite)}'s shadow on ${name(planet)}`,
+    satelliteEclipse: (planet: string, satellite: string) =>
+      `${name(satellite)} in ${name(planet)}'s shadow`,
 
     solarEclipseHint: (axisRadii: string) =>
       `The shadow axis passes ${axisRadii} Earth radii from the center of Earth`,
@@ -505,5 +509,17 @@ export const EN: Dictionary = {
     ringPlaneCrossingHint: 'Earth crosses to the other side of the rings, and they disappear from view',
     ringOpeningHint: (deg: string) =>
       `The rings are tilted ${deg}° toward the Sun and lit more than ever`,
+    satelliteShadowHint: (phase: EclipsePhase | undefined, satellite: string): string =>
+      phase === 'total'
+        ? 'Under the shadow, the planet sees a total solar eclipse'
+        : phase === 'annular'
+          ? `${name(satellite)} is smaller than the Sun: beneath it the eclipse is annular`
+          : 'The shadow misses; only the penumbra grazes the planet',
+    satelliteEclipseHint: (phase: EclipsePhase | undefined): string =>
+      phase === 'total'
+        ? "The moon passes wholly into the planet's shadow and goes dark"
+        : phase === 'partial'
+          ? "The moon grazes the planet's shadow with its edge"
+          : 'The moon passes only through the penumbra: the dimming is barely visible',
   },
 };

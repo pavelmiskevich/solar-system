@@ -68,7 +68,39 @@ const GENITIVE: Readonly<Record<string, string>> = {
 };
 
 function genitive(id: string): string {
-  return GENITIVE[id] ?? name(id);
+  return GENITIVE[id] ?? SATELLITE_GENITIVE[id] ?? name(id);
+}
+
+/**
+ * Родительный падеж спутников - для «тени Титана». Ио и Каллисто не
+ * склоняются, и их в таблице нет: имя подставится как есть.
+ */
+const SATELLITE_GENITIVE: Readonly<Record<string, string>> = {
+  phobos: 'Фобоса',
+  deimos: 'Деймоса',
+  europa: 'Европы',
+  ganymede: 'Ганимеда',
+  mimas: 'Мимаса',
+  enceladus: 'Энцелада',
+  titan: 'Титана',
+  titania: 'Титании',
+  oberon: 'Оберона',
+  triton: 'Тритона',
+  charon: 'Харона',
+};
+
+/** Предложный падеж планет, у которых есть спутники: «тень на Юпитере». */
+const PREPOSITIONAL: Readonly<Record<string, string>> = {
+  mars: 'Марсе',
+  jupiter: 'Юпитере',
+  saturn: 'Сатурне',
+  uranus: 'Уране',
+  neptune: 'Нептуне',
+  pluto: 'Плутоне',
+};
+
+function prepositional(id: string): string {
+  return PREPOSITIONAL[id] ?? name(id);
 }
 
 /** Год, года, лет: «1 лет/с» в интерфейсе выглядит как опечатка. */
@@ -557,6 +589,10 @@ export const RU = {
     parade: (count: number) => `Парад планет: ${PARADE_COUNTS[count] ?? 'несколько сразу'}`,
     ringPlaneCrossing: 'Кольца Сатурна с ребра',
     ringOpening: 'Кольца Сатурна раскрыты на максимум',
+    satelliteShadow: (satellite: string, planet: string) =>
+      `Тень ${genitive(satellite)} на ${prepositional(planet)}`,
+    satelliteEclipse: (planet: string, satellite: string) =>
+      `${name(satellite)} в тени ${genitive(planet)}`,
 
     solarEclipseHint: (axisRadii: string) =>
       `Ось тени проходит в ${axisRadii} радиуса от центра Земли`,
@@ -570,6 +606,18 @@ export const RU = {
       `${listNames(bodies)} в дуге ${arcDeg}° ${PARADE_SKY[sky]}`,
     ringPlaneCrossingHint: 'Земля переходит на другую сторону колец, и они пропадают из виду',
     ringOpeningHint: (deg: string) => `Кольца раскрыты к Солнцу на ${deg}° и освещены сильнее всего`,
+    satelliteShadowHint: (phase: EclipsePhase | undefined, satellite: string): string =>
+      phase === 'total'
+        ? 'Под тенью на планете видно полное солнечное затмение'
+        : phase === 'annular'
+          ? `${name(satellite)} мельче Солнца: под ним видно кольцеобразное затмение`
+          : 'Тень проходит мимо, планету задевает только полутень',
+    satelliteEclipseHint: (phase: EclipsePhase | undefined): string =>
+      phase === 'total'
+        ? 'Спутник целиком уходит в тень планеты и гаснет'
+        : phase === 'partial'
+          ? 'Спутник задевает тень планеты краем'
+          : 'Спутник идёт только сквозь полутень: потемнение едва заметно',
   },
 };
 

@@ -15,9 +15,16 @@ import {
   ringMaximumOpening,
   ringOpeningToEarth,
   ringPlaneCrossings,
+  SATELLITE_IDS,
+  SEASON_CHUNK_DAYS,
+  findEvents,
+  inSeason,
+  satelliteEclipses,
+  satelliteShadows,
   solarEclipses,
   transits,
 } from '../src/physics/events';
+import { scenarioById } from '../src/data/scenarios';
 
 /**
  * Поиск астрономических событий.
@@ -411,5 +418,132 @@ describe('парады планет', () => {
       // И он укладывается в предел, назначенный для такого числа планет.
       expect(event.value).toBeLessThan(PARADE_LIMITS[event.bodies.length]!);
     }
+  });
+});
+
+/*
+ * Затмения у других планет (#69).
+ *
+ * Справочники дают время для земного наблюдателя, а поиск - геометрическое,
+ * когда тень в самом деле лежит на облаках. Поэтому из справочного времени
+ * здесь вычитается путь света от планеты до Земли.
+ */
+describe('затмения у других планет', () => {
+  const geometric = (when: string, lightMinutes: number) => jd(when) - lightMinutes / (24 * 60);
+
+  it('тройная тень Ио, Европы и Каллисто на Юпитере 24 января 2015 года', () => {
+    // С Земли все три тени были на диске с 06:27 до 06:52 UT, свет шёл 36 минут.
+    const from = geometric('2015-01-24T06:27:00Z', 36);
+    const to = geometric('2015-01-24T06:52:00Z', 36);
+    for (const id of ['io', 'europa', 'callisto']) {
+      const [shadow] = satelliteShadows(id, from - 0.5, to + 0.5);
+      expect(shadow, id).toBeDefined();
+      expect(shadow!.phase, id).toBe('total');
+      // Тень идёт по диску два-три часа, и максимум каждой лежит не дальше
+      // этого от общего для трёх окна.
+      expect(Math.abs(shadow!.jd - (from + to) / 2) * 24, id).toBeLessThan(2);
+    }
+  });
+
+  it('тень Титана на Сатурне в день снимка Хаббла, 24 февраля 2009 года', () => {
+    const found = satelliteShadows('titan', jd('2009-02-24T00:00:00Z'), jd('2009-02-25T00:00:00Z'));
+    expect(found).toHaveLength(1);
+    expect(found[0]!.bodies).toEqual(['titan', 'saturn']);
+  });
+
+  it('готовый вид «Тень Ио на Юпитере» стоит внутри найденного прохождения', () => {
+    // Вид подобран по сцене руками, поиск находит тень сам. Тень идёт по
+    // диску два с половиной часа, и момент вида обязан лечь в эти часы.
+    const view = scenarioById('io-shadow')!.state.jd!;
+    const [shadow] = satelliteShadows('io', view - 1, view + 1);
+    expect(shadow).toBeDefined();
+    expect(Math.abs(shadow!.jd - view) * 24).toBeLessThan(1.25);
+  });
+
+  it('Фобос мельче Солнца и даёт кольцеобразные затмения, Ганимед - полные', () => {
+    const from = jd('2026-11-27T00:00:00Z');
+    const phobos = satelliteShadows('phobos', from, from + 3);
+    const ganymede = satelliteShadows('ganymede', from, from + 30);
+    expect(phobos.length).toBeGreaterThan(0);
+    expect(ganymede.length).toBeGreaterThan(0);
+    expect(new Set(phobos.map((e) => e.phase))).toEqual(new Set(['annular']));
+    expect(ganymede.every((e) => e.phase === 'total' || e.phase === 'partial')).toBe(true);
+  });
+
+  it('тени Титана бывают у равноденствий Сатурна и пропадают к солнцестоянию', () => {
+    const year = (y: number) => satelliteShadows('titan', jd(`${y}-01-01T00:00:00Z`), jd(`${y + 1}-01-01T00:00:00Z`));
+    // Равноденствия - август 2009 и май 2025, солнцестояние - май 2017.
+    expect(year(2009).length).toBeGreaterThan(5);
+    expect(year(2025).length).toBeGreaterThan(5);
+    expect(year(2017)).toHaveLength(0);
+  });
+
+  it('у спутников Урана сезон раз в 42 года, у равноденствий 2007 и 2049 годов', () => {
+    for (const id of ['titania', 'oberon']) {
+      const around = (y: number) => satelliteShadows(id, jd(`${y - 2}-01-01T00:00:00Z`), jd(`${y + 2}-01-01T00:00:00Z`));
+      expect(around(2007).length, id).toBeGreaterThan(0);
+      expect(around(2049).length, id).toBeGreaterThan(0);
+      expect(around(2028), id).toHaveLength(0);
+    }
+  });
+
+  it('спутник в тени планеты: Ио гаснет каждый оборот', () => {
+    const from = jd('2026-11-27T00:00:00Z');
+    const found = satelliteEclipses('io', from, from + 30);
+    // За месяц Ио обходит Юпитер семнадцать раз и каждый раз уходит в тень.
+    expect(found.length).toBeGreaterThanOrEqual(16);
+    expect(found.length).toBeLessThanOrEqual(18);
+    expect(found.every((e) => e.phase === 'total')).toBe(true);
+    expect(found[0]!.bodies).toEqual(['jupiter', 'io']);
+  });
+
+  it('отсев по сезону не теряет ни одного события', () => {
+    // У каждого спутника окно на краях его сезона: там отсев ближе всего к
+    // ошибке. Перебирать все спутники во всех окнах слишком долго: Фобос
+    // один даёт тысячи событий за несколько лет.
+    const windows: [string, string, string[]][] = [
+      ['1985-01-01', '1991-01-01', ['charon']],
+      ['1950-01-01', '1960-01-01', ['triton']],
+      ['2006-01-01', '2010-06-01', ['titania', 'oberon', 'titan']],
+      ['2024-01-01', '2027-01-01', ['titan', 'mimas', 'enceladus']],
+      ['2026-06-01', '2028-06-01', ['callisto']],
+      ['2026-11-01', '2027-01-01', ['io', 'europa', 'ganymede']],
+      ['2027-06-01', '2028-06-01', ['phobos', 'deimos']],
+    ];
+    // Ни один спутник не забыт.
+    expect(new Set(windows.flatMap(([, , ids]) => ids))).toEqual(new Set(SATELLITE_IDS));
+
+    for (const [a, b, ids] of windows) {
+      for (const id of ids) {
+        for (const search of [satelliteShadows, satelliteEclipses]) {
+          for (const event of search(id, jd(`${a}T00:00:00Z`), jd(`${b}T00:00:00Z`))) {
+            // Событие может оказаться в любом месте куска перебора.
+            for (const shift of [0, 0.25, 0.5, 0.75, 1]) {
+              const start = event.jd - shift * SEASON_CHUNK_DAYS;
+              expect(inSeason(id, start, start + SEASON_CHUNK_DAYS), `${id} ${iso(event.jd)}`).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('вне сезона отсев действительно отсеивает', () => {
+    expect(inSeason('titan', jd('2017-05-01T00:00:00Z'), jd('2017-05-31T00:00:00Z'))).toBe(false);
+    expect(inSeason('titania', jd('2028-01-01T00:00:00Z'), jd('2028-01-31T00:00:00Z'))).toBe(false);
+  });
+
+  it('в общий список от каждого спутника идёт одно событие каждого рода', () => {
+    const from = jd('2026-11-27T00:00:00Z');
+    const events = findEvents(from, from + 365.25).filter((e) => e.kind.startsWith('satellite-'));
+    const keys = events.map((e) => `${e.kind} ${e.bodies.join(' ')}`);
+    expect(new Set(keys).size).toBe(keys.length);
+    // Галилеевы спутники - все четыре, и оба рода у каждого.
+    for (const id of ['io', 'europa', 'ganymede', 'callisto']) {
+      expect(keys, id).toContain(`satellite-shadow ${id} jupiter`);
+      expect(keys, id).toContain(`satellite-eclipse jupiter ${id}`);
+    }
+    // Луна считается своими родами, солнечным и лунным затмением.
+    expect(events.some((e) => e.bodies.includes('moon'))).toBe(false);
   });
 });

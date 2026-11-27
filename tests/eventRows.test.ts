@@ -3,7 +3,15 @@ import { Euler, Quaternion, Vector3 } from 'three';
 
 import { DEG, julianDayFromDate } from '../src/core/units';
 import { describeEvent, upcomingEvents } from '../src/data/events';
-import { geocentricLongitude, heliocentric, planetParades, solarEclipses } from '../src/physics/events';
+import { setLanguage } from '../src/i18n';
+import {
+  geocentricLongitude,
+  heliocentric,
+  planetParades,
+  satelliteEclipses,
+  satelliteShadows,
+  solarEclipses,
+} from '../src/physics/events';
 
 /**
  * События как строки списка и как готовые виды.
@@ -125,5 +133,54 @@ describe('ближайшие события', () => {
 
   it('прошедшее накануне затмение в список не попадает', () => {
     expect(eclipseIn(upcomingEvents(eclipse.jd + 1, 0.1))).toBe(false);
+  });
+});
+
+describe('затмения у других планет в списке', () => {
+  const from = jd('2026-11-27T00:00:00Z');
+  const ioShadow = satelliteShadows('io', from, from + 3)[0]!;
+  const phobosShadow = satelliteShadows('phobos', from, from + 3)[0]!;
+  const ioEclipse = satelliteEclipses('io', from, from + 3)[0]!;
+
+  it('названы по участникам на обоих языках', () => {
+    try {
+      expect(describeEvent(ioShadow).title).toBe('Тень Ио на Юпитере');
+      expect(describeEvent(phobosShadow).title).toBe('Тень Фобоса на Марсе');
+      expect(describeEvent(ioEclipse).title).toBe('Ио в тени Юпитера');
+      expect(describeEvent(phobosShadow).hint).toContain('кольцеобразное');
+
+      setLanguage('en');
+      expect(describeEvent(ioShadow).title).toBe("Io's shadow on Jupiter");
+      expect(describeEvent(ioEclipse).title).toBe("Io in Jupiter's shadow");
+      expect(describeEvent(phobosShadow).hint).toContain('annular');
+    } finally {
+      setLanguage('ru');
+    }
+  });
+
+  it('камера летит к планете, на которую легла тень, и время идёт реальное', () => {
+    const row = describeEvent(ioShadow);
+    expect(row.body).toBe('jupiter');
+    expect(row.state.timeScale).toBeCloseTo(1 / 86_400, 12);
+    expect(row.state.paused).toBe(false);
+
+    // Камера со стороны Ио: тень лежит там, куда смотрит эта прямая.
+    const view = row.state.view;
+    if (view.kind !== 'body') throw new Error('вид не на тело');
+    const toIo = toScene({
+      x: heliocentric('io', ioShadow.jd).x - heliocentric('jupiter', ioShadow.jd).x,
+      y: heliocentric('io', ioShadow.jd).y - heliocentric('jupiter', ioShadow.jd).y,
+      z: heliocentric('io', ioShadow.jd).z - heliocentric('jupiter', ioShadow.jd).z,
+    }).normalize();
+    expect(Math.asin(toIo.y) / DEG).toBeCloseTo(view.elevation, 6);
+  });
+
+  it('спутник в тени: камера у самого спутника', () => {
+    expect(describeEvent(ioEclipse).body).toBe('io');
+  });
+
+  it('ключи строк различаются у двух теней в один и тот же час', () => {
+    const europa = { ...ioShadow, bodies: ['europa', 'jupiter'] };
+    expect(describeEvent(ioShadow).id).not.toBe(describeEvent(europa).id);
   });
 });
