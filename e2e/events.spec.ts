@@ -232,4 +232,32 @@ test.describe('ближайшие события', () => {
 
     expectNoErrors(errors);
   });
+
+  test('переход к тени Ио приводит к Юпитеру, и тень на облаках видна (#69)', async ({
+    page,
+  }) => {
+    const errors = await openScene(page);
+    await page.keyboard.press('KeyE');
+    await expect(page.locator(panel).first()).toBeVisible({ timeout: EVENT_ROWS_TIMEOUT_MS });
+
+    // Ио проходит тенью по Юпитеру каждые 42 часа, и ближайшее прохождение
+    // в списке есть всегда - по одному от каждого спутника.
+    const io = page.locator('[data-event^="satellite-shadow-io-jupiter"]');
+    await expect(io).toHaveCount(1);
+    await expect(io.locator('.name')).toHaveText('Тень Ио на Юпитере');
+    await io.click();
+
+    await expect(page.locator(aside)).toHaveClass(/closed/);
+    await waitForArrival(page, 'jupiter');
+
+    // Камера подведена со стороны Ио, и тень лежит у середины диска. Клетка
+    // мелкая, как в проверке тени Ио в eclipse.spec.ts: пятно занимает около
+    // десяти пикселей.
+    await page.waitForTimeout(2500);
+    const light = await frameLight(page, 0.12, 6);
+    expect(light.median, 'облака вокруг пятна освещены').toBeGreaterThan(60);
+    expect(light.min, 'на облаках нет тени').toBeLessThan(light.median * 0.3);
+
+    expectNoErrors(errors);
+  });
 });

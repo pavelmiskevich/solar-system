@@ -99,6 +99,12 @@ function viewpointOf(event: AstronomicalEvent): { body: string; from: string; ra
       // Земля названа здесь не как цель, а как место наблюдателя: вид у парада
       // свободный, и ни расстояние, ни сторона в нём не участвуют.
       return { body: 'earth', from: 'sun', radii: 3 };
+    case 'satellite-shadow':
+      // Как у солнечного затмения: со стороны спутника, тень лежит под ним.
+      return { body: event.bodies[1] ?? 'jupiter', from: event.bodies[0] ?? 'io', radii: 3 };
+    case 'satellite-eclipse':
+      // Как у лунного: со стороны Солнца, на погасший спутник.
+      return { body: event.bodies[1] ?? 'io', from: 'sun', radii: 3.5 };
     default:
       return { body: 'saturn', from: 'earth', radii: 4.2 };
   }
@@ -188,10 +194,17 @@ function paradeView(event: AstronomicalEvent): FreeView {
 
 /** Скорость времени: у затмения реальная, у медленных явлений - сутки в секунду. */
 function timeScaleOf(kind: AstronomicalEvent['kind']): number {
-  return kind === 'solar-eclipse' || kind === 'lunar-eclipse' || kind === 'transit'
-    ? 1 / 86_400
-    : 1;
+  return REAL_TIME_KINDS.has(kind) ? 1 / 86_400 : 1;
 }
+
+/** Затмения и прохождения длятся часы: на сутках в секунду они мелькнут. */
+const REAL_TIME_KINDS: ReadonlySet<AstronomicalEvent['kind']> = new Set([
+  'solar-eclipse',
+  'lunar-eclipse',
+  'transit',
+  'satellite-shadow',
+  'satellite-eclipse',
+]);
 
 /**
  * Остановить ли время на событии.
@@ -233,6 +246,10 @@ function titleOf(event: AstronomicalEvent): string {
       return words.parade(event.bodies.length);
     case 'ring-plane-crossing':
       return words.ringPlaneCrossing;
+    case 'satellite-shadow':
+      return words.satelliteShadow(first, event.bodies[1] ?? '');
+    case 'satellite-eclipse':
+      return words.satelliteEclipse(first, event.bodies[1] ?? '');
     default:
       return words.ringOpening;
   }
@@ -264,9 +281,25 @@ function hintOf(event: AstronomicalEvent, sky: ParadeSky): string {
       return words.paradeHint(event.bodies, event.value.toFixed(0), sky);
     case 'ring-plane-crossing':
       return words.ringPlaneCrossingHint;
+    case 'satellite-shadow':
+      return words.satelliteShadowHint(event.phase, event.bodies[0] ?? '');
+    case 'satellite-eclipse':
+      return words.satelliteEclipseHint(event.phase);
     default:
       return words.ringOpeningHint(event.value.toFixed(1));
   }
+}
+
+/**
+ * Ключ строки: род и час. У затмений спутников ещё и участники: тени Ио и
+ * Европы могут лечь на Юпитер в один и тот же час, и ключ у двух строк
+ * совпал бы.
+ */
+function rowId(event: AstronomicalEvent): string {
+  const hour = dateFromJulianDay(event.jd).toISOString().slice(0, 13);
+  return event.kind === 'satellite-shadow' || event.kind === 'satellite-eclipse'
+    ? `${event.kind}-${event.bodies.join('-')}-${hour}`
+    : `${event.kind}-${hour}`;
 }
 
 /** Событие как строка списка и как готовое состояние сцены. */
@@ -280,7 +313,7 @@ export function describeEvent(event: AstronomicalEvent): EventRow {
   const sky: ParadeSky = event.kind === 'planet-parade' ? skyOf(event) : 'both';
 
   return {
-    id: `${event.kind}-${dateFromJulianDay(event.jd).toISOString().slice(0, 13)}`,
+    id: rowId(event),
     // Слова читаются при каждом обращении: список событий держится в памяти,
     // пока дата не ушла за его край, а язык за это время могут сменить.
     get title() {
