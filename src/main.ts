@@ -878,8 +878,9 @@ const sizeOffset = new Vector3();
 /**
  * Смена множителя размеров с отводом камеры.
  *
- * Расстояния остаются настоящими, а тела растут - значит, наблюдатель,
- * стоявший в трёх радиусах от Земли, после ×10 оказался бы у неё внутри.
+ * Расстояния между планетами остаются настоящими, а тела растут вместе с
+ * орбитами своих спутников - значит, наблюдатель, стоявший в трёх радиусах
+ * от Земли, после ×10 оказался бы у неё внутри.
  * Поэтому камера отодвигается во столько же раз: угловой размер тела
  * в кадре сохраняется, и меняется ровно то, ради чего множитель включают -
  * соотношение размеров с расстояниями.
@@ -892,14 +893,20 @@ function applySizeExaggeration(next: number): void {
     (frame.targetId ? findTarget(frame.targetId) : undefined) ??
     findTarget(system.distanceToNearestSurface(flight.worldPosition).body?.definition.id ?? '');
 
+  // Отступ снимается до смены множителя: вместе с орбитами спутников растёт
+  // и качка Земли вокруг барицентра, так что тело-якорь само сдвинется.
+  if (anchor) sizeOffset.subVectors(flight.worldPosition, anchor.worldPosition);
+
   system.setSizeExaggeration(next);
   sun.setSizeExaggeration(next);
   if (!anchor) return;
 
-  sizeOffset
-    .subVectors(flight.worldPosition, anchor.worldPosition)
-    .multiplyScalar(next / previous);
-  flight.worldPosition.copy(anchor.worldPosition).add(sizeOffset);
+  flight.worldPosition.copy(anchor.worldPosition).addScaledVector(sizeOffset, next / previous);
+
+  // Якорь уже переехал на новое место, и камера встала у него. Привязка
+  // помнит старое и на следующем кадре добавила бы переезд ещё раз -
+  // начинаем её отсюда.
+  if (frame.targetId === anchor.id) frame.lockTo(anchor);
 
   // Орбитальный режим держит расстояние в километрах и вернул бы камеру на
   // прежнюю окружность - а тело только что выросло, и осмотр оказался бы

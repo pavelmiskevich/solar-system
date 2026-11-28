@@ -46,6 +46,11 @@ const ANGULAR_FULL = 0.05;
  * десятка точек на экране, линия только сорит в кадре, и её нет. Второе
  * условие - близость к поверхности: стоя у самой Ио, её собственную орбиту
  * видишь не кольцом, а полосой поперёк всего кадра.
+ *
+ * Множитель размеров. Сцена раздувает орбиты спутников вместе с телами, и
+ * линии растут вслед: группа планеты масштабируется тем же множителем. Его
+ * линии берут у сцены каждый кадр, а не получают отдельным вызовом - так
+ * линия и спутник на ней не разойдутся, кто бы ни сменил множитель.
  */
 export class SatelliteOrbits {
   /**
@@ -68,8 +73,12 @@ export class SatelliteOrbits {
 
   private moonLine: Line<BufferGeometry, ShaderMaterial> | null = null;
   private moonJd: number;
+  private scale = 1;
 
-  constructor(system: SolarSystem, jd: number) {
+  constructor(
+    private readonly system: SolarSystem,
+    jd: number,
+  ) {
     this.moonJd = jd;
 
     const groupByHost = new Map<string, Group>();
@@ -151,7 +160,14 @@ export class SatelliteOrbits {
   ): void {
     if (Math.abs(jd - this.moonJd) > MOON_DRIFT) this.writeMoonOrbit(jd);
 
-    for (const { line, semiMajorKm, hostWorldPosition } of this.lines) {
+    const scale = this.system.getSizeExaggeration();
+    if (scale !== this.scale) {
+      this.scale = scale;
+      for (const { group } of this.groups) group.scale.setScalar(scale);
+    }
+
+    for (const { line, semiMajorKm: trueSemiMajorKm, hostWorldPosition } of this.lines) {
+      const semiMajorKm = trueSemiMajorKm * scale;
       const distance = Math.max(cameraWorldPosition.distanceTo(hostWorldPosition), 1);
 
       // Угловой радиус орбиты в кадре. Ниже порога линия занимает несколько
