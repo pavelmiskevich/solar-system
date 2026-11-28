@@ -361,7 +361,7 @@ export const EN: Dictionary = {
       faster: 'faster, up to twenty years per second',
       labels: 'body labels',
       sky: 'constellations and bright star names',
-      sizes: 'body sizes: real, ×10, ×100, ×1000',
+      sizes: 'sizes of bodies and moon orbits: real, ×10, ×100, ×1000',
       tour: 'guided tour',
       tourSteps: 'during the tour: previous and next stop',
       help: 'this help',

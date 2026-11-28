@@ -539,6 +539,60 @@ test.describe('интерфейс', () => {
     await expect(page.locator('#hud')).toContainText('×10');
   });
 
+  test('на каждой ступени множителя спутники снаружи планет, линии орбит с ними', async ({ page }) => {
+    const errors = await openScene(page);
+
+    const inside = () =>
+      page.evaluate(() => {
+        const { system, satelliteOrbits } = window.sim;
+        const size = system.getSizeExaggeration();
+        const wrong: string[] = [];
+        for (const body of system.bodies) {
+          const host = body.definition.parent ? system.find(body.definition.parent) : undefined;
+          if (!host) continue;
+          if (body.worldPosition.distanceTo(host.worldPosition) <= host.visualRadius) wrong.push(body.definition.id);
+        }
+        for (const { group } of satelliteOrbits.groups) {
+          if (Math.abs(group.scale.x - size) > 1e-9) wrong.push(`линии ×${group.scale.x}`);
+        }
+        return { size, wrong };
+      });
+
+    for (const size of [1, 10, 100, 1000]) {
+      await expect.poll(inside).toEqual({ size, wrong: [] });
+      await page.keyboard.press('KeyM');
+      await waitForFrames(page, 2);
+    }
+    await expect.poll(inside).toEqual({ size: 1, wrong: [] });
+
+    expectNoErrors(errors);
+  });
+
+  test('у спутника смена множителя сохраняет вид', async ({ page }) => {
+    // Спутник переезжает на раздутую орбиту в миг смены множителя. Камера,
+    // привязанная к нему, должна переехать вместе с ним один раз, а не два.
+    const errors = await openScene(page);
+    await page.evaluate(() => window.sim.travelTo('io'));
+    await waitForArrival(page, 'io');
+    // Без орбитального режима: он сам ставит камеру вокруг тела каждый кадр
+    // и спрятал бы ошибку. Привязка к спутнику при этом остаётся.
+    await page.evaluate(() => window.sim.orbit.release());
+
+    const radii = () =>
+      page.evaluate(() => {
+        const io = window.sim.system.find('io');
+        return window.sim.flight.worldPosition.distanceTo(io.worldPosition) / io.visualRadius;
+      });
+
+    const before = await radii();
+    await page.keyboard.press('KeyM');
+    await waitForFrames(page, 5);
+    expect(await page.evaluate(() => window.sim.frame.targetId)).toBe('io');
+    expect(await radii()).toBeCloseTo(before, 0);
+
+    expectNoErrors(errors);
+  });
+
   test('HUD показывает систему отсчёта и ближайшее тело', async ({ page }) => {
     await openScene(page);
 
