@@ -162,6 +162,26 @@ test.describe('поздравление', () => {
     expectNoErrors(errors);
   });
 
+  test('ссылка, снятая после полуночи UT, смотрит на надпись', async ({ page }) => {
+    // 9 ноября 2026 года за три секунды до 0h UT. Часы поздравления идут в
+    // реальном времени, и полночь наступает прямо в тесте. 10 ноября Луна
+    // уводит место надписи на 76°: дата нового дня в ссылке увела бы надпись
+    // из кадра.
+    const errors = await openScene(page, { url: '/?greeting=primer&d=2026-11-09T23:59:57Z', keepHelp: true });
+    await expect.poll(() => inscriptionReach(page)).toBeLessThanOrEqual(1);
+    const midnight = Date.UTC(2026, 10, 10) / 86_400_000 + 2440587.5;
+    await expect.poll(() => page.evaluate(() => window.sim.clock.jd), { timeout: 15_000 }).toBeGreaterThan(midnight);
+    // Адрес переписывается раз в полсекунды: ждём, пока он догонит часы.
+    await expect.poll(() => page.url()).toContain('d=2026-11-09T23:59:59Z');
+
+    const url = page.url();
+    await openScene(page, { url: url.slice(url.indexOf('/?')), keepHelp: true });
+    expect(await page.evaluate(() => window.sim.inscription.isShown)).toBe(true);
+    await expect.poll(() => inscriptionReach(page)).toBeLessThanOrEqual(1);
+
+    expectNoErrors(errors);
+  });
+
   test('смена языка переписывает кнопку, но не слова поздравления', async ({ page }) => {
     const errors = await openScene(page, { url: '/?greeting=primer&lang=en', keepHelp: true });
     await expect(page.locator('#greeting-card .greeting-close')).toHaveAttribute('title', 'Close (Esc)');

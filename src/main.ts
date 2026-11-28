@@ -13,7 +13,13 @@ import type { BodyView, SceneState } from './core/sceneState';
 import { AU, DEG, dateFromJulianDay } from './core/units';
 import { SCENARIOS, scenarioById } from './data/scenarios';
 import { EVENT_WINDOW_YEARS, coveredUntil, upcomingEventsInBackground } from './data/events';
-import { GREETING_TIME_SCALE, greetingById, greetingLayout, greetingView } from './data/greetings';
+import {
+  GREETING_TIME_SCALE,
+  greetingAddressJd,
+  greetingById,
+  greetingLayout,
+  greetingView,
+} from './data/greetings';
 import type { EventRow } from './data/events';
 import { kindOf, listOrder } from './data/targets';
 import { AdaptiveExposure } from './lighting/exposure';
@@ -376,12 +382,15 @@ function toggleAimLock(id: string | null): void {
  */
 function readSceneState(): SceneState {
   const state: SceneState = {
-    jd: clock.jd,
+    // Пока открыто поздравление, дата не уходит из суток его раскладки: по
+    // ссылке, снятой после полуночи UT, надпись встаёт туда же, куда смотрит
+    // камера из ссылки.
+    jd: activeGreeting ? greetingAddressJd(activeGreeting.layoutJd, clock.jd) : clock.jd,
     timeScale: clock.timeScale,
     paused: clock.paused,
     language: language(),
   };
-  if (activeGreeting) state.greeting = activeGreeting;
+  if (activeGreeting) state.greeting = activeGreeting.id;
 
   const held = frame.targetId ? findTarget(frame.targetId) : undefined;
 
@@ -475,8 +484,10 @@ function directionFromAngles(azimuth: number, elevation: number, out: Vector3): 
 /**
  * Поздравление на экране: пока плашка открыта, его имя живёт в адресе.
  * Экскурсия и готовые виды его убирают - это зритель взял управление.
+ * Рядом - момент, на который разложена надпись: место считается по его
+ * суткам UT, и дату в адресе держат в этих сутках.
  */
-let activeGreeting: string | null = null;
+let activeGreeting: { id: string; layoutJd: number } | null = null;
 let greetingCard: GreetingCard | null = null;
 
 function dismissGreeting(): void {
@@ -503,7 +514,7 @@ function openGreeting(id: string, fromLink: { view: boolean; timeScale: boolean 
   // Сразу, до первого кадра: иначе линии успели бы мелькнуть во всю яркость,
   // не уравненные экспозицией и не спрятанные в начало проявления.
   inscription.update(0, viewport.camera.position, viewport.exposure);
-  activeGreeting = id;
+  activeGreeting = { id, layoutJd: clock.jd };
   hintElement?.classList.add('hidden');
   greetingCard = new GreetingCard(document.body, greeting, () => {
     activeGreeting = null;

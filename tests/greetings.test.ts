@@ -12,11 +12,14 @@ import {
   GREETINGS,
   GREETING_ID,
   avoidFromEarth,
+  dayStart,
+  greetingAddressJd,
   greetingById,
   greetingLayout,
   greetingView,
   seenFromEarth,
 } from '../src/data/greetings';
+import { isoFromJulianDay, julianDayFromIso } from '../src/core/sceneState';
 import { brightStars } from '../src/data/stars';
 
 const JD = 2461314.5; // 2026-10-01, 0h UT
@@ -101,6 +104,34 @@ describe('поздравления', () => {
         expect(angleBetween(point, moon)).toBeGreaterThan(BODY_CLEARANCE - 0.1 * DEG);
       }
     }
+  });
+
+  it('пишет в адрес дату суток раскладки, даже когда часы ушли за полночь', () => {
+    // Открыто 9 ноября 2026 года в 23:59 UT, ссылку копируют в 00:05 и
+    // через трое суток: по адресу надпись должна встать туда же. 10 ноября
+    // Луна уводит место на 76°, так что промах не спрятать в совпадении.
+    const day = 2461353.5;
+    const opened = day + 1 - 1 / 1440;
+    const greeting = greetingById('primer')!;
+    const shown = greetingLayout(greeting, opened).placement.centre;
+
+    for (const now of [day + 1 + 5 / 1440, day + 4.3, day - 2]) {
+      const written = julianDayFromIso(isoFromJulianDay(greetingAddressJd(opened, now)))!;
+      expect(dayStart(written)).toBe(day);
+      expectSameCentre(greetingLayout(greeting, written).placement.centre, shown);
+    }
+
+    // Без зажима дата нового дня уводит место: проверка выше не пустая.
+    const nextDay = greetingLayout(greeting, day + 1 + 5 / 1440).placement.centre;
+    expect(angleBetween(nextDay, shown)).toBeGreaterThan(DEG);
+  });
+
+  it('внутри суток раскладки пишет в адрес бегущую дату как есть', () => {
+    const opened = JD + 0.2;
+    expect(greetingAddressJd(opened, JD + 0.7)).toBe(JD + 0.7);
+    // Ровно полночь после разбора адреса не проваливается в прошлые сутки.
+    const midnight = julianDayFromIso(isoFromJulianDay(greetingAddressJd(opened, JD)))!;
+    expect(dayStart(midnight)).toBe(JD);
   });
 
   it('ставит камеру у Земли лицом к надписи', () => {
